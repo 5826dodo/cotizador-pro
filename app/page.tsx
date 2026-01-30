@@ -6,10 +6,9 @@ export default function InventarioPage() {
   const [nombre, setNombre] = useState('');
   const [precio, setPrecio] = useState('');
   const [stock, setStock] = useState('');
-  const [productos, setProductos] = useState<any[]>([]); // Estado para la lista
+  const [productos, setProductos] = useState<any[]>([]);
   const [mensaje, setMensaje] = useState('');
 
-  // Función para traer los datos de Supabase
   const obtenerProductos = async () => {
     const { data, error } = await supabase
       .from('productos')
@@ -19,23 +18,47 @@ export default function InventarioPage() {
     if (data) setProductos(data);
   };
 
-  // Ejecutar al cargar la página
   useEffect(() => {
     obtenerProductos();
   }, []);
 
   const guardarProducto = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. Guardar en la base de datos
     const { error } = await supabase
       .from('productos')
       .insert([{ nombre, precio: parseFloat(precio), stock: parseInt(stock) }]);
 
     if (!error) {
-      setMensaje('¡Guardado!');
+      setMensaje('¡Guardado exitosamente!');
+
+      // 2. ENVIAR NOTIFICACIÓN A TELEGRAM 🚀
+      try {
+        const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
+        const chatId = process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID;
+        const texto = `📦 *Nuevo Producto Añadido*\n\n🔹 *Nombre:* ${nombre}\n💰 *Precio:* $${precio}\n🔢 *Stock:* ${stock}`;
+
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: texto,
+            parse_mode: 'Markdown',
+          }),
+        });
+      } catch (err) {
+        console.error('Error enviando a Telegram:', err);
+      }
+
+      // Limpiar campos y refrescar
       setNombre('');
       setPrecio('');
       setStock('');
-      obtenerProductos(); // Recargamos la lista automáticamente
+      obtenerProductos();
+    } else {
+      setMensaje('Error al guardar: ' + error.message);
     }
   };
 
@@ -74,7 +97,9 @@ export default function InventarioPage() {
             </button>
           </form>
           {mensaje && (
-            <p className="mt-2 text-green-600 text-center">{mensaje}</p>
+            <p className="mt-2 text-green-600 text-center font-medium">
+              {mensaje}
+            </p>
           )}
         </div>
 
@@ -87,12 +112,15 @@ export default function InventarioPage() {
                 <tr className="border-b">
                   <th className="py-2">Nombre</th>
                   <th className="py-2">Precio</th>
-                  <th className="py-2">Stock</th>
+                  <th className="py-2 text-center">Stock</th>
                 </tr>
               </thead>
               <tbody>
                 {productos.map((prod) => (
-                  <tr key={prod.id} className="border-b hover:bg-gray-50">
+                  <tr
+                    key={prod.id}
+                    className="border-b hover:bg-gray-50 text-sm"
+                  >
                     <td className="py-2">{prod.nombre}</td>
                     <td className="py-2">${prod.precio}</td>
                     <td className="py-2 text-center">{prod.stock}</td>
