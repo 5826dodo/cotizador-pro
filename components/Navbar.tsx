@@ -8,7 +8,7 @@ export default function Navbar() {
   const links = [
     { name: '📦 Inventario', href: '/' },
     { name: '👥 Clientes', href: '/clientes' },
-    { name: '📝 Cotizar', href: '#' }, // Próximamente
+    { name: '📝 Cotizar', href: '/cotizar' },
   ];
 
   return (
