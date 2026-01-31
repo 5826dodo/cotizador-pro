@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function CotizarPage() {
@@ -61,7 +61,7 @@ export default function CotizarPage() {
   };
 
   const descargarPDF = (cliente: any, items: any[], total: number) => {
-    const doc = jsPDF();
+    const doc = new jsPDF();
     doc.setFontSize(20);
     doc.text('COTIZACIÓN COMERCIAL', 105, 20, { align: 'center' });
 
