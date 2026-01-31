@@ -3,11 +3,20 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Trash2, Plus, Minus, FileText } from 'lucide-react';
+import {
+  Trash2,
+  Plus,
+  Minus,
+  FileText,
+  Search,
+  DollarSign,
+  hashicon,
+} from 'lucide-react';
 
 export default function CotizarPage() {
   const [clientes, setClientes] = useState<any[]>([]);
   const [productosInventario, setProductosInventario] = useState<any[]>([]);
+  const [busqueda, setBusqueda] = useState(''); // Estado para la barra de búsqueda
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any>(null);
   const [carrito, setCarrito] = useState<any[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -18,7 +27,6 @@ export default function CotizarPage() {
         .from('clientes')
         .select('*')
         .order('nombre');
-      // FILTRO: Solo traer productos cuyo stock sea mayor a 0
       const { data: p } = await supabase
         .from('productos')
         .select('*')
@@ -29,6 +37,11 @@ export default function CotizarPage() {
     };
     cargarDatos();
   }, []);
+
+  // Filtrado de productos en tiempo real
+  const productosFiltrados = productosInventario.filter((p) =>
+    p.nombre.toLowerCase().includes(busqueda.toLowerCase()),
+  );
 
   const agregarAlCarrito = (prod: any) => {
     const existe = carrito.find((item) => item.id === prod.id);
@@ -41,15 +54,35 @@ export default function CotizarPage() {
               : item,
           ),
         );
-      } else {
-        alert('Límite de stock alcanzado para este producto');
       }
     } else {
       setCarrito([...carrito, { ...prod, cantidad: 1 }]);
     }
   };
 
-  const ajustarCantidad = (id: string, delta: number) => {
+  // Función para actualizar PRECIO o CANTIDAD manualmente
+  const actualizarItem = (
+    id: string,
+    campo: 'precio' | 'cantidad',
+    valor: string,
+  ) => {
+    const numValor = parseFloat(valor) || 0;
+    setCarrito(
+      carrito.map((item) => {
+        if (item.id === id) {
+          if (campo === 'cantidad') {
+            // No permitir que la cantidad escrita supere el stock real
+            const cantFinal = numValor > item.stock ? item.stock : numValor;
+            return { ...item, cantidad: cantFinal };
+          }
+          return { ...item, [campo]: numValor };
+        }
+        return item;
+      }),
+    );
+  };
+
+  const ajustarCantidadBotones = (id: string, delta: number) => {
     setCarrito(
       carrito.map((item) => {
         if (item.id === id) {
@@ -74,10 +107,9 @@ export default function CotizarPage() {
     const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
     const chatId = process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID;
     const listaProd = items
-      .map((i) => `- ${i.nombre} (x${i.cantidad}) - $${i.precio * i.cantidad}`)
+      .map((i) => `- ${i.nombre} (x${i.cantidad})`)
       .join('\n');
-    const texto = `📄 *Nueva Cotización Generada*\n\n👤 *Cliente:* ${cliente.nombre}\n🏢 *Empresa:* ${cliente.empresa || 'N/A'}\n\n📦 *Productos:*\n${listaProd}\n\n💰 *Total:* $${total.toLocaleString()}\n\n✅ _Stock actualizado automáticamente_`;
-
+    const texto = `📄 *Nueva Cotización*\n👤 *Cliente:* ${cliente.nombre}\n💰 *Total:* $${total.toLocaleString()}\n\n*Items:*\n${listaProd}`;
     try {
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
@@ -89,7 +121,7 @@ export default function CotizarPage() {
         }),
       });
     } catch (e) {
-      console.error('Error Telegram:', e);
+      console.error(e);
     }
   };
 
@@ -98,14 +130,14 @@ export default function CotizarPage() {
       const doc = new jsPDF();
       doc.setFontSize(20);
       doc.text('COTIZACIÓN COMERCIAL', 105, 20, { align: 'center' });
-
-      doc.setFontSize(12);
-      doc.text(`Cliente: ${cliente.nombre}`, 14, 40);
-      doc.text(`Empresa: ${cliente.empresa || 'Particular'}`, 14, 47);
-      doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 54);
-
+      doc.setFontSize(10);
+      doc.text(
+        `Cliente: ${cliente.nombre} | Fecha: ${new Date().toLocaleDateString()}`,
+        14,
+        35,
+      );
       autoTable(doc, {
-        startY: 65,
+        startY: 45,
         head: [['Producto', 'Precio Unit.', 'Cant.', 'Subtotal']],
         body: items.map((i) => [
           i.nombre,
@@ -117,13 +149,9 @@ export default function CotizarPage() {
         theme: 'striped',
         headStyles: { fillColor: [37, 99, 235] },
       });
-
-      doc.save(`Cotizacion_${cliente.nombre.replace(/\s+/g, '_')}.pdf`);
+      doc.save(`Cotizacion_${cliente.nombre}.pdf`);
     } catch (err) {
-      console.error('Error al generar PDF:', err);
-      alert(
-        'No se pudo descargar el PDF automáticamente. Revisa los permisos de descarga.',
-      );
+      alert('Error al descargar PDF');
     }
   };
 
@@ -131,18 +159,20 @@ export default function CotizarPage() {
     if (!clienteSeleccionado || carrito.length === 0)
       return alert('Faltan datos');
     setCargando(true);
-
     try {
-      // 1. Restar Stock
       for (const item of carrito) {
-        const nuevoStock = item.stock - item.cantidad;
+        // Obtenemos el stock más actual antes de restar
+        const { data: prodActual } = await supabase
+          .from('productos')
+          .select('stock')
+          .eq('id', item.id)
+          .single();
+        const nuevoStock = (prodActual?.stock || 0) - item.cantidad;
         await supabase
           .from('productos')
           .update({ stock: nuevoStock })
           .eq('id', item.id);
       }
-
-      // 2. Guardar registro
       const total = calcularTotal();
       await supabase.from('cotizaciones').insert([
         {
@@ -152,24 +182,18 @@ export default function CotizarPage() {
           estado: 'aprobado',
         },
       ]);
-
-      // 3. Notificar y Descargar
       await enviarTelegram(clienteSeleccionado, total, carrito);
       descargarPDF(clienteSeleccionado, carrito, total);
-
-      alert('¡Cotización exitosa! Stock restado y mensaje enviado.');
+      alert('Proceso completado con éxito');
       setCarrito([]);
       setClienteSeleccionado(null);
-
-      // Recargar inventario filtrado
       const { data: p } = await supabase
         .from('productos')
         .select('*')
         .gt('stock', 0);
       if (p) setProductosInventario(p);
     } catch (error) {
-      console.error(error);
-      alert('Error al procesar la operación');
+      alert('Error en el servidor');
     } finally {
       setCargando(false);
     }
@@ -177,12 +201,12 @@ export default function CotizarPage() {
 
   return (
     <main className="min-h-screen bg-slate-50 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-8">
-        {/* IZQUIERDA: SELECCIÓN */}
+      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
+        {/* IZQUIERDA: CATÁLOGO Y CLIENTE */}
         <div className="flex-1 space-y-6">
           <section className="bg-white p-6 rounded-3xl shadow-sm border">
             <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-              <FileText className="text-blue-600" /> 1. Cliente
+              <FileText className="text-blue-600" /> 1. Datos del Cliente
             </h2>
             <select
               className="w-full p-4 bg-slate-50 rounded-2xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
@@ -203,25 +227,41 @@ export default function CotizarPage() {
           </section>
 
           <section className="bg-white p-6 rounded-3xl shadow-sm border">
-            <h2 className="text-xl font-bold mb-4">2. Productos disponibles</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {productosInventario.map((p) => (
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+              <h2 className="text-xl font-bold">2. Productos disponibles</h2>
+              <div className="relative w-full md:w-64">
+                <Search
+                  className="absolute left-3 top-3 text-slate-400"
+                  size={18}
+                />
+                <input
+                  type="text"
+                  placeholder="Buscar producto..."
+                  className="w-full pl-10 pr-4 py-2 bg-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 h-[500px] overflow-y-auto pr-2">
+              {productosFiltrados.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => agregarAlCarrito(p)}
                   className="p-4 rounded-2xl border bg-white hover:border-blue-400 hover:shadow-md text-left transition-all group"
                 >
-                  <p className="font-bold group-hover:text-blue-600 transition-colors">
+                  <p className="font-bold text-slate-700 group-hover:text-blue-600">
                     {p.nombre}
                   </p>
-                  <div className="flex justify-between mt-1 items-center">
+                  <div className="flex justify-between mt-2 items-center">
                     <span className="text-blue-600 font-black">
                       ${p.precio}
                     </span>
                     <span
-                      className={`text-xs px-2 py-1 rounded-lg ${p.stock < 5 ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'}`}
+                      className={`text-[10px] px-2 py-1 rounded-lg font-bold ${p.stock < 5 ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'}`}
                     >
-                      Stock: {p.stock}
+                      STOCK: {p.stock}
                     </span>
                   </div>
                 </button>
@@ -230,57 +270,96 @@ export default function CotizarPage() {
           </section>
         </div>
 
-        {/* DERECHA: CARRITO */}
-        <div className="w-full lg:w-96">
+        {/* DERECHA: RESUMEN EDITABLE */}
+        <div className="w-full lg:w-[450px]">
           <div className="bg-white p-6 rounded-3xl shadow-xl border border-blue-50 sticky top-24">
-            <h2 className="text-xl font-bold mb-6 border-b pb-4">Resumen</h2>
+            <h2 className="text-xl font-bold mb-6 border-b pb-4 text-slate-800">
+              Detalle de Cotización
+            </h2>
 
-            <div className="space-y-4 max-h-[400px] overflow-y-auto mb-6 pr-2">
+            <div className="space-y-4 max-h-[480px] overflow-y-auto mb-6 pr-2">
               {carrito.map((item) => (
                 <div
                   key={item.id}
-                  className="bg-slate-50 p-4 rounded-2xl space-y-3 shadow-sm"
+                  className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4 relative"
                 >
                   <div className="flex justify-between items-start">
-                    <span className="text-sm font-bold text-slate-700">
+                    <span className="text-sm font-bold text-slate-700 pr-6">
                       {item.nombre}
                     </span>
                     <button
                       onClick={() => eliminarDelCarrito(item.id)}
-                      className="text-red-400 hover:text-red-600 transition-colors"
+                      className="text-red-300 hover:text-red-500 transition-colors"
                     >
                       <Trash2 size={18} />
                     </button>
                   </div>
 
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3 bg-white rounded-xl border p-1 shadow-inner">
-                      <button
-                        onClick={() => ajustarCantidad(item.id, -1)}
-                        className="p-1 hover:bg-slate-100 rounded-lg text-blue-600"
-                      >
-                        <Minus size={16} />
-                      </button>
-                      <span className="font-black text-sm w-4 text-center">
-                        {item.cantidad}
-                      </span>
-                      <button
-                        onClick={() => ajustarCantidad(item.id, 1)}
-                        className="p-1 hover:bg-slate-100 rounded-lg text-blue-600"
-                      >
-                        <Plus size={16} />
-                      </button>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Input Cantidad con botones laterales opcionales */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase">
+                        Cantidad
+                      </label>
+                      <div className="flex items-center bg-white rounded-xl border border-slate-200 p-1">
+                        <button
+                          onClick={() => ajustarCantidadBotones(item.id, -1)}
+                          className="p-1 text-blue-600"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <input
+                          type="number"
+                          value={item.cantidad}
+                          onChange={(e) =>
+                            actualizarItem(item.id, 'cantidad', e.target.value)
+                          }
+                          className="w-full text-center text-sm font-bold outline-none bg-transparent"
+                        />
+                        <button
+                          onClick={() => ajustarCantidadBotones(item.id, 1)}
+                          className="p-1 text-blue-600"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <span className="font-black text-blue-600 text-lg">
+
+                    {/* Input Precio Editable */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase">
+                        Precio Unit. ($)
+                      </label>
+                      <div className="relative">
+                        <DollarSign
+                          className="absolute left-2 top-2.5 text-slate-400"
+                          size={14}
+                        />
+                        <input
+                          type="number"
+                          value={item.precio}
+                          onChange={(e) =>
+                            actualizarItem(item.id, 'precio', e.target.value)
+                          }
+                          className="w-full pl-7 pr-2 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-blue-600 outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right text-xs font-bold text-slate-400 pt-2 border-t">
+                    Subtotal:{' '}
+                    <span className="text-slate-800 text-sm">
                       ${(item.precio * item.cantidad).toLocaleString()}
                     </span>
                   </div>
                 </div>
               ))}
               {carrito.length === 0 && (
-                <div className="text-center py-10">
-                  <p className="text-slate-400 italic text-sm">
-                    No has agregado productos
+                <div className="text-center py-16 opacity-40">
+                  <FileText className="mx-auto mb-2" size={40} />
+                  <p className="text-sm italic">
+                    Agregue productos del catálogo
                   </p>
                 </div>
               )}
@@ -288,8 +367,8 @@ export default function CotizarPage() {
 
             <div className="pt-4 border-t">
               <div className="flex justify-between items-center mb-6">
-                <span className="font-medium text-slate-500 uppercase text-xs tracking-widest">
-                  Total a pagar
+                <span className="font-bold text-slate-500 uppercase text-xs">
+                  Total Final
                 </span>
                 <span className="text-3xl font-black text-blue-700">
                   ${calcularTotal().toLocaleString()}
@@ -301,9 +380,9 @@ export default function CotizarPage() {
                 disabled={
                   cargando || carrito.length === 0 || !clienteSeleccionado
                 }
-                className="w-full py-4 rounded-2xl font-black text-white bg-blue-600 shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all disabled:bg-slate-300 disabled:shadow-none"
+                className="w-full py-4 rounded-2xl font-black text-white bg-blue-600 shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all disabled:bg-slate-300"
               >
-                {cargando ? 'PROCESANDO...' : 'APROBAR Y GENERAR'}
+                {cargando ? 'REGISTRANDO...' : 'APROBAR Y GENERAR PDF'}
               </button>
             </div>
           </div>
