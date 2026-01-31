@@ -10,7 +10,6 @@ import {
   FileText,
   Search,
   DollarSign,
-  hashicon,
 } from 'lucide-react';
 
 export default function CotizarPage() {
