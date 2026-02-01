@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { enviarNotificacionTelegram } from '../../lib/telegram'; // Ajusta la ruta según tu carpeta
 import {
   FileText,
   Calendar,
@@ -64,6 +65,17 @@ export default function HistorialPage() {
         .update({ estado: 'aprobado' })
         .eq('id', cot.id);
 
+      // Dentro de aprobarCotizacion en app/historial/page.tsx
+      // ... después del await de supabase.update ...
+
+      const mensaje =
+        `✅ *VENTA APROBADA*\n\n` +
+        `👤 *Cliente:* ${cot.clientes?.nombre}\n` +
+        `💰 *Monto:* $${cot.total.toLocaleString()}\n` +
+        `📦 *Estado:* Stock descontado correctamente.`;
+
+      await enviarNotificacionTelegram(mensaje);
+
       alert('Venta procesada con éxito.');
       setCotizacionSeleccionada(null);
       cargarHistorial(); // Refrescar lista principal
@@ -81,6 +93,22 @@ export default function HistorialPage() {
     return nombre.includes(term) || empresa.includes(term);
   });
 
+  // Agrega esto antes del return de tu HistorialPage
+  const ventasAprobadas = cotizaciones.filter((c) => c.estado === 'aprobado');
+
+  const totalMes = ventasAprobadas
+    .filter((c) => new Date(c.created_at).getMonth() === new Date().getMonth())
+    .reduce((acc, curr) => acc + curr.total, 0);
+
+  const totalSemana = ventasAprobadas
+    .filter((c) => {
+      const fecha = new Date(c.created_at);
+      const hoy = new Date();
+      const sieteDiasSemanas = new Date(hoy.setDate(hoy.getDate() - 7));
+      return fecha >= sieteDiasSemanas;
+    })
+    .reduce((acc, curr) => acc + curr.total, 0);
+
   return (
     <main className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
@@ -88,6 +116,24 @@ export default function HistorialPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
           <div>
             <h1 className="text-3xl font-black text-slate-800">Historial</h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              <div className="bg-blue-600 p-6 rounded-[2rem] text-white shadow-lg shadow-blue-200">
+                <p className="text-xs font-bold opacity-80 uppercase tracking-widest">
+                  Ventas de la Semana
+                </p>
+                <h2 className="text-3xl font-black">
+                  ${totalSemana.toLocaleString()}
+                </h2>
+              </div>
+              <div className="bg-slate-900 p-6 rounded-[2rem] text-white shadow-lg shadow-slate-200">
+                <p className="text-xs font-bold opacity-80 uppercase tracking-widest">
+                  Total del Mes
+                </p>
+                <h2 className="text-3xl font-black">
+                  ${totalMes.toLocaleString()}
+                </h2>
+              </div>
+            </div>
             <p className="text-slate-500">Consulta y detalle de operaciones</p>
           </div>
           <div className="relative w-full md:w-80">
