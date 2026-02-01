@@ -154,6 +154,25 @@ export default function HistorialPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
           <div>
             <h1 className="text-3xl font-black text-slate-800">Historial</h1>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              <div className="bg-blue-600 p-6 rounded-[2rem] text-white shadow-lg shadow-blue-200">
+                <p className="text-xs font-bold opacity-80 uppercase tracking-widest">
+                  Ventas de la Semana
+                </p>
+                <h2 className="text-3xl font-black">
+                  ${totalSemana.toLocaleString()}
+                </h2>
+              </div>
+              <div className="bg-slate-900 p-6 rounded-[2rem] text-white shadow-lg shadow-slate-200">
+                <p className="text-xs font-bold opacity-80 uppercase tracking-widest">
+                  Total del Mes
+                </p>
+                <h2 className="text-3xl font-black">
+                  ${totalMes.toLocaleString()}
+                </h2>
+              </div>
+            </div>
             {/* ESTADÍSTICAS Y BOTÓN DE REPORTE */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
@@ -192,24 +211,6 @@ export default function HistorialPage() {
                   ENVIAR REPORTE A TELEGRAM
                 </span>
               </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-              <div className="bg-blue-600 p-6 rounded-[2rem] text-white shadow-lg shadow-blue-200">
-                <p className="text-xs font-bold opacity-80 uppercase tracking-widest">
-                  Ventas de la Semana
-                </p>
-                <h2 className="text-3xl font-black">
-                  ${totalSemana.toLocaleString()}
-                </h2>
-              </div>
-              <div className="bg-slate-900 p-6 rounded-[2rem] text-white shadow-lg shadow-slate-200">
-                <p className="text-xs font-bold opacity-80 uppercase tracking-widest">
-                  Total del Mes
-                </p>
-                <h2 className="text-3xl font-black">
-                  ${totalMes.toLocaleString()}
-                </h2>
-              </div>
             </div>
             <p className="text-slate-500">Consulta y detalle de operaciones</p>
           </div>
