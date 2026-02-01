@@ -4,33 +4,75 @@ import { supabase } from '../../lib/supabase';
 import {
   FileText,
   Calendar,
-  User,
-  Search,
-  Eye,
   X,
-  Package,
-  DollarSign,
+  Eye,
+  Search,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 
 export default function HistorialPage() {
   const [cotizaciones, setCotizaciones] = useState<any[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [cargando, setCargando] = useState(true);
+  const [procesandoAccion, setProcesandoAccion] = useState(false); // Nuevo estado para el botón
   const [cotizacionSeleccionada, setCotizacionSeleccionada] =
     useState<any>(null);
 
-  useEffect(() => {
-    const cargarHistorial = async () => {
-      const { data } = await supabase
-        .from('cotizaciones')
-        .select(`*, clientes ( nombre, empresa )`)
-        .order('created_at', { ascending: false });
+  const cargarHistorial = async () => {
+    const { data } = await supabase
+      .from('cotizaciones')
+      .select(`*, clientes ( nombre, empresa )`)
+      .order('created_at', { ascending: false });
 
-      if (data) setCotizaciones(data);
-      setCargando(false);
-    };
+    if (data) setCotizaciones(data);
+    setCargando(false);
+  };
+
+  useEffect(() => {
     cargarHistorial();
   }, []);
+
+  // --- LÓGICA DE APROBACIÓN ---
+  const aprobarCotizacion = async (cot: any) => {
+    const confirmar = confirm(
+      '¿Confirmar venta? Se descontará el stock de los productos.',
+    );
+    if (!confirmar) return;
+
+    setProcesandoAccion(true);
+    try {
+      // 1. Descontar Stock
+      for (const item of cot.productos_seleccionados) {
+        const { data: prod } = await supabase
+          .from('productos')
+          .select('stock')
+          .eq('id', item.id)
+          .single();
+
+        const stockActual = prod?.stock || 0;
+        await supabase
+          .from('productos')
+          .update({ stock: stockActual - item.cantidad })
+          .eq('id', item.id);
+      }
+
+      // 2. Cambiar estado
+      await supabase
+        .from('cotizaciones')
+        .update({ estado: 'aprobado' })
+        .eq('id', cot.id);
+
+      alert('Venta procesada con éxito.');
+      setCotizacionSeleccionada(null);
+      cargarHistorial(); // Refrescar lista principal
+    } catch (e) {
+      alert('Error al procesar la venta');
+    } finally {
+      setProcesandoAccion(false);
+    }
+  };
 
   const historialFiltrado = cotizaciones.filter((cot) => {
     const term = busqueda.toLowerCase();
@@ -48,7 +90,6 @@ export default function HistorialPage() {
             <h1 className="text-3xl font-black text-slate-800">Historial</h1>
             <p className="text-slate-500">Consulta y detalle de operaciones</p>
           </div>
-
           <div className="relative w-full md:w-80">
             <Search
               className="absolute left-3 top-3.5 text-slate-400"
@@ -72,17 +113,26 @@ export default function HistorialPage() {
               className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4"
             >
               <div className="flex items-center gap-5 w-full md:w-auto">
-                <div className="bg-blue-50 p-4 rounded-2xl text-blue-600">
+                <div
+                  className={`p-4 rounded-2xl ${cot.estado === 'pendiente' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'}`}
+                >
                   <FileText size={24} />
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-800">
                     {cot.clientes?.nombre}
                   </h3>
-                  <p className="text-xs text-slate-400 flex items-center gap-1">
-                    <Calendar size={12} />{' '}
-                    {new Date(cot.created_at).toLocaleDateString()}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-slate-400 flex items-center gap-1">
+                      <Calendar size={12} />{' '}
+                      {new Date(cot.created_at).toLocaleDateString()}
+                    </p>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${cot.estado === 'pendiente' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}
+                    >
+                      {cot.estado}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -127,7 +177,7 @@ export default function HistorialPage() {
                 </button>
               </div>
 
-              <div className="p-6 max-h-[60vh] overflow-y-auto">
+              <div className="p-6 max-h-[50vh] overflow-y-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b">
@@ -160,20 +210,42 @@ export default function HistorialPage() {
                 </table>
               </div>
 
-              <div className="p-8 bg-blue-600 text-white flex justify-between items-center">
+              {/* FOOTER DEL MODAL CON ACCIÓN */}
+              <div
+                className={`p-8 flex justify-between items-center ${cotizacionSeleccionada.estado === 'pendiente' ? 'bg-slate-900' : 'bg-blue-600'} text-white`}
+              >
                 <div>
                   <p className="text-[10px] font-bold uppercase opacity-80 tracking-widest">
-                    Total Facturado
+                    Total Cotizado
                   </p>
                   <p className="text-3xl font-black">
                     ${cotizacionSeleccionada.total.toLocaleString()}
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs opacity-80 italic">
-                    Estado: {cotizacionSeleccionada.estado.toUpperCase()}
-                  </p>
-                </div>
+
+                {cotizacionSeleccionada.estado === 'pendiente' ? (
+                  <button
+                    onClick={() => aprobarCotizacion(cotizacionSeleccionada)}
+                    disabled={procesandoAccion}
+                    className="bg-green-500 hover:bg-green-400 text-white px-8 py-3 rounded-2xl font-black flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {procesandoAccion ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <CheckCircle2 size={20} />
+                    )}
+                    APROBAR VENTA
+                  </button>
+                ) : (
+                  <div className="text-right">
+                    <p className="text-xs opacity-80 italic">
+                      Esta cotización ya fue procesada
+                    </p>
+                    <p className="font-bold flex items-center gap-1 justify-end">
+                      <CheckCircle2 size={16} /> VENTA COMPLETADA
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
