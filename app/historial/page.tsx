@@ -65,14 +65,24 @@ export default function HistorialPage() {
         .update({ estado: 'aprobado' })
         .eq('id', cot.id);
 
-      // Dentro de aprobarCotizacion en app/historial/page.tsx
-      // ... después del await de supabase.update ...
+      // CONSTRUIR LISTA DE PRODUCTOS PARA TELEGRAM
+      const listaProductos = cot.productos_seleccionados
+        .map(
+          (item: any) =>
+            `• ${item.cantidad}x ${item.nombre} — *$${(item.precio * item.cantidad).toLocaleString()}*`,
+        )
+        .join('\n');
 
       const mensaje =
-        `✅ *VENTA APROBADA*\n\n` +
+        `✅ *VENTA APROBADA*\n` +
+        `--------------------------\n` +
         `👤 *Cliente:* ${cot.clientes?.nombre}\n` +
-        `💰 *Monto:* $${cot.total.toLocaleString()}\n` +
-        `📦 *Estado:* Stock descontado correctamente.`;
+        `🏢 *Empresa:* ${cot.clientes?.empresa || 'N/A'}\n` +
+        `--------------------------\n` +
+        `📦 *Detalle:* \n${listaProductos}\n` +
+        `--------------------------\n` +
+        `💰 *TOTAL FACTURADO:* *$${cot.total.toLocaleString()}*\n` +
+        `✅ _Stock actualizado en sistema_`;
 
       await enviarNotificacionTelegram(mensaje);
 
