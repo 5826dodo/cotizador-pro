@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { enviarNotificacionTelegram } from '../../lib/telegram'; // Ajusta la ruta según tu carpeta
+import { enviarNotificacionTelegram } from '../../lib/telegram';
 import {
   FileText,
   Calendar,
@@ -11,13 +11,15 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  TrendingUp,
+  ArrowRight,
 } from 'lucide-react';
 
 export default function HistorialPage() {
   const [cotizaciones, setCotizaciones] = useState<any[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [cargando, setCargando] = useState(true);
-  const [procesandoAccion, setProcesandoAccion] = useState(false); // Nuevo estado para el botón
+  const [procesandoAccion, setProcesandoAccion] = useState(false);
   const [cotizacionSeleccionada, setCotizacionSeleccionada] =
     useState<any>(null);
 
@@ -31,39 +33,52 @@ export default function HistorialPage() {
     setCargando(false);
   };
 
+  useEffect(() => {
+    cargarHistorial();
+  }, []);
+
+  // --- LÓGICA DE CÁLCULOS PARA DASHBOARD ---
+  const ventasAprobadas = cotizaciones.filter((c) => c.estado === 'aprobado');
+
+  const totalMes = ventasAprobadas
+    .filter((c) => new Date(c.created_at).getMonth() === new Date().getMonth())
+    .reduce((acc, curr) => acc + curr.total, 0);
+
+  const totalSemana = ventasAprobadas
+    .filter((c) => {
+      const fecha = new Date(c.created_at);
+      const hoy = new Date();
+      const hace7Dias = new Date(hoy.setDate(hoy.getDate() - 7));
+      return fecha >= hace7Dias;
+    })
+    .reduce((acc, curr) => acc + curr.total, 0);
+
+  // Simulación de meta semanal para el mini-chart (ajustar según necesidad)
+  const metaSemanal = 5000;
+  const porcentajeSemana = Math.min((totalSemana / metaSemanal) * 100, 100);
+
+  // --- ACCIONES ---
   const enviarReporteMensual = async () => {
-    const ventasAprobadas = cotizaciones.filter((c) => c.estado === 'aprobado');
-
-    // Filtrar solo las del mes actual
-    const mesActual = new Date().getMonth();
-    const ventasMes = ventasAprobadas.filter(
-      (c) => new Date(c.created_at).getMonth() === mesActual,
+    const mesNombre = new Date()
+      .toLocaleString('es-ES', { month: 'long' })
+      .toUpperCase();
+    const ventasMesActual = ventasAprobadas.filter(
+      (c) => new Date(c.created_at).getMonth() === new Date().getMonth(),
     );
-
-    const ingresosTotales = ventasMes.reduce(
-      (acc, curr) => acc + curr.total,
-      0,
-    );
-    const totalOperaciones = ventasMes.length;
 
     const mensajeReporte =
       `📊 *REPORTE DE VENTAS MENSUAL*\n` +
-      `📅 *Mes:* ${new Date().toLocaleString('es-ES', { month: 'long' }).toUpperCase()}\n` +
+      `📅 *Mes:* ${mesNombre}\n` +
       `--------------------------\n` +
-      `💰 *Ingresos Totales:* *$${ingresosTotales.toLocaleString()}*\n` +
-      `📝 *Ventas Cerradas:* ${totalOperaciones}\n` +
+      `💰 *Ingresos Totales:* *$${totalMes.toLocaleString()}*\n` +
+      `📝 *Ventas Cerradas:* ${ventasMesActual.length}\n` +
       `--------------------------\n` +
-      `🚀 _Reporte generado desde el Panel Administrativo_`;
+      `🚀 _Generado desde el Panel Administrativo_`;
 
     await enviarNotificacionTelegram(mensajeReporte);
     alert('Reporte enviado a Telegram con éxito');
   };
 
-  useEffect(() => {
-    cargarHistorial();
-  }, []);
-
-  // --- LÓGICA DE APROBACIÓN ---
   const aprobarCotizacion = async (cot: any) => {
     const confirmar = confirm(
       '¿Confirmar venta? Se descontará el stock de los productos.',
@@ -79,11 +94,9 @@ export default function HistorialPage() {
           .select('stock')
           .eq('id', item.id)
           .single();
-
-        const stockActual = prod?.stock || 0;
         await supabase
           .from('productos')
-          .update({ stock: stockActual - item.cantidad })
+          .update({ stock: (prod?.stock || 0) - item.cantidad })
           .eq('id', item.id);
       }
 
@@ -93,7 +106,7 @@ export default function HistorialPage() {
         .update({ estado: 'aprobado' })
         .eq('id', cot.id);
 
-      // CONSTRUIR LISTA DE PRODUCTOS PARA TELEGRAM
+      // 3. Notificación detallada a Telegram
       const listaProductos = cot.productos_seleccionados
         .map(
           (item: any) =>
@@ -109,14 +122,12 @@ export default function HistorialPage() {
         `--------------------------\n` +
         `📦 *Detalle:* \n${listaProductos}\n` +
         `--------------------------\n` +
-        `💰 *TOTAL FACTURADO:* *$${cot.total.toLocaleString()}*\n` +
-        `✅ _Stock actualizado en sistema_`;
+        `💰 *TOTAL:* *$${cot.total.toLocaleString()}*`;
 
       await enviarNotificacionTelegram(mensaje);
-
       alert('Venta procesada con éxito.');
       setCotizacionSeleccionada(null);
-      cargarHistorial(); // Refrescar lista principal
+      cargarHistorial();
     } catch (e) {
       alert('Error al procesar la venta');
     } finally {
@@ -126,115 +137,129 @@ export default function HistorialPage() {
 
   const historialFiltrado = cotizaciones.filter((cot) => {
     const term = busqueda.toLowerCase();
-    const nombre = cot.clientes?.nombre?.toLowerCase() || '';
-    const empresa = cot.clientes?.empresa?.toLowerCase() || '';
-    return nombre.includes(term) || empresa.includes(term);
+    return (
+      cot.clientes?.nombre?.toLowerCase().includes(term) ||
+      cot.clientes?.empresa?.toLowerCase().includes(term)
+    );
   });
-
-  // Agrega esto antes del return de tu HistorialPage
-  const ventasAprobadas = cotizaciones.filter((c) => c.estado === 'aprobado');
-
-  const totalMes = ventasAprobadas
-    .filter((c) => new Date(c.created_at).getMonth() === new Date().getMonth())
-    .reduce((acc, curr) => acc + curr.total, 0);
-
-  const totalSemana = ventasAprobadas
-    .filter((c) => {
-      const fecha = new Date(c.created_at);
-      const hoy = new Date();
-      const sieteDiasSemanas = new Date(hoy.setDate(hoy.getDate() - 7));
-      return fecha >= sieteDiasSemanas;
-    })
-    .reduce((acc, curr) => acc + curr.total, 0);
 
   return (
     <main className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
-        {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
-          <div>
-            <h1 className="text-3xl font-black text-slate-800">Historial</h1>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-              <div className="bg-blue-600 p-6 rounded-[2rem] text-white shadow-lg shadow-blue-200">
-                <p className="text-xs font-bold opacity-80 uppercase tracking-widest">
-                  Ventas de la Semana
-                </p>
-                <h2 className="text-3xl font-black">
-                  ${totalSemana.toLocaleString()}
-                </h2>
-              </div>
-              <div className="bg-slate-900 p-6 rounded-[2rem] text-white shadow-lg shadow-slate-200">
-                <p className="text-xs font-bold opacity-80 uppercase tracking-widest">
-                  Total del Mes
-                </p>
-                <h2 className="text-3xl font-black">
-                  ${totalMes.toLocaleString()}
-                </h2>
-              </div>
+        {/* DASHBOARD TOP SECTION */}
+        <section className="mb-10">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+            <div>
+              <h1 className="text-4xl font-black text-slate-800 tracking-tight">
+                Historial
+              </h1>
+              <p className="text-slate-500 font-medium">
+                Control de ingresos y cotizaciones
+              </p>
             </div>
-            {/* ESTADÍSTICAS Y BOTÓN DE REPORTE */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  Ventas Aprobadas
-                </p>
-                <p className="text-2xl font-black text-slate-800">
-                  {cotizaciones.filter((c) => c.estado === 'aprobado').length}
-                </p>
-              </div>
 
-              <div className="bg-blue-600 p-6 rounded-[2rem] text-white shadow-lg shadow-blue-200">
-                <p className="text-[10px] font-black opacity-70 uppercase tracking-widest">
-                  Ingresos del Mes
-                </p>
-                <p className="text-2xl font-black">
-                  $
-                  {cotizaciones
-                    .filter(
-                      (c) =>
-                        c.estado === 'aprobado' &&
-                        new Date(c.created_at).getMonth() ===
-                          new Date().getMonth(),
-                    )
-                    .reduce((acc, curr) => acc + curr.total, 0)
-                    .toLocaleString()}
-                </p>
-              </div>
+            <div className="relative w-full md:w-80">
+              <Search
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                size={20}
+              />
+              <input
+                type="text"
+                placeholder="Buscar cliente o empresa..."
+                className="w-full pl-12 pr-4 py-4 bg-white rounded-[1.5rem] border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm transition-all"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+              />
+            </div>
+          </div>
 
-              <button
-                onClick={enviarReporteMensual}
-                className="bg-slate-900 hover:bg-black text-white p-6 rounded-[2rem] flex flex-col items-center justify-center transition-all active:scale-95 gap-1"
-              >
-                <FileText size={20} className="text-blue-400" />
-                <span className="font-bold text-sm">
-                  ENVIAR REPORTE A TELEGRAM
+          {/* CARDS RESPONSIVAS (Grid de 2x2 en móvil, 4x1 en PC) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm col-span-2 lg:col-span-1">
+              <div className="flex items-center gap-2 mb-4 text-blue-600">
+                <TrendingUp size={18} />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Esta Semana
                 </span>
-              </button>
+              </div>
+              <h3 className="text-2xl font-black text-slate-800">
+                ${totalSemana.toLocaleString()}
+              </h3>
+              <div className="mt-3 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-blue-600 h-full rounded-full transition-all duration-1000"
+                  style={{ width: `${porcentajeSemana}%` }}
+                ></div>
+              </div>
             </div>
-            <p className="text-slate-500">Consulta y detalle de operaciones</p>
-          </div>
-          <div className="relative w-full md:w-80">
-            <Search
-              className="absolute left-3 top-3.5 text-slate-400"
-              size={20}
-            />
-            <input
-              type="text"
-              placeholder="Buscar cliente..."
-              className="w-full pl-11 pr-4 py-3 bg-white rounded-2xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-            />
-          </div>
-        </div>
 
-        {/* LISTADO */}
+            <div className="bg-blue-600 p-6 rounded-[2.5rem] shadow-xl shadow-blue-200 col-span-2 lg:col-span-1 text-white relative overflow-hidden group">
+              <div className="relative z-10">
+                <span className="text-[10px] font-black uppercase tracking-widest opacity-80">
+                  Total del Mes
+                </span>
+                <h3 className="text-2xl font-black mt-1">
+                  ${totalMes.toLocaleString()}
+                </h3>
+                <div className="flex items-center gap-1 mt-2 text-[10px] font-bold bg-white/20 w-fit px-2 py-1 rounded-lg">
+                  <CheckCircle2 size={12} />{' '}
+                  {
+                    ventasAprobadas.filter(
+                      (c) =>
+                        new Date(c.created_at).getMonth() ===
+                        new Date().getMonth(),
+                    ).length
+                  }{' '}
+                  VENTAS
+                </div>
+              </div>
+              <FileText
+                className="absolute -right-4 -bottom-4 text-blue-500/20 group-hover:scale-110 transition-transform"
+                size={100}
+              />
+            </div>
+
+            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm col-span-1 lg:col-span-1">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                Aprobadas
+              </span>
+              <h3 className="text-2xl font-black text-slate-800">
+                {ventasAprobadas.length}
+              </h3>
+              <p className="text-[10px] text-green-500 font-black mt-2 flex items-center gap-1">
+                <CheckCircle2 size={12} /> SISTEMA OK
+              </p>
+            </div>
+
+            <button
+              onClick={enviarReporteMensual}
+              className="bg-slate-900 hover:bg-black p-6 rounded-[2.5rem] text-white flex flex-col items-center justify-center gap-2 transition-all active:scale-95 group col-span-1 lg:col-span-1 border-2 border-transparent hover:border-blue-500/50"
+            >
+              <div className="p-2 bg-white/10 rounded-xl group-hover:bg-blue-600 transition-colors">
+                <FileText size={20} />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-tighter text-center">
+                Enviar Reporte
+              </span>
+            </button>
+          </div>
+        </section>
+
+        {/* LISTADO DE COTIZACIONES */}
         <div className="grid gap-4">
+          <div className="flex items-center justify-between px-2">
+            <h2 className="text-xl font-bold text-slate-800">
+              Actividad Reciente
+            </h2>
+            <span className="text-xs font-bold text-slate-400">
+              {historialFiltrado.length} Resultados
+            </span>
+          </div>
+
           {historialFiltrado.map((cot) => (
             <div
               key={cot.id}
-              className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4"
+              className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 hover:shadow-md transition-all"
             >
               <div className="flex items-center gap-5 w-full md:w-auto">
                 <div
@@ -243,16 +268,16 @@ export default function HistorialPage() {
                   <FileText size={24} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-800">
+                  <h3 className="font-bold text-slate-800 text-lg leading-tight">
                     {cot.clientes?.nombre}
                   </h3>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mt-1">
                     <p className="text-xs text-slate-400 flex items-center gap-1">
                       <Calendar size={12} />{' '}
                       {new Date(cot.created_at).toLocaleDateString()}
                     </p>
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${cot.estado === 'pendiente' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}
+                      className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${cot.estado === 'pendiente' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}
                     >
                       {cot.estado}
                     </span>
@@ -260,18 +285,18 @@ export default function HistorialPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between w-full md:w-auto gap-10">
-                <div className="text-right">
-                  <p className="text-[10px] font-black text-slate-400 uppercase">
-                    Total
+              <div className="flex items-center justify-between w-full md:w-auto gap-10 border-t md:border-t-0 pt-4 md:pt-0">
+                <div className="text-left md:text-right">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Total Cobrado
                   </p>
-                  <p className="text-xl font-black text-blue-600">
+                  <p className="text-2xl font-black text-blue-600">
                     ${cot.total.toLocaleString()}
                   </p>
                 </div>
                 <button
                   onClick={() => setCotizacionSeleccionada(cot)}
-                  className="bg-slate-100 p-3 rounded-2xl text-slate-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                  className="bg-slate-100 p-4 rounded-2xl text-slate-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-90"
                 >
                   <Eye size={20} />
                 </button>
@@ -289,8 +314,8 @@ export default function HistorialPage() {
                   <h2 className="text-xl font-black text-slate-800">
                     Detalle de Cotización
                   </h2>
-                  <p className="text-xs text-slate-500">
-                    Cliente: {cotizacionSeleccionada.clientes?.nombre}
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-tighter">
+                    ID: {cotizacionSeleccionada.id.split('-')[0]}
                   </p>
                 </div>
                 <button
@@ -334,15 +359,14 @@ export default function HistorialPage() {
                 </table>
               </div>
 
-              {/* FOOTER DEL MODAL CON ACCIÓN */}
               <div
-                className={`p-8 flex justify-between items-center ${cotizacionSeleccionada.estado === 'pendiente' ? 'bg-slate-900' : 'bg-blue-600'} text-white`}
+                className={`p-8 flex flex-col md:flex-row justify-between items-center gap-6 ${cotizacionSeleccionada.estado === 'pendiente' ? 'bg-slate-900' : 'bg-blue-600'} text-white`}
               >
-                <div>
-                  <p className="text-[10px] font-bold uppercase opacity-80 tracking-widest">
-                    Total Cotizado
+                <div className="text-center md:text-left">
+                  <p className="text-[10px] font-bold uppercase opacity-80 tracking-widest text-blue-100">
+                    Total a Pagar
                   </p>
-                  <p className="text-3xl font-black">
+                  <p className="text-4xl font-black">
                     ${cotizacionSeleccionada.total.toLocaleString()}
                   </p>
                 </div>
@@ -351,22 +375,20 @@ export default function HistorialPage() {
                   <button
                     onClick={() => aprobarCotizacion(cotizacionSeleccionada)}
                     disabled={procesandoAccion}
-                    className="bg-green-500 hover:bg-green-400 text-white px-8 py-3 rounded-2xl font-black flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                    className="w-full md:w-auto bg-green-500 hover:bg-green-400 text-white px-10 py-4 rounded-[1.5rem] font-black flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
                   >
                     {procesandoAccion ? (
                       <Loader2 className="animate-spin" />
                     ) : (
-                      <CheckCircle2 size={20} />
+                      <CheckCircle2 size={22} />
                     )}
                     APROBAR VENTA
                   </button>
                 ) : (
-                  <div className="text-right">
-                    <p className="text-xs opacity-80 italic">
-                      Esta cotización ya fue procesada
-                    </p>
-                    <p className="font-bold flex items-center gap-1 justify-end">
-                      <CheckCircle2 size={16} /> VENTA COMPLETADA
+                  <div className="bg-white/10 px-6 py-3 rounded-2xl border border-white/20">
+                    <p className="font-black flex items-center gap-2 text-sm">
+                      <CheckCircle2 size={18} className="text-green-400" />{' '}
+                      VENTA COMPLETADA
                     </p>
                   </div>
                 )}
