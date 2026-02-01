@@ -154,6 +154,45 @@ export default function HistorialPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
           <div>
             <h1 className="text-3xl font-black text-slate-800">Historial</h1>
+            {/* ESTADÍSTICAS Y BOTÓN DE REPORTE */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Ventas Aprobadas
+                </p>
+                <p className="text-2xl font-black text-slate-800">
+                  {cotizaciones.filter((c) => c.estado === 'aprobado').length}
+                </p>
+              </div>
+
+              <div className="bg-blue-600 p-6 rounded-[2rem] text-white shadow-lg shadow-blue-200">
+                <p className="text-[10px] font-black opacity-70 uppercase tracking-widest">
+                  Ingresos del Mes
+                </p>
+                <p className="text-2xl font-black">
+                  $
+                  {cotizaciones
+                    .filter(
+                      (c) =>
+                        c.estado === 'aprobado' &&
+                        new Date(c.created_at).getMonth() ===
+                          new Date().getMonth(),
+                    )
+                    .reduce((acc, curr) => acc + curr.total, 0)
+                    .toLocaleString()}
+                </p>
+              </div>
+
+              <button
+                onClick={enviarReporteMensual}
+                className="bg-slate-900 hover:bg-black text-white p-6 rounded-[2rem] flex flex-col items-center justify-center transition-all active:scale-95 gap-1"
+              >
+                <FileText size={20} className="text-blue-400" />
+                <span className="font-bold text-sm">
+                  ENVIAR REPORTE A TELEGRAM
+                </span>
+              </button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
               <div className="bg-blue-600 p-6 rounded-[2rem] text-white shadow-lg shadow-blue-200">
                 <p className="text-xs font-bold opacity-80 uppercase tracking-widest">
