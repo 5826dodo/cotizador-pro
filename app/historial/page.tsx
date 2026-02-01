@@ -31,6 +31,34 @@ export default function HistorialPage() {
     setCargando(false);
   };
 
+  const enviarReporteMensual = async () => {
+    const ventasAprobadas = cotizaciones.filter((c) => c.estado === 'aprobado');
+
+    // Filtrar solo las del mes actual
+    const mesActual = new Date().getMonth();
+    const ventasMes = ventasAprobadas.filter(
+      (c) => new Date(c.created_at).getMonth() === mesActual,
+    );
+
+    const ingresosTotales = ventasMes.reduce(
+      (acc, curr) => acc + curr.total,
+      0,
+    );
+    const totalOperaciones = ventasMes.length;
+
+    const mensajeReporte =
+      `📊 *REPORTE DE VENTAS MENSUAL*\n` +
+      `📅 *Mes:* ${new Date().toLocaleString('es-ES', { month: 'long' }).toUpperCase()}\n` +
+      `--------------------------\n` +
+      `💰 *Ingresos Totales:* *$${ingresosTotales.toLocaleString()}*\n` +
+      `📝 *Ventas Cerradas:* ${totalOperaciones}\n` +
+      `--------------------------\n` +
+      `🚀 _Reporte generado desde el Panel Administrativo_`;
+
+    await enviarNotificacionTelegram(mensajeReporte);
+    alert('Reporte enviado a Telegram con éxito');
+  };
+
   useEffect(() => {
     cargarHistorial();
   }, []);
