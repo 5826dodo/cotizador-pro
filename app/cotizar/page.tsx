@@ -281,6 +281,12 @@ export default function CotizarPage() {
                         : 'border-slate-100 bg-white'
                     }`}
                   >
+                    {/* ESTE ES EL CONTADOR RESTAURADO */}
+                    {carrito.find((i) => i.id === p.id) && (
+                      <div className="absolute -top-3 -right-3 bg-blue-600 text-white font-black w-10 h-10 rounded-full flex items-center justify-center shadow-lg text-lg ring-4 ring-white">
+                        {carrito.find((i) => i.id === p.id).cantidad}
+                      </div>
+                    )}
                     <p className="font-black text-xl text-slate-800 mb-2">
                       {p.nombre}
                     </p>
@@ -359,60 +365,127 @@ export default function CotizarPage() {
         </div>
       )}
 
-      {/* --- MODAL DE RESUMEN MÓVIL --- */}
       {mostrarModalResumen && (
         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center">
-          <div className="bg-white w-full max-w-2xl h-[90vh] sm:h-auto sm:max-h-[85vh] rounded-t-[3rem] sm:rounded-[3rem] flex flex-col overflow-hidden animate-in slide-in-from-bottom-full duration-300">
-            {/* ENCABEZADO FIJO (STICKY) */}
-            <div className="p-8 border-b bg-white flex justify-between items-center shrink-0">
-              <div>
-                <h2 className="text-2xl font-black text-slate-800">
-                  Tu Cotización
-                </h2>
-                <p className="text-slate-400 font-bold text-sm">
-                  {carrito.length} productos seleccionados
-                </p>
-              </div>
+          <div className="bg-white w-full max-w-2xl h-[90vh] rounded-t-[3rem] flex flex-col overflow-hidden shadow-2xl animate-in slide-in-from-bottom-full">
+            {/* CABECERA FIJA */}
+            <div className="p-6 border-b flex justify-between items-center bg-white shrink-0">
+              <h2 className="text-2xl font-black text-slate-800">Resumen</h2>
               <button
                 onClick={() => setMostrarModalResumen(false)}
-                className="p-4 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors"
+                className="p-3 bg-slate-100 rounded-full"
               >
-                <X size={28} />
+                <X size={24} />
               </button>
             </div>
 
-            {/* CUERPO CON SCROLL INDEPENDIENTE */}
-            <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
-              <ListadoResumen />
+            {/* CUERPO CON SCROLL ESTABLE */}
+            {/* Importante: id="modal-scroll-area" para control de scroll */}
+            <div
+              className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
+              {carrito.map((item) => (
+                <div
+                  key={`item-${item.id}`} // Key estable para que React no pierda el foco
+                  className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm"
+                >
+                  <div className="flex justify-between mb-4">
+                    <span className="font-black text-slate-700 text-lg">
+                      {item.nombre}
+                    </span>
+                    <button
+                      onClick={() =>
+                        setCarrito(carrito.filter((i) => i.id !== item.id))
+                      }
+                      className="text-red-400"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
 
-              {/* BOTÓN PARA SEGUIR AGREGANDO */}
-              <button
-                onClick={() => setMostrarModalResumen(false)}
-                className="w-full mt-6 py-4 border-2 border-dashed border-blue-200 rounded-[1.5rem] text-blue-600 font-bold flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors"
-              >
-                <Plus size={20} />
-                SEGUIR AGREGANDO PRODUCTOS
-              </button>
-            </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* CANTIDAD */}
+                    <div className="bg-slate-50 p-1 rounded-2xl flex items-center border">
+                      <button
+                        onPointerDown={(e) => e.preventDefault()} // Evita pérdida de foco
+                        onClick={() =>
+                          actualizarItem(
+                            item.id,
+                            'cantidad',
+                            (item.cantidad - 1).toString(),
+                          )
+                        }
+                        className="p-3 text-blue-600"
+                      >
+                        <Minus size={20} />
+                      </button>
+                      <input
+                        type="number"
+                        value={item.cantidad}
+                        onChange={(e) =>
+                          actualizarItem(item.id, 'cantidad', e.target.value)
+                        }
+                        className="w-full text-center font-black bg-transparent outline-none text-xl"
+                      />
+                      <button
+                        onPointerDown={(e) => e.preventDefault()}
+                        onClick={() =>
+                          actualizarItem(
+                            item.id,
+                            'cantidad',
+                            (item.cantidad + 1).toString(),
+                          )
+                        }
+                        className="p-3 text-blue-600"
+                      >
+                        <Plus size={20} />
+                      </button>
+                    </div>
 
-            {/* PIE DE PÁGINA FIJO CON TOTAL Y ACCIÓN */}
-            <div className="p-8 bg-white border-t shrink-0">
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    Total Final
-                  </p>
-                  <p className="text-4xl font-black text-blue-600">
-                    ${calcularTotal().toLocaleString()}
-                  </p>
+                    {/* PRECIO */}
+                    <div className="relative">
+                      <DollarSign
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400"
+                        size={16}
+                      />
+                      <input
+                        type="number"
+                        value={item.precio}
+                        onChange={(e) =>
+                          actualizarItem(item.id, 'precio', e.target.value)
+                        }
+                        className="w-full pl-8 pr-4 py-4 bg-slate-50 border rounded-2xl font-black text-blue-600 outline-none focus:ring-2 focus:ring-blue-500 text-lg"
+                      />
+                    </div>
+                  </div>
                 </div>
+              ))}
+
+              <button
+                onClick={() => setMostrarModalResumen(false)}
+                className="w-full py-4 border-2 border-dashed border-blue-200 rounded-3xl text-blue-500 font-black text-sm uppercase tracking-widest hover:bg-blue-50 transition-all"
+              >
+                + Seguir agregando productos
+              </button>
+            </div>
+
+            {/* PIE DE PÁGINA FIJO */}
+            <div className="p-8 bg-white border-t border-slate-100 shrink-0">
+              <div className="flex justify-between items-end mb-6">
+                <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+                  Total Cotización
+                </span>
+                <span className="text-4xl font-black text-blue-600">
+                  ${calcularTotal().toLocaleString()}
+                </span>
               </div>
               <button
                 onClick={procesarCotizacion}
-                disabled={cargando || !clienteSeleccionado}
-                className="w-full py-6 rounded-[2rem] bg-blue-600 text-white text-2xl font-black shadow-xl shadow-blue-200 active:scale-95 transition-all disabled:bg-slate-300"
+                disabled={cargando}
+                className="w-full py-6 rounded-[2rem] bg-blue-600 text-white text-2xl font-black shadow-xl shadow-blue-200 active:scale-95 transition-all"
               >
-                {cargando ? 'GUARDANDO...' : 'CONFIRMAR Y DESCARGAR'}
+                {cargando ? 'REGISTRANDO...' : 'FINALIZAR VENTA'}
               </button>
             </div>
           </div>
