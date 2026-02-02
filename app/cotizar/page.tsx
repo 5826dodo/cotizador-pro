@@ -375,6 +375,41 @@ export default function CotizarPage() {
           </div>
         </div>
       </div>
+      {/* --- CARRITO FLOTANTE (SOLO MÓVIL) --- */}
+      {carrito.length > 0 && (
+        <div className="lg:hidden fixed bottom-8 left-4 right-4 z-[100] animate-in fade-in slide-in-from-bottom-10 duration-500">
+          <div className="bg-slate-900/95 backdrop-blur-xl text-white rounded-[2.5rem] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-4 ml-2">
+              <div className="relative">
+                <div className="bg-blue-500 p-3 rounded-2xl">
+                  <ShoppingCart className="text-white" size={24} />
+                </div>
+                <span className="absolute -top-2 -right-2 bg-red-500 text-[12px] font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-slate-900">
+                  {carrito.reduce((acc, item) => acc + item.cantidad, 0)}
+                </span>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest">
+                  Subtotal
+                </p>
+                <p className="text-2xl font-black text-white">
+                  ${calcularTotal().toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                const el = document.getElementById('resumen-cotizacion');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-[1.5rem] font-black flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-blue-500/20"
+            >
+              REVISAR <ChevronUp size={20} />
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
