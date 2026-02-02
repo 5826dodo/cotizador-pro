@@ -361,35 +361,58 @@ export default function CotizarPage() {
 
       {/* --- MODAL DE RESUMEN MÓVIL --- */}
       {mostrarModalResumen && (
-        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-end">
-          <div className="bg-white w-full rounded-t-[3rem] p-8 animate-in slide-in-from-bottom-full duration-300">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-black text-slate-800">
-                Tu Cotización
-              </h2>
+        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center">
+          <div className="bg-white w-full max-w-2xl h-[90vh] sm:h-auto sm:max-h-[85vh] rounded-t-[3rem] sm:rounded-[3rem] flex flex-col overflow-hidden animate-in slide-in-from-bottom-full duration-300">
+            {/* ENCABEZADO FIJO (STICKY) */}
+            <div className="p-8 border-b bg-white flex justify-between items-center shrink-0">
+              <div>
+                <h2 className="text-2xl font-black text-slate-800">
+                  Tu Cotización
+                </h2>
+                <p className="text-slate-400 font-bold text-sm">
+                  {carrito.length} productos seleccionados
+                </p>
+              </div>
               <button
                 onClick={() => setMostrarModalResumen(false)}
-                className="p-3 bg-slate-100 rounded-full text-slate-400"
+                className="p-4 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors"
               >
-                <X size={24} />
+                <X size={28} />
               </button>
             </div>
 
-            <ListadoResumen />
+            {/* CUERPO CON SCROLL INDEPENDIENTE */}
+            <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
+              <ListadoResumen />
 
-            <div className="mt-8 space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400 font-bold">Total a pagar:</span>
-                <span className="text-4xl font-black text-blue-600">
-                  ${calcularTotal().toLocaleString()}
-                </span>
+              {/* BOTÓN PARA SEGUIR AGREGANDO */}
+              <button
+                onClick={() => setMostrarModalResumen(false)}
+                className="w-full mt-6 py-4 border-2 border-dashed border-blue-200 rounded-[1.5rem] text-blue-600 font-bold flex items-center justify-center gap-2 hover:bg-blue-50 transition-colors"
+              >
+                <Plus size={20} />
+                SEGUIR AGREGANDO PRODUCTOS
+              </button>
+            </div>
+
+            {/* PIE DE PÁGINA FIJO CON TOTAL Y ACCIÓN */}
+            <div className="p-8 bg-white border-t shrink-0">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Total Final
+                  </p>
+                  <p className="text-4xl font-black text-blue-600">
+                    ${calcularTotal().toLocaleString()}
+                  </p>
+                </div>
               </div>
               <button
                 onClick={procesarCotizacion}
                 disabled={cargando || !clienteSeleccionado}
-                className="w-full py-6 rounded-[2rem] bg-blue-600 text-white text-2xl font-black shadow-xl"
+                className="w-full py-6 rounded-[2rem] bg-blue-600 text-white text-2xl font-black shadow-xl shadow-blue-200 active:scale-95 transition-all disabled:bg-slate-300"
               >
-                {cargando ? 'GUARDANDO...' : 'CONFIRMAR Y PDF'}
+                {cargando ? 'GUARDANDO...' : 'CONFIRMAR Y DESCARGAR'}
               </button>
             </div>
           </div>
