@@ -12,16 +12,17 @@ import {
   DollarSign,
   ShoppingCart,
   ChevronUp,
+  X, // Importado para cerrar el modal
 } from 'lucide-react';
 
 export default function CotizarPage() {
-  // ... (Estados se mantienen igual)
   const [clientes, setClientes] = useState<any[]>([]);
   const [productosInventario, setProductosInventario] = useState<any[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any>(null);
   const [carrito, setCarrito] = useState<any[]>([]);
   const [cargando, setCargando] = useState(false);
+  const [mostrarModalResumen, setMostrarModalResumen] = useState(false); // Estado para el modal
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -40,53 +41,58 @@ export default function CotizarPage() {
     cargarDatos();
   }, []);
 
-  // --- LÓGICA DE PDF PROFESIONAL ---
+  // --- LÓGICA DE ACTUALIZACIÓN ---
+  const actualizarItem = (
+    id: string,
+    campo: 'precio' | 'cantidad',
+    valor: string,
+  ) => {
+    const numValor = parseFloat(valor) || 0;
+    setCarrito(
+      carrito.map((item) => {
+        if (item.id === id) {
+          if (campo === 'cantidad') {
+            const cantFinal = numValor > item.stock ? item.stock : numValor;
+            return { ...item, cantidad: cantFinal };
+          }
+          return { ...item, [campo]: numValor };
+        }
+        return item;
+      }),
+    );
+  };
+
+  const calcularTotal = () =>
+    carrito.reduce((acc, item) => acc + item.precio * item.cantidad, 0);
+
+  const agregarAlCarrito = (prod: any) => {
+    const existe = carrito.find((item) => item.id === prod.id);
+    if (!existe) setCarrito([...carrito, { ...prod, cantidad: 1 }]);
+  };
+
   const descargarPDF = (cliente: any, items: any[], total: number) => {
     try {
       const doc = new jsPDF();
-      const colorPrincipal = [37, 99, 235]; // Azul profesional
+      const colorPrincipal: [number, number, number] = [37, 99, 235];
 
-      // 1. Membrete / Encabezado
-      doc.setFillColor(248, 250, 252); // Fondo gris muy claro
+      // Membrete
+      doc.setFillColor(248, 250, 252);
       doc.rect(0, 0, 210, 40, 'F');
-
-      // Logo (Simulado con texto, puedes usar doc.addImage si tienes la URL en base64)
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(24);
+      doc.setFontSize(22);
       doc.setTextColor(37, 99, 235);
-      doc.text('MI EMPRESA S.A.', 14, 25);
+      doc.text('MI EMPRESA S.A.', 14, 22);
 
       doc.setFontSize(10);
       doc.setTextColor(100, 116, 139);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Nit: 123.456.789-0', 14, 32);
-      doc.text('Dirección: Calle Principal #123', 14, 37);
-
-      // 2. Título y Fecha (Derecha)
-      doc.setFontSize(18);
-      doc.setTextColor(30, 41, 59);
-      doc.text('COTIZACIÓN', 196, 25, { align: 'right' });
-      doc.setFontSize(10);
-      doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 196, 32, {
-        align: 'right',
-      });
-
-      // 3. Información del Cliente (Caja)
-      doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(14, 50, 182, 25, 3, 3);
-      doc.setFont('helvetica', 'bold');
-      doc.text('CLIENTE:', 20, 58);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${cliente.nombre}`, 45, 58);
-      doc.setFont('helvetica', 'bold');
-      doc.text('EMPRESA:', 20, 65);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${cliente.empresa || 'Particular'}`, 45, 65);
-
-      // 4. Tabla de Productos
+      doc.text(
+        `Cliente: ${cliente.nombre} | Fecha: ${new Date().toLocaleDateString()}`,
+        14,
+        32,
+      );
 
       autoTable(doc, {
-        startY: 85,
+        startY: 50,
         head: [['Producto', 'Cant.', 'Precio Unit.', 'Subtotal']],
         body: items.map((i) => [
           i.nombre,
@@ -94,65 +100,12 @@ export default function CotizarPage() {
           `$${i.precio.toLocaleString()}`,
           `$${(i.precio * i.cantidad).toLocaleString()}`,
         ]),
-        theme: 'striped',
-
-        headStyles: {
-          fillColor: [37, 99, 235] as [number, number, number],
-          fontSize: 11,
-          fontStyle: 'bold',
-          halign: 'center',
-        },
-        columnStyles: {
-          1: { halign: 'center' },
-          2: { halign: 'right' },
-          3: { halign: 'right' },
-        },
-        styles: { fontSize: 10, cellPadding: 5 },
+        headStyles: { fillColor: colorPrincipal },
       });
-
-      // 5. Total Final
-      const finalY = (doc as any).lastAutoTable.finalY + 10;
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('TOTAL COTIZADO:', 140, finalY);
-      doc.setFontSize(16);
-      doc.setTextColor(colorPrincipal[0], colorPrincipal[1], colorPrincipal[2]);
-      doc.text(`$${total.toLocaleString()}`, 196, finalY, { align: 'right' });
-
-      // 6. Pie de página
-      doc.setFontSize(9);
-      doc.setTextColor(148, 163, 184);
-      doc.text(
-        'Gracias por su preferencia. Esta cotización tiene una validez de 15 días.',
-        105,
-        285,
-        { align: 'center' },
-      );
 
       doc.save(`Cotizacion_${cliente.nombre}.pdf`);
     } catch (err) {
-      console.error(err);
-      alert('Error al generar PDF profesional');
-    }
-  };
-
-  // ... (Funciones auxiliares se mantienen igual)
-  const calcularTotal = () =>
-    carrito.reduce((acc, item) => acc + item.precio * item.cantidad, 0);
-  const agregarAlCarrito = (prod: any) => {
-    const existe = carrito.find((item) => item.id === prod.id);
-    if (existe) {
-      if (existe.cantidad < prod.stock) {
-        setCarrito(
-          carrito.map((item) =>
-            item.id === prod.id
-              ? { ...item, cantidad: item.cantidad + 1 }
-              : item,
-          ),
-        );
-      }
-    } else {
-      setCarrito([...carrito, { ...prod, cantidad: 1 }]);
+      alert('Error al generar PDF');
     }
   };
 
@@ -166,7 +119,7 @@ export default function CotizarPage() {
         {
           cliente_id: clienteSeleccionado.id,
           productos_seleccionados: carrito,
-          total: total,
+          total,
           estado: 'pendiente',
         },
       ]);
@@ -174,7 +127,8 @@ export default function CotizarPage() {
       descargarPDF(clienteSeleccionado, carrito, total);
       setCarrito([]);
       setClienteSeleccionado(null);
-      alert('Cotización generada con éxito');
+      setMostrarModalResumen(false);
+      alert('¡Cotización guardada!');
     } catch (e) {
       alert('Error al procesar');
     } finally {
@@ -182,26 +136,105 @@ export default function CotizarPage() {
     }
   };
 
+  // --- COMPONENTE DEL RESUMEN (REUTILIZABLE) ---
+  const ListadoResumen = () => (
+    <div className="space-y-4 overflow-y-auto pr-2 max-h-[60vh] lg:max-h-[500px]">
+      {carrito.map((item) => (
+        <div
+          key={item.id}
+          className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 shadow-sm"
+        >
+          <div className="flex justify-between items-start mb-4">
+            <span className="text-lg font-black text-slate-700 leading-tight flex-1">
+              {item.nombre}
+            </span>
+            <button
+              onClick={() =>
+                setCarrito(carrito.filter((i) => i.id !== item.id))
+              }
+              className="text-red-400 p-1"
+            >
+              <Trash2 size={20} />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Cant.
+              </label>
+              <div className="flex items-center bg-white rounded-2xl ring-1 ring-slate-200 p-1">
+                <button
+                  onClick={() =>
+                    actualizarItem(
+                      item.id,
+                      'cantidad',
+                      (item.cantidad - 1).toString(),
+                    )
+                  }
+                  className="p-2 text-blue-600"
+                >
+                  <Minus size={18} />
+                </button>
+                <input
+                  type="number"
+                  value={item.cantidad}
+                  onChange={(e) =>
+                    actualizarItem(item.id, 'cantidad', e.target.value)
+                  }
+                  className="w-full text-center font-black text-lg outline-none bg-transparent"
+                />
+                <button
+                  onClick={() =>
+                    actualizarItem(
+                      item.id,
+                      'cantidad',
+                      (item.cantidad + 1).toString(),
+                    )
+                  }
+                  className="p-2 text-blue-600"
+                >
+                  <Plus size={18} />
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Precio Unit.
+              </label>
+              <div className="relative">
+                <DollarSign
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500"
+                  size={16}
+                />
+                <input
+                  type="number"
+                  value={item.precio}
+                  onChange={(e) =>
+                    actualizarItem(item.id, 'precio', e.target.value)
+                  }
+                  className="w-full pl-8 pr-3 py-3 bg-white rounded-2xl ring-1 ring-slate-200 font-black text-blue-600 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <main className="min-h-screen bg-slate-50 p-4 md:p-8 pb-32">
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
-        {/* COLUMNA IZQUIERDA: SELECCIÓN */}
+        {/* IZQUIERDA: BUSCADOR Y PRODUCTOS */}
         <div className="flex-1 space-y-6">
-          <header className="mb-4">
-            <h1 className="text-4xl font-black text-slate-800 tracking-tighter">
-              Nueva Cotización
-            </h1>
-          </header>
+          <h1 className="text-4xl font-black text-slate-800 tracking-tighter">
+            Cotizar
+          </h1>
 
-          <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-            <h2 className="text-2xl font-black mb-6 flex items-center gap-3 text-slate-800">
-              <div className="p-2 bg-blue-100 rounded-xl">
-                <FileText className="text-blue-600" size={24} />
-              </div>
-              1. Cliente
-            </h2>
+          <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
             <select
-              className="w-full p-5 bg-slate-50 rounded-[1.5rem] border-none ring-2 ring-slate-100 focus:ring-4 focus:ring-blue-500/20 text-xl font-bold outline-none transition-all appearance-none"
+              className="w-full p-5 bg-slate-50 rounded-[1.5rem] border-none ring-2 ring-slate-100 text-xl font-bold outline-none"
               onChange={(e) =>
                 setClienteSeleccionado(
                   clientes.find((c) => c.id === e.target.value),
@@ -209,204 +242,156 @@ export default function CotizarPage() {
               }
               value={clienteSeleccionado?.id || ''}
             >
-              <option value="">-- Seleccionar --</option>
+              <option value="">-- Seleccionar Cliente --</option>
               {clientes.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.nombre} {c.empresa ? `(${c.empresa})` : ''}
+                  {c.nombre} {c.empresa && `(${c.empresa})`}
                 </option>
               ))}
             </select>
           </section>
 
-          <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-            <div className="flex flex-col gap-6 mb-8">
-              <h2 className="text-2xl font-black text-slate-800">
-                2. Selección de Productos
-              </h2>
-              <div className="relative">
-                <Search
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={24}
-                />
-                <input
-                  type="text"
-                  placeholder="Buscar por nombre..."
-                  className="w-full pl-14 pr-4 py-5 bg-slate-50 rounded-[1.5rem] outline-none ring-2 ring-slate-100 focus:ring-4 focus:ring-blue-500/20 text-xl font-medium"
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                />
-              </div>
+          <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+            <div className="relative mb-6">
+              <Search
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                size={24}
+              />
+              <input
+                type="text"
+                placeholder="Buscar producto..."
+                className="w-full pl-14 pr-4 py-5 bg-slate-50 rounded-[1.5rem] outline-none ring-2 ring-slate-100 text-xl font-medium"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+              />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-[600px] overflow-y-auto pr-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-[500px] overflow-y-auto pr-2">
               {productosInventario
                 .filter((p) =>
                   p.nombre.toLowerCase().includes(busqueda.toLowerCase()),
                 )
-                .map((p) => {
-                  const enCarrito = carrito.find((item) => item.id === p.id);
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => agregarAlCarrito(p)}
-                      className={`p-6 rounded-[2rem] border-2 text-left transition-all relative ${
-                        enCarrito
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-slate-100 bg-white'
-                      }`}
-                    >
-                      {enCarrito && (
-                        <div className="absolute -top-3 -right-3 bg-blue-600 text-white font-black w-10 h-10 rounded-full flex items-center justify-center shadow-lg text-lg">
-                          {enCarrito.cantidad}
-                        </div>
-                      )}
-                      <p className="font-black text-xl text-slate-800 mb-2 leading-tight">
-                        {p.nombre}
-                      </p>
-                      <div className="flex justify-between items-end">
-                        <span className="text-2xl font-black text-blue-600">
-                          ${p.precio}
-                        </span>
-                        <span className="text-xs font-bold px-3 py-1 bg-slate-200 text-slate-600 rounded-full uppercase">
-                          Stock: {p.stock}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
+                .map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => agregarAlCarrito(p)}
+                    className={`p-6 rounded-[2rem] border-2 text-left transition-all relative ${
+                      carrito.find((i) => i.id === p.id)
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-slate-100 bg-white'
+                    }`}
+                  >
+                    <p className="font-black text-xl text-slate-800 mb-2">
+                      {p.nombre}
+                    </p>
+                    <div className="flex justify-between items-end">
+                      <span className="text-2xl font-black text-blue-600">
+                        ${p.precio}
+                      </span>
+                      <span className="text-xs font-bold px-3 py-1 bg-slate-100 text-slate-500 rounded-lg">
+                        Stock: {p.stock}
+                      </span>
+                    </div>
+                  </button>
+                ))}
             </div>
           </section>
         </div>
 
-        {/* RESUMEN - Lado derecho / Letras grandes */}
-        <div className="w-full lg:w-[480px]">
-          <div className="bg-white p-8 rounded-[3rem] shadow-2xl border border-blue-50 lg:sticky lg:top-8">
-            <h2 className="text-2xl font-black mb-8 border-b pb-4 text-slate-800 flex items-center justify-between">
-              Resumen <ShoppingCart size={24} className="text-blue-500" />
+        {/* DERECHA: RESUMEN (VISIBLE EN ESCRITORIO) */}
+        <div className="hidden lg:block w-[450px]">
+          <div className="bg-white p-8 rounded-[3rem] shadow-2xl border border-blue-50 sticky top-8">
+            <h2 className="text-2xl font-black mb-6 text-slate-800 flex justify-between">
+              Resumen <ShoppingCart className="text-blue-500" />
             </h2>
-
-            <div className="space-y-4 max-h-[500px] overflow-y-auto mb-8 pr-2">
-              {carrito.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 relative group"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <span className="text-lg font-black text-slate-700 leading-tight flex-1 pr-4">
-                      {item.nombre}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setCarrito(carrito.filter((i) => i.id !== item.id))
-                      }
-                      className="text-red-400 p-2"
-                    >
-                      <Trash2 size={24} />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center bg-white rounded-2xl p-1 shadow-sm ring-1 ring-slate-200">
-                      <button
-                        onClick={() =>
-                          setCarrito(
-                            carrito.map((i) =>
-                              i.id === item.id && i.cantidad > 1
-                                ? { ...i, cantidad: i.cantidad - 1 }
-                                : i,
-                            ),
-                          )
-                        }
-                        className="p-3 text-blue-600"
-                      >
-                        <Minus size={20} />
-                      </button>
-                      <span className="w-12 text-center text-xl font-black">
-                        {item.cantidad}
-                      </span>
-                      <button
-                        onClick={() =>
-                          setCarrito(
-                            carrito.map((i) =>
-                              i.id === item.id && i.cantidad < i.stock
-                                ? { ...i, cantidad: i.cantidad + 1 }
-                                : i,
-                            ),
-                          )
-                        }
-                        className="p-3 text-blue-600"
-                      >
-                        <Plus size={20} />
-                      </button>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        Subtotal
-                      </p>
-                      <p className="text-2xl font-black text-blue-600">
-                        ${(item.precio * item.cantidad).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="pt-6 border-t-4 border-dashed border-slate-100">
-              <div className="flex justify-between items-center mb-8">
-                <span className="text-sm font-black text-slate-400 uppercase tracking-widest">
-                  Total Cotizado
+            <ListadoResumen />
+            <div className="mt-6 pt-6 border-t-4 border-dashed border-slate-100">
+              <div className="flex justify-between items-center mb-6">
+                <span className="text-sm font-black text-slate-400 uppercase">
+                  Total
                 </span>
-                <span className="text-5xl font-black text-blue-700">
+                <span className="text-4xl font-black text-blue-700">
                   ${calcularTotal().toLocaleString()}
                 </span>
               </div>
-
               <button
                 onClick={procesarCotizacion}
                 disabled={
                   cargando || carrito.length === 0 || !clienteSeleccionado
                 }
-                className="w-full py-6 rounded-[2rem] font-black text-2xl text-white bg-blue-600 shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all disabled:bg-slate-300 disabled:shadow-none"
+                className="w-full py-5 rounded-[2rem] font-black text-xl text-white bg-blue-600 shadow-xl shadow-blue-200"
               >
-                {cargando ? 'PROCESANDO...' : 'GENERAR Y BAJAR PDF'}
+                {cargando ? 'REGISTRANDO...' : 'GENERAR COTIZACIÓN'}
               </button>
             </div>
           </div>
         </div>
       </div>
-      {/* --- CARRITO FLOTANTE (SOLO MÓVIL) --- */}
-      {carrito.length > 0 && (
-        <div className="lg:hidden fixed bottom-8 left-4 right-4 z-[100] animate-in fade-in slide-in-from-bottom-10 duration-500">
-          <div className="bg-slate-900/95 backdrop-blur-xl text-white rounded-[2.5rem] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-white/10 flex items-center justify-between">
-            <div className="flex items-center gap-4 ml-2">
-              <div className="relative">
-                <div className="bg-blue-500 p-3 rounded-2xl">
-                  <ShoppingCart className="text-white" size={24} />
-                </div>
-                <span className="absolute -top-2 -right-2 bg-red-500 text-[12px] font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-slate-900">
-                  {carrito.reduce((acc, item) => acc + item.cantidad, 0)}
+
+      {/* --- CARRITO FLOTANTE MÓVIL --- */}
+      {carrito.length > 0 && !mostrarModalResumen && (
+        <div className="lg:hidden fixed bottom-8 left-4 right-4 z-[90]">
+          <button
+            onClick={() => setMostrarModalResumen(true)}
+            className="w-full bg-slate-900 text-white p-5 rounded-[2.5rem] shadow-2xl flex items-center justify-between border border-white/10"
+          >
+            <div className="flex items-center gap-4">
+              <div className="relative bg-blue-600 p-3 rounded-2xl">
+                <ShoppingCart size={24} />
+                <span className="absolute -top-2 -right-2 bg-red-500 text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-slate-900">
+                  {carrito.length} {/* Contador de TIPOS de productos */}
                 </span>
               </div>
-              <div>
-                <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest">
-                  Subtotal
+              <div className="text-left">
+                <p className="text-[10px] font-black text-slate-400 uppercase">
+                  Total
                 </p>
-                <p className="text-2xl font-black text-white">
+                <p className="text-2xl font-black">
                   ${calcularTotal().toLocaleString()}
                 </p>
               </div>
             </div>
-
-            <button
-              onClick={() => {
-                const el = document.getElementById('resumen-cotizacion');
-                el?.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-[1.5rem] font-black flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-blue-500/20"
-            >
+            <div className="flex items-center gap-2 font-black text-blue-400">
+              {' '}
               REVISAR <ChevronUp size={20} />
-            </button>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* --- MODAL DE RESUMEN MÓVIL --- */}
+      {mostrarModalResumen && (
+        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-end">
+          <div className="bg-white w-full rounded-t-[3rem] p-8 animate-in slide-in-from-bottom-full duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-black text-slate-800">
+                Tu Cotización
+              </h2>
+              <button
+                onClick={() => setMostrarModalResumen(false)}
+                className="p-3 bg-slate-100 rounded-full text-slate-400"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <ListadoResumen />
+
+            <div className="mt-8 space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 font-bold">Total a pagar:</span>
+                <span className="text-4xl font-black text-blue-600">
+                  ${calcularTotal().toLocaleString()}
+                </span>
+              </div>
+              <button
+                onClick={procesarCotizacion}
+                disabled={cargando || !clienteSeleccionado}
+                className="w-full py-6 rounded-[2rem] bg-blue-600 text-white text-2xl font-black shadow-xl"
+              >
+                {cargando ? 'GUARDANDO...' : 'CONFIRMAR Y PDF'}
+              </button>
+            </div>
           </div>
         </div>
       )}
