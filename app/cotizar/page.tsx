@@ -121,17 +121,17 @@ export default function CotizarPage() {
       // --- CAJA DE CLIENTE ---
       doc.setDrawColor(226, 232, 240);
       doc.setLineWidth(0.5);
-      doc.roundedRect(14, 55, 182, 25, 3, 3);
+      doc.roundedRect(14, 55, 182, 28, 3, 3); // Ajustamos altura
 
       doc.setFont('helvetica', 'bold');
       doc.text('ATENCIÓN A:', 20, 63);
       doc.setFont('helvetica', 'normal');
-      doc.text(`${cliente.nombre.toUpperCase()}`, 50, 63);
+      doc.text(`${cliente.nombre.toUpperCase()}`, 55, 63);
 
       doc.setFont('helvetica', 'bold');
-      doc.text('EMPRESA / PROYECTO:', 20, 72);
+      doc.text('C.I. / RIF:', 20, 72); // Agregamos la cédula aquí
       doc.setFont('helvetica', 'normal');
-      doc.text(`${cliente.empresa || 'PARTICULAR'}`, 65, 72);
+      doc.text(`${cliente.cedula || 'N/A'}`, 55, 72);
 
       // --- TABLA DE PRODUCTOS ---
       autoTable(doc, {
@@ -209,39 +209,34 @@ export default function CotizarPage() {
 
     const telLimpio = telefono.replace(/\D/g, '');
 
-    // Definimos los emojis por código para evitar errores de lectura
-    const emojiFerre = '\u{1F3D7}'; // 🏗️
-    const emojiPunto = '\u{1F539}'; // 🔹
-    const emojiUser = '\u{1F464}'; // 👤
-    const emojiId = '\u{1F194}'; // 🆔
-    const emojiDoc = '\u{1F4DD}'; // 📝
-    const emojiMoney = '\u{1F4B5}'; // 💵
-    const emojiPdf = '\u{1F4C4}'; // 📄
-    const emojiTool = '\u{1F6E0}'; // 🛠️
-
+    // 1. Formatear la lista de productos de forma limpia
     const listaProd = items
-      .map(
-        (i) =>
-          `${emojiPunto} *${i.nombre.trim()}*\n   Cant: ${i.cantidad} -> $${(i.precio * i.cantidad).toLocaleString()}`,
-      )
+      .map((i) => {
+        return `🔹 *${i.nombre.trim()}*\nCant: ${i.cantidad} -> $${(i.precio * i.cantidad).toLocaleString()}`;
+      })
       .join('\n\n');
 
-    const textoMensaje =
-      `${emojiFerre} *FERREMATERIALES LER C.A.*\n` +
-      `--------------------------------------------\n\n` +
-      `${emojiUser} *Cliente:* ${cliente.nombre}\n` +
-      `${emojiId} *C.I./RIF:* ${cliente.cedula || 'N/A'}\n\n` +
-      `${emojiDoc} *RESUMEN DE COTIZACIÓN:*\n\n` +
-      `${listaProd}\n\n` +
-      `${emojiMoney} *TOTAL A PAGAR: $${total.toLocaleString()}*\n\n` +
-      `--------------------------------------------\n` +
-      `${emojiPdf} _El PDF ha sido generado y descargado._\n` +
-      `${emojiTool} *¡Estamos para servirleee!*`;
+    // 2. Construir el mensaje (usamos emojis normales, son más confiables si se envían bien)
+    const textoMensaje = `🏗️ *FERREMATERIALES LER C.A.*
+--------------------------------------------
 
-    // Codificamos para URL
-    const mensajeFinal = encodeURIComponent(textoMensaje);
+👤 *Cliente:* ${cliente.nombre}
+🆔 *C.I./RIF:* ${cliente.cedula || 'N/A'}
 
-    const url = `https://wa.me/${telLimpio}?text=${mensajeFinal}`;
+📝 *RESUMEN DE COTIZACIÓN:*
+
+${listaProd}
+
+💵 *TOTAL A PAGAR: $${total.toLocaleString()}*
+
+--------------------------------------------
+📄 _El PDF ha sido generado y descargado._
+🛠️ *¡Estamos para servirle!*`;
+
+    // 3. LA CLAVE: Usar encodeURIComponent para que los emojis viajen como código seguro
+    const url = `https://wa.me/${telLimpio}?text=${encodeURIComponent(textoMensaje)}`;
+
+    // Abrir en ventana nueva
     window.open(url, '_blank');
   };
 
