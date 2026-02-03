@@ -196,6 +196,43 @@ export default function CotizarPage() {
     }
   };
 
+  const enviarWhatsApp = (cliente: any, total: number, items: any[]) => {
+    let telefono = cliente.telefono;
+
+    // Si no hay teléfono, lo pedimos al usuario
+    if (!telefono || telefono.trim() === '') {
+      const telIngresado = prompt(
+        'El cliente no tiene teléfono registrado. Ingresa el número (ej: 584121234567):',
+        '',
+      );
+      if (!telIngresado) return; // Si cancela, no hacemos nada
+      telefono = telIngresado;
+    }
+
+    // Limpiar el número (quitar espacios, guiones o el símbolo +)
+    const telLimpio = telefono.replace(/\D/g, '');
+
+    // Formatear la lista de productos para el mensaje
+    const listaProd = items
+      .map(
+        (i) =>
+          `• *${i.nombre}* (x${i.cantidad}) - $${(i.precio * i.cantidad).toLocaleString()}`,
+      )
+      .join('%0A');
+
+    // Mensaje con formato amigable
+    const mensaje =
+      `*FERREMATERIALES LER C.A.*%0A%0A` +
+      `Hola *${cliente.nombre}*, adjunto el resumen de tu cotización:%0A%0A` +
+      `${listaProd}%0A%0A` +
+      `*TOTAL A PAGAR: $${total.toLocaleString()}*%0A%0A` +
+      `_Nota: El documento PDF ha sido generado y está listo para ser enviado._`;
+
+    // Abrir WhatsApp (wa.me funciona en PC con WhatsApp Web y en móvil con la App)
+    const url = `https://wa.me/${telLimpio}?text=${mensaje}`;
+    window.open(url, '_blank');
+  };
+
   // --- LÓGICA DE TELEGRAM (RESTAURADA) ---
   const enviarTelegram = async (cliente: any, total: number, items: any[]) => {
     const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
@@ -241,11 +278,20 @@ export default function CotizarPage() {
       await enviarTelegram(clienteSeleccionado, total, carrito);
       descargarPDF(clienteSeleccionado, carrito, total);
 
-      alert('¡Cotización guardada y enviada a Telegram!');
+      // El flujo de WhatsApp se lanza en paralelo
+      setTimeout(() => {
+        if (confirm('¿Deseas enviar el resumen por WhatsApp ahora?')) {
+          enviarWhatsApp(clienteSeleccionado, total, carrito);
+        }
+      }, 500); // Cerramos el setTimeout aquí con });
+
+      // Estas acciones ocurren de inmediato
+      alert('¡Cotización procesada con éxito!');
       setCarrito([]);
       setClienteSeleccionado(null);
       setMostrarModalResumen(false);
     } catch (e) {
+      console.error(e);
       alert('Error al procesar');
     } finally {
       setCargando(false);
