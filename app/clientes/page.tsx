@@ -33,36 +33,52 @@ export default function ClientesPage() {
 
   const guardarCliente = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Si el usuario puso el teléfono, nos aseguramos de que el formato sea solo números
-    const telLimpio = limpiarTelefono(telefono);
-
+    const telLimpio = telefono.replace(/\D/g, '');
     const datosCliente = {
       nombre,
-      cedula,
+      cedula, // Asegúrate que este nombre coincida con la columna en Supabase
       telefono: telLimpio,
       email,
       empresa,
     };
 
-    if (idEditando) {
-      // MODO EDICIÓN
-      const { error } = await supabase
-        .from('clientes')
-        .update(datosCliente)
-        .eq('id', idEditando);
-
-      if (!error) setMensaje('✅ Cliente actualizado');
-    } else {
-      // MODO CREACIÓN
-      const { error } = await supabase.from('clientes').insert([datosCliente]);
-
-      if (!error) setMensaje('✅ Cliente registrado');
+    try {
+      if (idEditando) {
+        const { error } = await supabase
+          .from('clientes')
+          .update(datosCliente)
+          .eq('id', idEditando);
+        if (error) throw error;
+        setMensaje('✅ Cliente actualizado');
+      } else {
+        const { error } = await supabase
+          .from('clientes')
+          .insert([datosCliente]);
+        if (error) throw error;
+        setMensaje('✅ Cliente registrado');
+      }
+      resetearFormulario();
+      obtenerClientes();
+    } catch (error: any) {
+      console.error('Error detallado:', error);
+      alert('Error: ' + (error.message || 'No se pudo conectar con Supabase'));
     }
+  };
 
-    resetearFormulario();
-    obtenerClientes();
-    setTimeout(() => setMensaje(''), 3000);
+  const eliminarCliente = async (id: string) => {
+    if (!confirm('¿Seguro que deseas eliminar este cliente?')) return;
+
+    try {
+      const { error } = await supabase.from('clientes').delete().eq('id', id);
+
+      if (error) throw error;
+
+      setMensaje('🗑️ Cliente eliminado');
+      obtenerClientes();
+    } catch (error: any) {
+      console.error('Error al eliminar:', error);
+      alert('Error al eliminar. Revisa los permisos (RLS) en Supabase.');
+    }
   };
 
   const prepararEdicion = (c: any) => {
@@ -73,17 +89,6 @@ export default function ClientesPage() {
     setEmail(c.email || '');
     setEmpresa(c.empresa || '');
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const eliminarCliente = async (id: string) => {
-    if (confirm('¿Seguro que deseas eliminar este cliente?')) {
-      const { error } = await supabase.from('clientes').delete().eq('id', id);
-      if (!error) {
-        setMensaje('🗑️ Cliente eliminado');
-        obtenerClientes();
-        setTimeout(() => setMensaje(''), 3000);
-      }
-    }
   };
 
   const resetearFormulario = () => {
@@ -198,58 +203,50 @@ export default function ClientesPage() {
           {clientes.map((c) => (
             <div
               key={c.id}
-              className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 hover:shadow-md transition-shadow group"
+              className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between"
             >
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="font-black text-xl text-slate-800 leading-tight">
-                    {c.nombre}
-                  </h3>
-                  <span className="text-[10px] font-black bg-blue-100 text-blue-600 px-2 py-1 rounded-md uppercase">
-                    ID: {c.cedula || 'N/A'}
-                  </span>
+              <div>
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex-1">
+                    <h3 className="font-black text-xl text-slate-800 leading-tight mb-1">
+                      {c.nombre}
+                    </h3>
+                    <span className="text-[10px] font-black bg-blue-100 text-blue-600 px-3 py-1 rounded-full uppercase">
+                      C.I./RIF: {c.cedula || 'No registrado'}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => prepararEdicion(c)}
-                    className="p-2 text-blue-500 bg-blue-50 rounded-xl hover:bg-blue-100"
-                  >
-                    <Edit3 size={18} />
-                  </button>
-                  <button
-                    onClick={() => eliminarCliente(c.id)}
-                    className="p-2 text-red-500 bg-red-50 rounded-xl hover:bg-red-100"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+
+                <div className="space-y-2 pt-4 border-t border-slate-50">
+                  <div className="flex items-center gap-3 text-slate-600">
+                    <span className="bg-slate-100 p-2 rounded-lg">🏢</span>
+                    <p className="text-sm font-bold">
+                      {c.empresa || 'Particular'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 text-slate-600">
+                    <span className="bg-slate-100 p-2 rounded-lg">📞</span>
+                    <p className="text-sm font-medium">
+                      {c.telefono || 'Sin teléfono'}
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-3 pt-4 border-t border-slate-50">
-                <div className="flex items-center gap-3 text-slate-600">
-                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-sm">
-                    🏢
-                  </div>
-                  <p className="text-sm font-bold">
-                    {c.empresa || 'Particular'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 text-slate-600">
-                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-sm">
-                    📞
-                  </div>
-                  <p className="text-sm font-medium">
-                    {c.telefono || 'Sin teléfono'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 text-slate-600">
-                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-sm">
-                    ✉️
-                  </div>
-                  <p className="text-sm font-medium truncate">
-                    {c.email || 'Sin email'}
-                  </p>
-                </div>
+              {/* BOTONES ACCESIBLES EN MÓVIL (Sin hover) */}
+              <div className="flex gap-2 mt-6">
+                <button
+                  onClick={() => prepararEdicion(c)}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-50 text-blue-600 rounded-2xl font-bold active:scale-95 transition-all"
+                >
+                  <Edit3 size={18} /> Editar
+                </button>
+                <button
+                  onClick={() => eliminarCliente(c.id)}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-50 text-red-600 rounded-2xl font-bold active:scale-95 transition-all"
+                >
+                  <Trash2 size={18} /> Borrar
+                </button>
               </div>
             </div>
           ))}
