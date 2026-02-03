@@ -254,7 +254,7 @@ export default function CotizarPage() {
 
   // --- COMPONENTE DEL RESUMEN (REUTILIZABLE) ---
   const ListadoResumen = () => (
-    <div className="space-y-4 overflow-y-auto pr-2 max-h-[60vh] lg:max-h-[500px]">
+    <div className="space-y-4">
       {carrito.map((item) => (
         <div
           key={`resumen-${item.id}`} // Key única para esta lista
@@ -430,7 +430,10 @@ export default function CotizarPage() {
             <h2 className="text-2xl font-black mb-6 text-slate-800 flex justify-between">
               Resumen <ShoppingCart className="text-blue-500" />
             </h2>
-            <ListadoResumen />
+            {/* AQUÍ DEFINIMOS EL SCROLL PARA PC */}
+            <div className="max-h-[500px] overflow-y-auto pr-2 custom-scroll">
+              <ListadoResumen />
+            </div>
             <div className="mt-6 pt-6 border-t-4 border-dashed border-slate-100">
               <div className="flex justify-between items-center mb-6">
                 <span className="text-sm font-black text-slate-400 uppercase">
@@ -505,83 +508,7 @@ export default function CotizarPage() {
               className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50"
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
-              {carrito.map((item) => (
-                <div
-                  key={`item-${item.id}`} // Key estable para que React no pierda el foco
-                  className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm"
-                >
-                  <div className="flex justify-between mb-4">
-                    <span className="font-black text-slate-700 text-lg">
-                      {item.nombre}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setCarrito(carrito.filter((i) => i.id !== item.id))
-                      }
-                      className="text-red-400"
-                    >
-                      <Trash2 size={20} />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* CANTIDAD */}
-                    <div className="bg-slate-50 p-1 rounded-2xl flex items-center border">
-                      <button
-                        onPointerDown={(e) => e.preventDefault()} // Evita pérdida de foco
-                        onClick={() =>
-                          actualizarItem(
-                            item.id,
-                            'cantidad',
-                            (item.cantidad - 1).toString(),
-                          )
-                        }
-                        className="p-3 text-blue-600"
-                      >
-                        <Minus size={20} />
-                      </button>
-                      <input
-                        type="number"
-                        value={item.cantidad}
-                        onChange={(e) =>
-                          actualizarItem(item.id, 'cantidad', e.target.value)
-                        }
-                        className="w-full text-center font-black bg-transparent outline-none text-xl"
-                      />
-                      <button
-                        onPointerDown={(e) => e.preventDefault()}
-                        onClick={() =>
-                          actualizarItem(
-                            item.id,
-                            'cantidad',
-                            (item.cantidad + 1).toString(),
-                          )
-                        }
-                        className="p-3 text-blue-600"
-                      >
-                        <Plus size={20} />
-                      </button>
-                    </div>
-
-                    {/* PRECIO */}
-                    <div className="relative">
-                      <DollarSign
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400"
-                        size={16}
-                      />
-                      <input
-                        type="number"
-                        value={item.precio}
-                        onChange={(e) =>
-                          actualizarItem(item.id, 'precio', e.target.value)
-                        }
-                        className="w-full pl-8 pr-4 py-4 bg-slate-50 border rounded-2xl font-black text-blue-600 outline-none focus:ring-2 focus:ring-blue-500 text-lg"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-
+              <ListadoResumen /> {/* <--- USA LA FUNCIÓN AQUÍ TAMBIÉN */}
               <button
                 onClick={() => setMostrarModalResumen(false)}
                 className="w-full py-4 border-2 border-dashed border-blue-200 rounded-3xl text-blue-500 font-black text-sm uppercase tracking-widest hover:bg-blue-50 transition-all"
