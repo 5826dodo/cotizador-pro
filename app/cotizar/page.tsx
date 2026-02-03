@@ -252,97 +252,6 @@ export default function CotizarPage() {
     }
   };
 
-  // --- COMPONENTE DEL RESUMEN (REUTILIZABLE) ---
-  const ListadoResumen = () => (
-    <div className="space-y-4">
-      {carrito.map((item) => (
-        <div
-          key={`resumen-${item.id}`} // Key única para esta lista
-          className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 shadow-sm"
-        >
-          <div className="flex justify-between items-start mb-4">
-            <span className="text-lg font-black text-slate-700 leading-tight flex-1">
-              {item.nombre}
-            </span>
-            <button
-              onClick={() =>
-                setCarrito(carrito.filter((i) => i.id !== item.id))
-              }
-              className="text-red-400 p-1"
-            >
-              <Trash2 size={20} />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Cant.
-              </label>
-              <div className="flex items-center bg-white rounded-2xl ring-1 ring-slate-200 p-1">
-                <button
-                  // ESTO CORRIGE EL SCROLL EN PC:
-                  onPointerDown={(e) => e.preventDefault()}
-                  onClick={() =>
-                    actualizarItem(
-                      item.id,
-                      'cantidad',
-                      (Number(item.cantidad || 0) - 1).toString(),
-                    )
-                  }
-                  className="p-2 text-blue-600"
-                >
-                  <Minus size={18} />
-                </button>
-                <input
-                  type="number"
-                  value={item.cantidad}
-                  onChange={(e) =>
-                    actualizarItem(item.id, 'cantidad', e.target.value)
-                  }
-                  className="w-full text-center font-black text-lg outline-none bg-transparent"
-                />
-                <button
-                  // ESTO CORRIGE EL SCROLL EN PC:
-                  onPointerDown={(e) => e.preventDefault()}
-                  onClick={() =>
-                    actualizarItem(
-                      item.id,
-                      'cantidad',
-                      (Number(item.cantidad || 0) + 1).toString(),
-                    )
-                  }
-                  className="p-2 text-blue-600"
-                >
-                  <Plus size={18} />
-                </button>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Precio Unit.
-              </label>
-              <div className="relative">
-                <DollarSign
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500"
-                  size={16}
-                />
-                <input
-                  type="number"
-                  value={item.precio}
-                  onChange={(e) =>
-                    actualizarItem(item.id, 'precio', e.target.value)
-                  }
-                  className="w-full pl-8 pr-3 py-3 bg-white rounded-2xl ring-1 ring-slate-200 font-black text-blue-600 outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-
   return (
     <main className="min-h-screen bg-slate-50 p-4 md:p-8 pb-32">
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
@@ -432,7 +341,18 @@ export default function CotizarPage() {
             </h2>
             {/* AQUÍ DEFINIMOS EL SCROLL PARA PC */}
             <div className="max-h-[500px] overflow-y-auto pr-2 custom-scroll">
-              <ListadoResumen />
+              {/* Busca donde estaba <ListadoResumen /> en la parte de PC y cámbialo por esto: */}
+              <div className="space-y-4">
+                {carrito.map((item) => (
+                  <TarjetaProductoCarrito
+                    key={`pc-${item.id}`}
+                    item={item}
+                    actualizarItem={actualizarItem}
+                    setCarrito={setCarrito}
+                    carrito={carrito}
+                  />
+                ))}
+              </div>
             </div>
             <div className="mt-6 pt-6 border-t-4 border-dashed border-slate-100">
               <div className="flex justify-between items-center mb-6">
@@ -508,7 +428,18 @@ export default function CotizarPage() {
               className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50"
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
-              <ListadoResumen /> {/* <--- USA LA FUNCIÓN AQUÍ TAMBIÉN */}
+              {/* Busca donde estaba <ListadoResumen /> en la parte de PC y cámbialo por esto: */}
+              <div className="space-y-4">
+                {carrito.map((item) => (
+                  <TarjetaProductoCarrito
+                    key={`pc-${item.id}`}
+                    item={item}
+                    actualizarItem={actualizarItem}
+                    setCarrito={setCarrito}
+                    carrito={carrito}
+                  />
+                ))}
+              </div>
               <button
                 onClick={() => setMostrarModalResumen(false)}
                 className="w-full py-4 border-2 border-dashed border-blue-200 rounded-3xl text-blue-500 font-black text-sm uppercase tracking-widest hover:bg-blue-50 transition-all"
@@ -541,3 +472,85 @@ export default function CotizarPage() {
     </main>
   );
 }
+// PEGA ESTO AL FINAL DEL ARCHIVO (fuera de todo)
+const TarjetaProductoCarrito = ({
+  item,
+  actualizarItem,
+  setCarrito,
+  carrito,
+}: any) => (
+  <div className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 shadow-sm">
+    <div className="flex justify-between items-start mb-4">
+      <span className="text-lg font-black text-slate-700 leading-tight flex-1">
+        {item.nombre}
+      </span>
+      <button
+        onClick={() => setCarrito(carrito.filter((i: any) => i.id !== item.id))}
+        className="text-red-400 p-1"
+      >
+        <Trash2 size={20} />
+      </button>
+    </div>
+
+    <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-1">
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          Cant.
+        </label>
+        <div className="flex items-center bg-white rounded-2xl ring-1 ring-slate-200 p-1">
+          <button
+            onPointerDown={(e) => e.preventDefault()}
+            onClick={() =>
+              actualizarItem(
+                item.id,
+                'cantidad',
+                (Number(item.cantidad || 0) - 1).toString(),
+              )
+            }
+            className="p-2 text-blue-600"
+          >
+            <Minus size={18} />
+          </button>
+          <input
+            type="number"
+            value={item.cantidad}
+            onChange={(e) =>
+              actualizarItem(item.id, 'cantidad', e.target.value)
+            }
+            className="w-full text-center font-black text-lg outline-none bg-transparent"
+          />
+          <button
+            onPointerDown={(e) => e.preventDefault()}
+            onClick={() =>
+              actualizarItem(
+                item.id,
+                'cantidad',
+                (Number(item.cantidad || 0) + 1).toString(),
+              )
+            }
+            className="p-2 text-blue-600"
+          >
+            <Plus size={18} />
+          </button>
+        </div>
+      </div>
+      <div className="space-y-1">
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          Precio Unit.
+        </label>
+        <div className="relative">
+          <DollarSign
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500"
+            size={16}
+          />
+          <input
+            type="number"
+            value={item.precio}
+            onChange={(e) => actualizarItem(item.id, 'precio', e.target.value)}
+            className="w-full pl-8 pr-3 py-3 bg-white rounded-2xl ring-1 ring-slate-200 font-black text-blue-600 outline-none"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+);
