@@ -92,7 +92,7 @@ export default function CotizarPage() {
 
       // --- 1. LOGO AGRANDADO ---
       // Ajustamos el tamaño a 50x30mm para que sea muy legible
-      const logoUrl = '/logo-ferre.jpeg';
+      const logoUrl = '/logo_ferremateriales.jpeg';
       try {
         doc.addImage(logoUrl, 'JPEG', 14, 10, 50, 30);
       } catch (e) {
