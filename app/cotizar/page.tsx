@@ -42,15 +42,19 @@ export default function CotizarPage() {
   }, []);
 
   // --- LÓGICA DE ACTUALIZACIÓN ---
+  // --- LÓGICA DE ACTUALIZACIÓN (ANTI-SALTOS DE SCROLL) ---
   const actualizarItem = (
     id: string,
     campo: 'precio' | 'cantidad',
     valor: string,
   ) => {
-    const numValor = parseFloat(valor) || 0;
-    setCarrito(
-      carrito.map((item) => {
+    setCarrito((prevCarrito) =>
+      prevCarrito.map((item) => {
         if (item.id === id) {
+          // Permitimos que el valor sea una cadena vacía temporalmente para que el input no salte
+          if (valor === '') return { ...item, [campo]: '' };
+
+          const numValor = parseFloat(valor);
           if (campo === 'cantidad') {
             const cantFinal = numValor > item.stock ? item.stock : numValor;
             return { ...item, cantidad: cantFinal };
@@ -198,7 +202,7 @@ export default function CotizarPage() {
       .map((i) => `- ${i.nombre} (x${i.cantidad})`)
       .join('\n');
 
-    const texto = `🛠️ *FERREMATERIALES LER C.A.*\n\n📄 *Nueva Cotización*\n👤 *Cliente:* ${cliente.nombre}\n💰 *Total:* $${total.toLocaleString()}\n\n*Items:*\n${listaProd}`;
+    const texto = `🛠️ *FERREMATERIALES LER C.A.*\n\n📄 *Nueva Cotización*\n👤 *Cliente:* ${cliente.nombre}\n💰 *Total:* $${total.toLocaleString()}\n\n📌 *Estado:* PENDIENTE\n\n*Items:*\n${listaProd}`;
 
     try {
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
