@@ -79,38 +79,50 @@ export default function CotizarPage() {
   const descargarPDF = (cliente: any, items: any[], total: number) => {
     try {
       const doc = new jsPDF();
-      const colorPrincipal: [number, number, number] = [37, 99, 235]; // Azul Ferretero
 
-      // --- ENCABEZADO / MEMBRETE ---
-      doc.setFillColor(248, 250, 252);
-      doc.rect(0, 0, 210, 45, 'F');
+      // Colores basados en tu logo (Dorado y Gris oscuro)
+      const colorDorado: [number, number, number] = [184, 134, 11];
+      const colorOscuro: [number, number, number] = [30, 41, 59];
 
-      // ESPACIO PARA LOGO
-      // Si tienes la imagen en base64: doc.addImage(base64Data, 'PNG', 14, 10, 30, 30);
-      // Por ahora, pondremos un placeholder elegante
-      doc.setFillColor(37, 99, 235);
-      doc.roundedRect(14, 10, 25, 25, 3, 3, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(14);
-      doc.text('LER', 26.5, 26, { align: 'center' }); // Iniciales en el logo
+      // --- ENCABEZADO ---
+      // Dibujamos una línea elegante en la parte superior
+      doc.setDrawColor(colorDorado[0], colorDorado[1], colorDorado[2]);
+      doc.setLineWidth(2);
+      doc.line(14, 40, 196, 40);
+
+      // INSERTAR LOGO
+      // Nota: Para que funcione perfecto, deberías subir tu imagen a un hosting
+      // o convertirla a Base64. Aquí usamos un marcador de posición que puedes
+      // reemplazar por la URL de tu imagen.
+      const logoUrl = '/logo_ferremateriales.jpeg'; // Asegúrate de que el nombre coincida en tu carpeta public
+      try {
+        doc.addImage(logoUrl, 'JPEG', 14, 10, 25, 25);
+      } catch (e) {
+        // Si no carga la imagen, pone el texto de respaldo
+        doc.setFillColor(colorOscuro[0], colorOscuro[1], colorOscuro[2]);
+        doc.roundedRect(14, 10, 25, 25, 3, 3, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.text('LER', 26.5, 25, { align: 'center' });
+      }
 
       // NOMBRE DE LA EMPRESA
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(20);
-      doc.setTextColor(30, 41, 59);
+      doc.setTextColor(colorOscuro[0], colorOscuro[1], colorOscuro[2]);
       doc.text('FERREMATERIALES LER C.A.', 45, 22);
 
       doc.setFontSize(10);
       doc.setTextColor(100, 116, 139);
       doc.setFont('helvetica', 'normal');
-      doc.text('Rif: J-12345678-9', 45, 28); // Cambia por tu RIF real
-      doc.text('Tu aliado en construcción y ferretería', 45, 33);
+      doc.text('RIF: J-50438150-1', 45, 28); // Actualizado según tu logo
+      doc.text('Calidad y confianza en cada material', 45, 33);
 
-      // --- INFO COTIZACIÓN (DERECHA) ---
-      doc.setTextColor(30, 41, 59);
+      // INFO COTIZACIÓN
+      doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
       doc.setFontSize(16);
       doc.text('COTIZACIÓN', 196, 22, { align: 'right' });
       doc.setFontSize(10);
+      doc.setTextColor(colorOscuro[0], colorOscuro[1], colorOscuro[2]);
       doc.text(`N°: ${Math.floor(Date.now() / 10000)}`, 196, 28, {
         align: 'right',
       });
@@ -118,25 +130,30 @@ export default function CotizarPage() {
         align: 'right',
       });
 
-      // --- CAJA DE CLIENTE ---
+      // --- CAJA DE CLIENTE (CON CÉDULA) ---
       doc.setDrawColor(226, 232, 240);
       doc.setLineWidth(0.5);
-      doc.roundedRect(14, 55, 182, 28, 3, 3); // Ajustamos altura
+      doc.roundedRect(14, 50, 182, 32, 3, 3);
 
       doc.setFont('helvetica', 'bold');
-      doc.text('ATENCIÓN A:', 20, 63);
+      doc.text('ATENCIÓN A:', 20, 58);
       doc.setFont('helvetica', 'normal');
-      doc.text(`${cliente.nombre.toUpperCase()}`, 55, 63);
+      doc.text(`${cliente.nombre.toUpperCase()}`, 55, 58);
 
       doc.setFont('helvetica', 'bold');
-      doc.text('C.I. / RIF:', 20, 72); // Agregamos la cédula aquí
+      doc.text('C.I. / RIF:', 20, 66);
       doc.setFont('helvetica', 'normal');
-      doc.text(`${cliente.cedula || 'N/A'}`, 55, 72);
+      doc.text(`${cliente.cedula || 'N/A'}`, 55, 66);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('PROYECTO:', 20, 74);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${cliente.empresa || 'PARTICULAR'}`, 55, 74);
 
       // --- TABLA DE PRODUCTOS ---
       autoTable(doc, {
         startY: 90,
-        head: [['DESCRIPCIÓN DEL PRODUCTO', 'CANT.', 'PRECIO U.', 'SUBTOTAL']],
+        head: [['DESCRIPCIÓN', 'CANT.', 'PRECIO U.', 'SUBTOTAL']],
         body: items.map((i) => [
           i.nombre.toUpperCase(),
           i.cantidad,
@@ -145,54 +162,27 @@ export default function CotizarPage() {
         ]),
         theme: 'striped',
         headStyles: {
-          fillColor: colorPrincipal,
+          fillColor: [45, 55, 72], // Color elegante para la tabla
           fontSize: 10,
           fontStyle: 'bold',
           halign: 'center',
         },
-        columnStyles: {
-          0: { cellWidth: 'auto' },
-          1: { halign: 'center', cellWidth: 20 },
-          2: { halign: 'right', cellWidth: 35 },
-          3: { halign: 'right', cellWidth: 35 },
-        },
         styles: { fontSize: 9, cellPadding: 4 },
       });
 
-      // --- TOTALES ---
+      // --- TOTAL ---
       const finalY = (doc as any).lastAutoTable.finalY + 15;
-      doc.setDrawColor(37, 99, 235);
-      doc.setLineWidth(1);
-      doc.line(130, finalY - 5, 196, finalY - 5); // Línea decorativa
-
-      doc.setFontSize(11);
-      doc.setTextColor(100, 116, 139);
-      doc.text('TOTAL NETO:', 130, finalY);
-
       doc.setFontSize(18);
-      doc.setTextColor(37, 99, 235);
+      doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
       doc.setFont('helvetica', 'bold');
-      doc.text(`$${total.toLocaleString()}`, 196, finalY, { align: 'right' });
-
-      // --- NOTAS FINALES ---
-      doc.setFontSize(8);
-      doc.setTextColor(148, 163, 184);
-      doc.setFont('helvetica', 'italic');
-      doc.text(
-        'Precios sujetos a cambio sin previo aviso. Validez de la oferta: 3 días.',
-        14,
-        finalY + 20,
-      );
-      doc.text(
-        'Forma de pago: Transferencia bancaria, Zelle o Efectivo.',
-        14,
-        finalY + 25,
-      );
+      doc.text(`TOTAL A PAGAR: $${total.toLocaleString()}`, 196, finalY, {
+        align: 'right',
+      });
 
       doc.save(`Cotizacion_LER_${cliente.nombre.replace(/\s+/g, '_')}.pdf`);
     } catch (err) {
       console.error(err);
-      alert('Error al generar PDF de Ferremateriales LER');
+      alert('Error al generar PDF');
     }
   };
 
