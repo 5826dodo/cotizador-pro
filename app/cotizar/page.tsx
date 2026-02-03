@@ -199,36 +199,36 @@ export default function CotizarPage() {
   const enviarWhatsApp = (cliente: any, total: number, items: any[]) => {
     let telefono = cliente.telefono;
 
-    // Si no hay teléfono, lo pedimos al usuario
     if (!telefono || telefono.trim() === '') {
       const telIngresado = prompt(
-        'El cliente no tiene teléfono registrado. Ingresa el número (ej: 584121234567):',
-        '',
+        'Ingresa el número de WhatsApp (ej: 584121234567):',
       );
-      if (!telIngresado) return; // Si cancela, no hacemos nada
+      if (!telIngresado) return;
       telefono = telIngresado;
     }
 
-    // Limpiar el número (quitar espacios, guiones o el símbolo +)
     const telLimpio = telefono.replace(/\D/g, '');
 
-    // Formatear la lista de productos para el mensaje
+    // Formatear la lista de productos con emojis
     const listaProd = items
       .map(
         (i) =>
-          `• *${i.nombre}* (x${i.cantidad}) - $${(i.precio * i.cantidad).toLocaleString()}`,
+          `📦 *${i.nombre}*\n   Cant: ${i.cantidad} ⮕ $${(i.precio * i.cantidad).toLocaleString()}`,
       )
-      .join('%0A');
+      .join('%0A%0A');
 
-    // Mensaje con formato amigable
+    // Mensaje súper profesional
     const mensaje =
-      `*FERREMATERIALES LER C.A.*%0A%0A` +
-      `Hola *${cliente.nombre}*, adjunto el resumen de tu cotización:%0A%0A` +
+      `🏗️ *FERREMATERIALES LER C.A.*%0A` +
+      `_______________________________%0A%0A` +
+      `Hola *${cliente.nombre}*,%0A` +
+      `C.I./RIF: ${cliente.cedula || 'N/A'}%0A%0A` +
+      `Aquí tienes el resumen de tu pedido:%0A%0A` +
       `${listaProd}%0A%0A` +
-      `*TOTAL A PAGAR: $${total.toLocaleString()}*%0A%0A` +
-      `_Nota: El documento PDF ha sido generado y está listo para ser enviado._`;
+      `💰 *TOTAL A PAGAR: $${total.toLocaleString()}*%0A` +
+      `_______________________________%0A%0A` +
+      `✅ Tu presupuesto en PDF ha sido generado. ¡Estamos a tu orden! 🛠️`;
 
-    // Abrir WhatsApp (wa.me funciona en PC con WhatsApp Web y en móvil con la App)
     const url = `https://wa.me/${telLimpio}?text=${mensaje}`;
     window.open(url, '_blank');
   };
