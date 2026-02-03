@@ -51,15 +51,17 @@ export default function CotizarPage() {
     setCarrito((prevCarrito) =>
       prevCarrito.map((item) => {
         if (item.id === id) {
-          // Permitimos que el valor sea una cadena vacía temporalmente para que el input no salte
           if (valor === '') return { ...item, [campo]: '' };
 
           const numValor = parseFloat(valor);
           if (campo === 'cantidad') {
-            const cantFinal = numValor > item.stock ? item.stock : numValor;
+            // Aseguramos que sea un número y respetamos el stock
+            const valorLimpio = isNaN(numValor) ? 0 : numValor;
+            const cantFinal =
+              valorLimpio > item.stock ? item.stock : valorLimpio;
             return { ...item, cantidad: cantFinal };
           }
-          return { ...item, [campo]: numValor };
+          return { ...item, [campo]: isNaN(numValor) ? 0 : numValor };
         }
         return item;
       }),
@@ -255,7 +257,7 @@ export default function CotizarPage() {
     <div className="space-y-4 overflow-y-auto pr-2 max-h-[60vh] lg:max-h-[500px]">
       {carrito.map((item) => (
         <div
-          key={item.id}
+          key={`resumen-${item.id}`} // Key única para esta lista
           className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 shadow-sm"
         >
           <div className="flex justify-between items-start mb-4">
@@ -279,11 +281,13 @@ export default function CotizarPage() {
               </label>
               <div className="flex items-center bg-white rounded-2xl ring-1 ring-slate-200 p-1">
                 <button
+                  // ESTO CORRIGE EL SCROLL EN PC:
+                  onPointerDown={(e) => e.preventDefault()}
                   onClick={() =>
                     actualizarItem(
                       item.id,
                       'cantidad',
-                      (item.cantidad - 1).toString(),
+                      (Number(item.cantidad || 0) - 1).toString(),
                     )
                   }
                   className="p-2 text-blue-600"
@@ -299,11 +303,13 @@ export default function CotizarPage() {
                   className="w-full text-center font-black text-lg outline-none bg-transparent"
                 />
                 <button
+                  // ESTO CORRIGE EL SCROLL EN PC:
+                  onPointerDown={(e) => e.preventDefault()}
                   onClick={() =>
                     actualizarItem(
                       item.id,
                       'cantidad',
-                      (item.cantidad + 1).toString(),
+                      (Number(item.cantidad || 0) + 1).toString(),
                     )
                   }
                   className="p-2 text-blue-600"
