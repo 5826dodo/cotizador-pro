@@ -23,6 +23,7 @@ export default function CotizarPage() {
   const [carrito, setCarrito] = useState<any[]>([]);
   const [cargando, setCargando] = useState(false);
   const [mostrarModalResumen, setMostrarModalResumen] = useState(false); // Estado para el modal
+  const [observaciones, setObservaciones] = useState('');
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -76,113 +77,132 @@ export default function CotizarPage() {
     if (!existe) setCarrito([...carrito, { ...prod, cantidad: 1 }]);
   };
 
-  const descargarPDF = (cliente: any, items: any[], total: number) => {
+  const descargarPDF = (
+    cliente: any,
+    items: any[],
+    total: number,
+    notasExtra: string,
+  ) => {
     try {
       const doc = new jsPDF();
 
-      // Colores basados en tu logo (Dorado y Gris oscuro)
+      // Colores de marca
       const colorDorado: [number, number, number] = [184, 134, 11];
       const colorOscuro: [number, number, number] = [30, 41, 59];
 
-      // --- ENCABEZADO ---
-      // Dibujamos una línea elegante en la parte superior
-      doc.setDrawColor(colorDorado[0], colorDorado[1], colorDorado[2]);
-      doc.setLineWidth(2);
-      doc.line(14, 40, 196, 40);
-
-      // INSERTAR LOGO
-      // Nota: Para que funcione perfecto, deberías subir tu imagen a un hosting
-      // o convertirla a Base64. Aquí usamos un marcador de posición que puedes
-      // reemplazar por la URL de tu imagen.
-      const logoUrl = '/logo_ferremateriales.jpeg'; // Asegúrate de que el nombre coincida en tu carpeta public
+      // --- 1. LOGO AGRANDADO ---
+      // Ajustamos el tamaño a 50x30mm para que sea muy legible
+      const logoUrl = '/logo-ferre.jpeg';
       try {
-        doc.addImage(logoUrl, 'JPEG', 14, 10, 25, 25);
+        doc.addImage(logoUrl, 'JPEG', 14, 10, 50, 30);
       } catch (e) {
-        // Si no carga la imagen, pone el texto de respaldo
-        doc.setFillColor(colorOscuro[0], colorOscuro[1], colorOscuro[2]);
-        doc.roundedRect(14, 10, 25, 25, 3, 3, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.text('LER', 26.5, 25, { align: 'center' });
+        doc.setFontSize(22);
+        doc.text('FERREMATERIALES LER', 14, 25);
+        doc.text('RIF: J-50438150-1', 45, 28); // Actualizado según tu logo
+        doc.text('Calidad y confianza en cada material', 45, 33);
       }
 
-      // NOMBRE DE LA EMPRESA
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(20);
+      // --- 2. DATOS DE LA EMPRESA (DERECHA) ---
       doc.setTextColor(colorOscuro[0], colorOscuro[1], colorOscuro[2]);
-      doc.text('FERREMATERIALES LER C.A.', 45, 22);
-
       doc.setFontSize(10);
-      doc.setTextColor(100, 116, 139);
+      doc.setFont('helvetica', 'bold');
+      doc.text('CONTACTO:', 196, 15, { align: 'right' });
       doc.setFont('helvetica', 'normal');
-      doc.text('RIF: J-50438150-1', 45, 28); // Actualizado según tu logo
-      doc.text('Calidad y confianza en cada material', 45, 33);
+      doc.text('Tel: +58 412-1234567', 196, 20, { align: 'right' }); // Cambia por tu cel
+      doc.text('ferrematerialesler@gmail.com', 196, 25, { align: 'right' });
 
-      // INFO COTIZACIÓN
-      doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
+      // Dirección (Opcional/Fija por ahora)
+      doc.setFontSize(8);
+      doc.text('Av. Principal, Local LER, Los Guayos, Carabobo', 196, 30, {
+        align: 'right',
+      });
+
+      // --- 3. TÍTULO Y FECHA ---
+      doc.setDrawColor(colorDorado[0], colorDorado[1], colorDorado[2]);
+      doc.setLineWidth(1);
+      doc.line(14, 45, 196, 45);
+
       doc.setFontSize(16);
-      doc.text('COTIZACIÓN', 196, 22, { align: 'right' });
-      doc.setFontSize(10);
-      doc.setTextColor(colorOscuro[0], colorOscuro[1], colorOscuro[2]);
-      doc.text(`N°: ${Math.floor(Date.now() / 10000)}`, 196, 28, {
-        align: 'right',
-      });
-      doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 196, 33, {
+      doc.setFont('helvetica', 'bold');
+      doc.text('COTIZACIÓN PRELIMINAR', 196, 55, { align: 'right' });
+      doc.setFontSize(9);
+      doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 196, 60, {
         align: 'right',
       });
 
-      // --- CAJA DE CLIENTE (CON CÉDULA) ---
+      // --- 4. INFO DEL CLIENTE ---
       doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(0.5);
-      doc.roundedRect(14, 50, 182, 32, 3, 3);
+      doc.roundedRect(14, 65, 182, 30, 2, 2);
+
+      doc.setFontSize(10);
+      doc.text('CLIENTE:', 20, 72);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${cliente.nombre.toUpperCase()}`, 45, 72);
 
       doc.setFont('helvetica', 'bold');
-      doc.text('ATENCIÓN A:', 20, 58);
+      doc.text('RIF / C.I.:', 20, 79);
       doc.setFont('helvetica', 'normal');
-      doc.text(`${cliente.nombre.toUpperCase()}`, 55, 58);
+      doc.text(`${cliente.cedula || 'N/A'}`, 45, 79);
 
       doc.setFont('helvetica', 'bold');
-      doc.text('C.I. / RIF:', 20, 66);
+      doc.text('DESTINO:', 20, 86);
       doc.setFont('helvetica', 'normal');
-      doc.text(`${cliente.cedula || 'N/A'}`, 55, 66);
+      doc.text(
+        `${cliente.empresa || 'Retiro en tienda / Por definir'}`,
+        45,
+        86,
+      );
 
-      doc.setFont('helvetica', 'bold');
-      doc.text('PROYECTO:', 20, 74);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${cliente.empresa || 'PARTICULAR'}`, 55, 74);
-
-      // --- TABLA DE PRODUCTOS ---
+      // --- 5. TABLA ---
       autoTable(doc, {
-        startY: 90,
+        startY: 100,
         head: [['DESCRIPCIÓN', 'CANT.', 'PRECIO U.', 'SUBTOTAL']],
         body: items.map((i) => [
           i.nombre.toUpperCase(),
           i.cantidad,
-          `$${i.precio.toLocaleString()}`,
-          `$${(i.precio * i.cantidad).toLocaleString()}`,
+          `$ ${i.precio.toLocaleString()}`,
+          `$ ${(i.precio * i.cantidad).toLocaleString()}`,
         ]),
-        theme: 'striped',
-        headStyles: {
-          fillColor: [45, 55, 72], // Color elegante para la tabla
-          fontSize: 10,
-          fontStyle: 'bold',
-          halign: 'center',
+        headStyles: { fillColor: colorOscuro, halign: 'center' },
+        columnStyles: {
+          1: { halign: 'center' },
+          2: { halign: 'right' },
+          3: { halign: 'right' },
         },
-        styles: { fontSize: 9, cellPadding: 4 },
       });
 
-      // --- TOTAL ---
+      // --- 6. NOTA IMPORTANTE Y TOTAL ---
       const finalY = (doc as any).lastAutoTable.finalY + 15;
-      doc.setFontSize(18);
-      doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
+
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
-      doc.text(`TOTAL A PAGAR: $${total.toLocaleString()}`, 196, finalY, {
+      doc.text('NOTAS IMPORTANTES:', 14, finalY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(
+        '- Los precios mostrados no incluyen flete a menos que se especifique.',
+        14,
+        finalY + 5,
+      );
+      doc.text(
+        '- Esta cotización tiene una validez de 48 horas.',
+        14,
+        finalY + 10,
+      );
+
+      // Cuadro de Total resaltado
+      doc.setFillColor(248, 250, 252);
+      doc.rect(130, finalY - 5, 66, 20, 'F');
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
+      doc.text(`TOTAL: $ ${total.toLocaleString()}`, 190, finalY + 8, {
         align: 'right',
       });
 
-      doc.save(`Cotizacion_LER_${cliente.nombre.replace(/\s+/g, '_')}.pdf`);
+      doc.save(`Cotizacion_LER_${cliente.nombre}.pdf`);
     } catch (err) {
       console.error(err);
-      alert('Error al generar PDF');
+      alert('Error generando PDF');
     }
   };
 
@@ -273,7 +293,7 @@ ${listaProd}
       if (error) throw error;
 
       await enviarTelegram(clienteSeleccionado, total, carrito);
-      descargarPDF(clienteSeleccionado, carrito, total);
+      descargarPDF(clienteSeleccionado, carrito, total, observaciones);
 
       // El flujo de WhatsApp se lanza en paralelo
       setTimeout(() => {
@@ -399,6 +419,18 @@ ${listaProd}
             </div>
             <div className="mt-6 pt-6 border-t-4 border-dashed border-slate-100">
               <div className="flex justify-between items-center mb-6">
+                <div className="mb-6">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
+                    Notas / Dirección de Envío
+                  </label>
+                  <textarea
+                    value={observaciones}
+                    onChange={(e) => setObservaciones(e.target.value)}
+                    placeholder="Ej: Entrega en Obra - Av. Bolívar / Contactar a Ing. Pérez..."
+                    className="w-full p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 text-sm outline-none focus:border-blue-500 transition-all resize-none"
+                    rows={3}
+                  />
+                </div>
                 <span className="text-sm font-black text-slate-400 uppercase">
                   Total
                 </span>
