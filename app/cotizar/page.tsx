@@ -190,12 +190,38 @@ export default function CotizarPage() {
     }
   };
 
+  const notificarInstagram = (cliente: any, total: number) => {
+    const mensaje =
+      `🛠️ *FERREMATERIALES LER C.A.*\n\n` +
+      `Nueva Cotización Generada:\n` +
+      `👤 Cliente: ${cliente.nombre}\n` +
+      `💰 Total: $${total.toLocaleString()}\n` +
+      `📅 Fecha: ${new Date().toLocaleDateString()}\n\n` +
+      `¡Revisa el panel administrativo para más detalles!`;
+
+    // Opción: Abrir Instagram (esto abre la App, pero no el chat directo porque IG no permite links de mensajes directos por seguridad)
+    // Usaremos el Web Share API para que puedas enviarlo a IG Stories o Direct cómodamente
+    if (navigator.share) {
+      navigator
+        .share({
+          title: 'Nueva Cotización LER',
+          text: mensaje,
+        })
+        .catch(console.error);
+    } else {
+      // Si no hay Share API, redirigimos a la búsqueda de mensajes de Instagram
+      window.open(`https://www.instagram.com/direct/inbox/`, '_blank');
+    }
+  };
+
   const procesarCotizacion = async () => {
     if (!clienteSeleccionado || carrito.length === 0)
       return alert('Faltan datos');
     setCargando(true);
     try {
       const total = calcularTotal();
+
+      // 1. Guardar en Supabase
       const { error } = await supabase.from('cotizaciones').insert([
         {
           cliente_id: clienteSeleccionado.id,
@@ -205,13 +231,21 @@ export default function CotizarPage() {
         },
       ]);
       if (error) throw error;
+
+      // 2. Generar y Descargar PDF
       descargarPDF(clienteSeleccionado, carrito, total);
+
+      // 3. NOTIFICACIÓN (RESTAURADA)
+      notificarInstagram(clienteSeleccionado, total);
+
+      // 4. Limpiar estado
       setCarrito([]);
       setClienteSeleccionado(null);
       setMostrarModalResumen(false);
-      alert('¡Cotización guardada!');
+
+      alert('¡Cotización guardada y enviada!');
     } catch (e) {
-      alert('Error al procesar');
+      alert('Error al procesar la cotización');
     } finally {
       setCargando(false);
     }
