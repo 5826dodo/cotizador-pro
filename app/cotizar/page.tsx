@@ -209,30 +209,39 @@ export default function CotizarPage() {
 
     const telLimpio = telefono.replace(/\D/g, '');
 
-    // 1. Construimos el texto con emojis normales
+    // Formateamos la lista de productos
     const listaProd = items
       .map(
         (i) =>
-          `🔹 *${i.nombre}*\n   Cant: ${i.cantidad} -> $${(i.precio * i.cantidad).toLocaleString()}`,
+          `🔹 *${i.nombre.trim()}*\n   Cant: ${i.cantidad} -> $${(i.precio * i.cantidad).toLocaleString()}`,
       )
       .join('\n\n');
 
-    const textoMensaje =
-      `🏗️ *FERREMATERIALES LER C.A.*\n` +
-      `--------------------------------------------\n\n` +
-      `👤 *Cliente:* ${cliente.nombre}\n` +
-      `🆔 *C.I./RIF:* ${cliente.cedula || 'N/A'}\n\n` +
-      `📝 *RESUMEN DE COTIZACIÓN:*\n\n` +
-      `${listaProd}\n\n` +
-      `💵 *TOTAL A PAGAR: $${total.toLocaleString()}*\n\n` +
-      `--------------------------------------------\n` +
-      `📄 _El PDF ha sido generado y descargado._\n` +
-      `🛠️ *¡Estamos para servirle!*`;
+    // Construimos el mensaje usando constantes claras
+    const lineas = [
+      `🏗️ *FERREMATERIALES LER C.A.*`,
+      `--------------------------------------------`,
+      ``,
+      `👤 *Cliente:* ${cliente.nombre}`,
+      `🆔 *C.I./RIF:* ${cliente.cedula || 'N/A'}`,
+      ``,
+      `📝 *RESUMEN DE COTIZACIÓN:*`,
+      ``,
+      listaProd,
+      ``,
+      `💵 *TOTAL A PAGAR: $${total.toLocaleString()}*`,
+      ``,
+      `--------------------------------------------`,
+      `📄 _El PDF ha sido generado y descargado._`,
+      `🛠️ *¡Estamos para servirle!*`,
+    ];
 
-    // 2. IMPORTANTE: Usamos encodeURIComponent para proteger los emojis y saltos de línea
-    const mensajeFinal = encodeURIComponent(textoMensaje);
+    const textoCompleto = lineas.join('\n');
 
-    const url = `https://wa.me/${telLimpio}?text=${mensajeFinal}`;
+    // El secreto está en limpiar cualquier espacio extraño antes de codificar
+    const mensajeCodificado = encodeURIComponent(textoCompleto);
+
+    const url = `https://wa.me/${telLimpio}?text=${mensajeCodificado}`;
     window.open(url, '_blank');
   };
 
