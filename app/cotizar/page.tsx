@@ -190,27 +190,28 @@ export default function CotizarPage() {
     }
   };
 
-  const notificarInstagram = (cliente: any, total: number) => {
-    const mensaje =
-      `🛠️ *FERREMATERIALES LER C.A.*\n\n` +
-      `Nueva Cotización Generada:\n` +
-      `👤 Cliente: ${cliente.nombre}\n` +
-      `💰 Total: $${total.toLocaleString()}\n` +
-      `📅 Fecha: ${new Date().toLocaleDateString()}\n\n` +
-      `¡Revisa el panel administrativo para más detalles!`;
+  // --- LÓGICA DE TELEGRAM (RESTAURADA) ---
+  const enviarTelegram = async (cliente: any, total: number, items: any[]) => {
+    const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID;
+    const listaProd = items
+      .map((i) => `- ${i.nombre} (x${i.cantidad})`)
+      .join('\n');
 
-    // Opción: Abrir Instagram (esto abre la App, pero no el chat directo porque IG no permite links de mensajes directos por seguridad)
-    // Usaremos el Web Share API para que puedas enviarlo a IG Stories o Direct cómodamente
-    if (navigator.share) {
-      navigator
-        .share({
-          title: 'Nueva Cotización LER',
-          text: mensaje,
-        })
-        .catch(console.error);
-    } else {
-      // Si no hay Share API, redirigimos a la búsqueda de mensajes de Instagram
-      window.open(`https://www.instagram.com/direct/inbox/`, '_blank');
+    const texto = `🛠️ *FERREMATERIALES LER C.A.*\n\n📄 *Nueva Cotización*\n👤 *Cliente:* ${cliente.nombre}\n💰 *Total:* $${total.toLocaleString()}\n\n*Items:*\n${listaProd}`;
+
+    try {
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: texto,
+          parse_mode: 'Markdown',
+        }),
+      });
+    } catch (e) {
+      console.error('Error Telegram:', e);
     }
   };
 
@@ -220,8 +221,6 @@ export default function CotizarPage() {
     setCargando(true);
     try {
       const total = calcularTotal();
-
-      // 1. Guardar en Supabase
       const { error } = await supabase.from('cotizaciones').insert([
         {
           cliente_id: clienteSeleccionado.id,
@@ -230,22 +229,18 @@ export default function CotizarPage() {
           estado: 'pendiente',
         },
       ]);
+
       if (error) throw error;
 
-      // 2. Generar y Descargar PDF
+      await enviarTelegram(clienteSeleccionado, total, carrito);
       descargarPDF(clienteSeleccionado, carrito, total);
 
-      // 3. NOTIFICACIÓN (RESTAURADA)
-      notificarInstagram(clienteSeleccionado, total);
-
-      // 4. Limpiar estado
+      alert('¡Cotización guardada y enviada a Telegram!');
       setCarrito([]);
       setClienteSeleccionado(null);
       setMostrarModalResumen(false);
-
-      alert('¡Cotización guardada y enviada!');
     } catch (e) {
-      alert('Error al procesar la cotización');
+      alert('Error al procesar');
     } finally {
       setCargando(false);
     }
