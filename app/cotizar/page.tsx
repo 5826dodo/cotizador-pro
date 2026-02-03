@@ -209,25 +209,26 @@ export default function CotizarPage() {
 
     const telLimpio = telefono.replace(/\D/g, '');
 
-    // Formatear la lista de productos con emojis
+    // Usamos Emojis de texto que WhatsApp sí reconoce
     const listaProd = items
       .map(
         (i) =>
-          `📦 *${i.nombre}*\n   Cant: ${i.cantidad} ⮕ $${(i.precio * i.cantidad).toLocaleString()}`,
+          `🔹 *${i.nombre}*%0A   Cant: ${i.cantidad} -> $${(i.precio * i.cantidad).toLocaleString()}`,
       )
       .join('%0A%0A');
 
-    // Mensaje súper profesional
+    // Construcción del mensaje con formato WhatsApp
     const mensaje =
       `🏗️ *FERREMATERIALES LER C.A.*%0A` +
-      `_______________________________%0A%0A` +
-      `Hola *${cliente.nombre}*,%0A` +
-      `C.I./RIF: ${cliente.cedula || 'N/A'}%0A%0A` +
-      `Aquí tienes el resumen de tu pedido:%0A%0A` +
+      `--------------------------------------------%0A%0A` +
+      `👤 *Cliente:* ${cliente.nombre}%0A` +
+      `🆔 *C.I./RIF:* ${cliente.cedula || 'N/A'}%0A%0A` +
+      `📝 *RESUMEN DE COTIZACIÓN:*%0A%0A` +
       `${listaProd}%0A%0A` +
-      `💰 *TOTAL A PAGAR: $${total.toLocaleString()}*%0A` +
-      `_______________________________%0A%0A` +
-      `✅ Tu presupuesto en PDF ha sido generado. ¡Estamos a tu orden! 🛠️`;
+      `💵 *TOTAL A PAGAR: $${total.toLocaleString()}*%0A%0A` +
+      `--------------------------------------------%0A` +
+      `📄 _El PDF ha sido enviado a su correo/descargado._%0A` +
+      `🛠️ *¡Estamos para servirle!*`;
 
     const url = `https://wa.me/${telLimpio}?text=${mensaje}`;
     window.open(url, '_blank');
