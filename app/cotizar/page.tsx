@@ -525,6 +525,19 @@ ${listaProd}
 
             {/* PIE DE PÁGINA FIJO */}
             <div className="p-8 bg-white border-t border-slate-100 shrink-0">
+              {/* AGREGAR ESTO AQUÍ: */}
+              <div className="mb-4">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
+                  Notas / Dirección de Envío
+                </label>
+                <textarea
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                  placeholder="Ej: Entrega en obra, contacto..."
+                  className="w-full p-3 bg-slate-50 rounded-2xl border-2 border-slate-100 text-sm outline-none focus:border-blue-500 transition-all resize-none"
+                  rows={2}
+                />
+              </div>
               <div className="flex justify-between items-end mb-6">
                 <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">
                   Total Cotización
