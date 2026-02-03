@@ -236,7 +236,7 @@ export default function CotizarPage() {
       `${emojiMoney} *TOTAL A PAGAR: $${total.toLocaleString()}*\n\n` +
       `--------------------------------------------\n` +
       `${emojiPdf} _El PDF ha sido generado y descargado._\n` +
-      `${emojiTool} *¡Estamos para servirle!*`;
+      `${emojiTool} *¡Estamos para servirleee!*`;
 
     // Codificamos para URL
     const mensajeFinal = encodeURIComponent(textoMensaje);
