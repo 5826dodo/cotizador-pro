@@ -209,39 +209,39 @@ export default function CotizarPage() {
 
     const telLimpio = telefono.replace(/\D/g, '');
 
-    // Formateamos la lista de productos
+    // Definimos los emojis por código para evitar errores de lectura
+    const emojiFerre = '\u{1F3D7}'; // 🏗️
+    const emojiPunto = '\u{1F539}'; // 🔹
+    const emojiUser = '\u{1F464}'; // 👤
+    const emojiId = '\u{1F194}'; // 🆔
+    const emojiDoc = '\u{1F4DD}'; // 📝
+    const emojiMoney = '\u{1F4B5}'; // 💵
+    const emojiPdf = '\u{1F4C4}'; // 📄
+    const emojiTool = '\u{1F6E0}'; // 🛠️
+
     const listaProd = items
       .map(
         (i) =>
-          `🔹 *${i.nombre.trim()}*\n   Cant: ${i.cantidad} -> $${(i.precio * i.cantidad).toLocaleString()}`,
+          `${emojiPunto} *${i.nombre.trim()}*\n   Cant: ${i.cantidad} -> $${(i.precio * i.cantidad).toLocaleString()}`,
       )
       .join('\n\n');
 
-    // Construimos el mensaje usando constantes claras
-    const lineas = [
-      `🏗️ *FERREMATERIALES LER C.A.*`,
-      `--------------------------------------------`,
-      ``,
-      `👤 *Cliente:* ${cliente.nombre}`,
-      `🆔 *C.I./RIF:* ${cliente.cedula || 'N/A'}`,
-      ``,
-      `📝 *RESUMEN DE COTIZACIÓN:*`,
-      ``,
-      listaProd,
-      ``,
-      `💵 *TOTAL A PAGAR: $${total.toLocaleString()}*`,
-      ``,
-      `--------------------------------------------`,
-      `📄 _El PDF ha sido generado y descargado._`,
-      `🛠️ *¡Estamos para servirle!*`,
-    ];
+    const textoMensaje =
+      `${emojiFerre} *FERREMATERIALES LER C.A.*\n` +
+      `--------------------------------------------\n\n` +
+      `${emojiUser} *Cliente:* ${cliente.nombre}\n` +
+      `${emojiId} *C.I./RIF:* ${cliente.cedula || 'N/A'}\n\n` +
+      `${emojiDoc} *RESUMEN DE COTIZACIÓN:*\n\n` +
+      `${listaProd}\n\n` +
+      `${emojiMoney} *TOTAL A PAGAR: $${total.toLocaleString()}*\n\n` +
+      `--------------------------------------------\n` +
+      `${emojiPdf} _El PDF ha sido generado y descargado._\n` +
+      `${emojiTool} *¡Estamos para servirle!*`;
 
-    const textoCompleto = lineas.join('\n');
+    // Codificamos para URL
+    const mensajeFinal = encodeURIComponent(textoMensaje);
 
-    // El secreto está en limpiar cualquier espacio extraño antes de codificar
-    const mensajeCodificado = encodeURIComponent(textoCompleto);
-
-    const url = `https://wa.me/${telLimpio}?text=${mensajeCodificado}`;
+    const url = `https://wa.me/${telLimpio}?text=${mensajeFinal}`;
     window.open(url, '_blank');
   };
 
