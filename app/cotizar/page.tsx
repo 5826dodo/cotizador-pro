@@ -87,82 +87,97 @@ export default function CotizarPage() {
       const doc = new jsPDF();
       const colorDorado: [number, number, number] = [184, 134, 11];
 
-      // --- LOGO GRANDE (Estilo Membrete Original) ---
-      const logoUrl = '/logo3_ferremateriales.png';
+      // --- 1. LOGO Y MEMBRETE ---
+      const logoUrl = '/logo-ferre.jpeg';
       try {
-        // Aumentamos a 55x55 para que destaque
-        doc.addImage(logoUrl, 'JPEG', 10, 5, 35, 35);
+        // Reducimos un poco el ancho a 45 para que no pise el texto de la derecha
+        doc.addImage(logoUrl, 'JPEG', 10, 10, 45, 45);
       } catch (e) {
         console.error('Error logo', e);
       }
 
-      // --- TEXTO EMPRESA (Alineado con el logo) ---
+      // Datos de la Empresa (Desplazados a la derecha para no chocar con el logo)
       doc.setTextColor(30, 41, 59);
-      doc.setFontSize(22);
+      doc.setFontSize(20);
       doc.setFont('helvetica', 'bold');
-      doc.text('FERREMATERIALES LER C.A.', 65, 25);
+      doc.text('FERREMATERIALES LER C.A.', 60, 25);
 
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text('RIF: J-50438150-1', 65, 32);
-      doc.text('Calidad y confianza en cada material', 65, 38);
+      doc.text('RIF: J-50438150-1', 60, 32);
+      doc.text('Calidad y confianza en cada material', 60, 37);
 
-      // --- INFO COTIZACIÓN ---
+      // Etiqueta COTIZACIÓN (Aislada a la derecha)
       doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
       doc.setFontSize(16);
       doc.text('COTIZACIÓN', 196, 25, { align: 'right' });
-      doc.setFontSize(10);
-      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
       doc.text(`N°: ${Math.floor(Date.now() / 10000)}`, 196, 32, {
         align: 'right',
       });
-      doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 196, 38, {
+      doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 196, 37, {
         align: 'right',
       });
 
-      // Línea dorada gruesa
+      // Línea divisoria (La bajamos a 58 para dar aire al logo)
       doc.setDrawColor(colorDorado[0], colorDorado[1], colorDorado[2]);
-      doc.setLineWidth(1.5);
-      doc.line(14, 60, 196, 60);
+      doc.setLineWidth(1);
+      doc.line(14, 58, 196, 58);
 
-      // --- CAJA DE CLIENTE ---
+      // --- 2. CAJA DE CLIENTE CON TEXTO ENVOLVENTE ---
       doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(14, 68, 182, 32, 2, 2);
+      // Dibujamos el cuadro (lo hacemos un poco más alto por si la nota es larga)
+      doc.roundedRect(14, 65, 182, 35, 2, 2);
+
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.text('CLIENTE:', 20, 76);
-      doc.text('RIF / C.I.:', 20, 84);
-      doc.text('DESTINO:', 20, 92);
+      doc.text('CLIENTE:', 20, 72);
+      doc.text('RIF / C.I.:', 20, 79);
+      doc.text('DESTINO:', 20, 86);
 
       doc.setFont('helvetica', 'normal');
-      doc.text(`${cliente.nombre.toUpperCase()}`, 50, 76);
-      doc.text(`${cliente.cedula || 'N/A'}`, 50, 84);
-      // Aquí aparece la dirección/nota que escribiste
-      doc.text(`${notasExtra || 'Retiro en tienda'}`, 50, 92);
+      doc.text(`${cliente.nombre.toUpperCase()}`, 45, 72);
+      doc.text(`${cliente.cedula || 'N/A'}`, 45, 79);
 
-      // --- TABLA ---
+      // CLAVE: Ajuste de texto para la nota/dirección
+      // splitTextToSize corta el texto para que no pase de 140mm de ancho
+      const textoDestino = notasExtra || 'Retiro en tienda / Por definir';
+      const notasCortadas = doc.splitTextToSize(textoDestino, 140);
+      doc.text(notasCortadas, 45, 86);
+
+      // --- 3. TABLA (La bajamos a 105 para que no choque con la caja de arriba) ---
       autoTable(doc, {
         startY: 105,
         head: [['DESCRIPCIÓN', 'CANT.', 'PRECIO U.', 'SUBTOTAL']],
         body: items.map((i) => [
           i.nombre.toUpperCase(),
           i.cantidad,
-          `$${i.precio}`,
-          `$${i.precio * i.cantidad}`,
+          `$ ${i.precio.toLocaleString()}`,
+          `$ ${(i.precio * i.cantidad).toLocaleString()}`,
         ]),
-        headStyles: { fillColor: [30, 41, 59] },
+        headStyles: { fillColor: [30, 41, 59], halign: 'center' },
+        styles: { fontSize: 8 },
+        columnStyles: {
+          1: { halign: 'center' },
+          2: { halign: 'right' },
+          3: { halign: 'right' },
+        },
       });
 
-      // --- TOTAL ---
+      // --- 4. TOTAL ---
       const finalY = (doc as any).lastAutoTable.finalY + 15;
-      doc.setFontSize(18);
+      doc.setFontSize(16);
       doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
-      doc.text(`TOTAL: $ ${total.toLocaleString()}`, 196, finalY, {
+      doc.setFont('helvetica', 'bold');
+      doc.text(`TOTAL A PAGAR: $ ${total.toLocaleString()}`, 196, finalY, {
         align: 'right',
       });
 
       doc.save(`Cotizacion_LER_${cliente.nombre}.pdf`);
     } catch (err) {
-      alert('Error PDF');
+      console.error(err);
+      alert('Error al generar PDF');
     }
   };
 
