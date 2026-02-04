@@ -85,128 +85,93 @@ export default function CotizarPage() {
   ) => {
     try {
       const doc = new jsPDF();
-
-      // Colores de marca
       const colorDorado: [number, number, number] = [184, 134, 11];
-      const colorOscuro: [number, number, number] = [30, 41, 59];
 
-      // --- 1. LOGO AGRANDADO ---
-      // Ajustamos el tamaño a 50x30mm para que sea muy legible
-      const logoUrl = '/logo_ferremateriales.jpeg';
+      // --- LOGO GRANDE (Estilo Membrete Original) ---
+      const logoUrl = '/logo-ferre.jpeg';
       try {
-        doc.addImage(logoUrl, 'JPEG', 14, 10, 50, 30);
+        // Aumentamos a 55x55 para que destaque
+        doc.addImage(logoUrl, 'JPEG', 10, 5, 55, 55);
       } catch (e) {
-        doc.setFontSize(22);
-        doc.text('FERREMATERIALES LER', 14, 25);
-        doc.text('RIF: J-50438150-1', 45, 28); // Actualizado según tu logo
-        doc.text('Calidad y confianza en cada material', 45, 33);
+        console.error('Error logo', e);
       }
 
-      // --- 2. DATOS DE LA EMPRESA (DERECHA) ---
-      doc.setTextColor(colorOscuro[0], colorOscuro[1], colorOscuro[2]);
-      doc.setFontSize(10);
+      // --- TEXTO EMPRESA (Alineado con el logo) ---
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(22);
       doc.setFont('helvetica', 'bold');
-      doc.text('CONTACTO:', 196, 15, { align: 'right' });
+      doc.text('FERREMATERIALES LER C.A.', 65, 25);
+
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text('Tel: +58 412-1234567', 196, 20, { align: 'right' }); // Cambia por tu cel
-      doc.text('ferrematerialesler@gmail.com', 196, 25, { align: 'right' });
+      doc.text('RIF: J-50438150-1', 65, 32);
+      doc.text('Calidad y confianza en cada material', 65, 38);
 
-      // Dirección (Opcional/Fija por ahora)
-      doc.setFontSize(8);
-      doc.text('Av. Principal, Local LER, Los Guayos, Carabobo', 196, 30, {
-        align: 'right',
-      });
-
-      // --- 3. TÍTULO Y FECHA ---
-      doc.setDrawColor(colorDorado[0], colorDorado[1], colorDorado[2]);
-      doc.setLineWidth(1);
-      doc.line(14, 45, 196, 45);
-
+      // --- INFO COTIZACIÓN ---
+      doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
       doc.setFontSize(16);
-      doc.setFont('helvetica', 'bold');
-      doc.text('COTIZACIÓN PRELIMINAR', 196, 55, { align: 'right' });
-      doc.setFontSize(9);
-      doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 196, 60, {
+      doc.text('COTIZACIÓN', 196, 25, { align: 'right' });
+      doc.setFontSize(10);
+      doc.setTextColor(30, 41, 59);
+      doc.text(`N°: ${Math.floor(Date.now() / 10000)}`, 196, 32, {
+        align: 'right',
+      });
+      doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 196, 38, {
         align: 'right',
       });
 
-      // --- 4. INFO DEL CLIENTE ---
+      // Línea dorada gruesa
+      doc.setDrawColor(colorDorado[0], colorDorado[1], colorDorado[2]);
+      doc.setLineWidth(1.5);
+      doc.line(14, 60, 196, 60);
+
+      // --- CAJA DE CLIENTE ---
       doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(14, 65, 182, 30, 2, 2);
-
-      doc.setFontSize(10);
-      doc.text('CLIENTE:', 20, 72);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${cliente.nombre.toUpperCase()}`, 45, 72);
-
+      doc.roundedRect(14, 68, 182, 32, 2, 2);
       doc.setFont('helvetica', 'bold');
-      doc.text('RIF / C.I.:', 20, 79);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${cliente.cedula || 'N/A'}`, 45, 79);
+      doc.text('CLIENTE:', 20, 76);
+      doc.text('RIF / C.I.:', 20, 84);
+      doc.text('DESTINO:', 20, 92);
 
-      doc.setFont('helvetica', 'bold');
-      doc.text('DESTINO:', 20, 86);
       doc.setFont('helvetica', 'normal');
-      doc.text(
-        `${cliente.empresa || 'Retiro en tienda / Por definir'}`,
-        45,
-        86,
-      );
+      doc.text(`${cliente.nombre.toUpperCase()}`, 50, 76);
+      doc.text(`${cliente.cedula || 'N/A'}`, 50, 84);
+      // Aquí aparece la dirección/nota que escribiste
+      doc.text(`${notasExtra || 'Retiro en tienda'}`, 50, 92);
 
-      // --- 5. TABLA ---
+      // --- TABLA ---
       autoTable(doc, {
-        startY: 100,
+        startY: 105,
         head: [['DESCRIPCIÓN', 'CANT.', 'PRECIO U.', 'SUBTOTAL']],
         body: items.map((i) => [
           i.nombre.toUpperCase(),
           i.cantidad,
-          `$ ${i.precio.toLocaleString()}`,
-          `$ ${(i.precio * i.cantidad).toLocaleString()}`,
+          `$${i.precio}`,
+          `$${i.precio * i.cantidad}`,
         ]),
-        headStyles: { fillColor: colorOscuro, halign: 'center' },
-        columnStyles: {
-          1: { halign: 'center' },
-          2: { halign: 'right' },
-          3: { halign: 'right' },
-        },
+        headStyles: { fillColor: [30, 41, 59] },
       });
 
-      // --- 6. NOTA IMPORTANTE Y TOTAL ---
+      // --- TOTAL ---
       const finalY = (doc as any).lastAutoTable.finalY + 15;
-
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.text('NOTAS IMPORTANTES:', 14, finalY);
-      doc.setFont('helvetica', 'normal');
-      doc.text(
-        '- Los precios mostrados no incluyen flete a menos que se especifique.',
-        14,
-        finalY + 5,
-      );
-      doc.text(
-        '- Esta cotización tiene una validez de 48 horas.',
-        14,
-        finalY + 10,
-      );
-
-      // Cuadro de Total resaltado
-      doc.setFillColor(248, 250, 252);
-      doc.rect(130, finalY - 5, 66, 20, 'F');
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
       doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
-      doc.text(`TOTAL: $ ${total.toLocaleString()}`, 190, finalY + 8, {
+      doc.text(`TOTAL: $ ${total.toLocaleString()}`, 196, finalY, {
         align: 'right',
       });
 
       doc.save(`Cotizacion_LER_${cliente.nombre}.pdf`);
     } catch (err) {
-      console.error(err);
-      alert('Error generando PDF');
+      alert('Error PDF');
     }
   };
 
-  const enviarWhatsApp = (cliente: any, total: number, items: any[]) => {
+  const enviarWhatsApp = (
+    cliente: any,
+    total: number,
+    items: any[],
+    notas: string,
+  ) => {
     let telefono = cliente.telefono;
 
     if (!telefono || telefono.trim() === '') {
@@ -232,6 +197,7 @@ export default function CotizarPage() {
 
 👤 *Cliente:* ${cliente.nombre}
 🆔 *C.I./RIF:* ${cliente.cedula || 'N/A'}
+📍 *Entrega:* ${notas || 'Retiro en tienda'}
 
 📝 *RESUMEN DE COTIZACIÓN:*
 
