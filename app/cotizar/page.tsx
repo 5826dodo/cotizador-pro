@@ -88,7 +88,7 @@ export default function CotizarPage() {
       const colorDorado: [number, number, number] = [184, 134, 11];
 
       // --- 1. LOGO Y MEMBRETE ---
-      const logoUrl = '/logo3_ferremateriales.jpeg';
+      const logoUrl = '/logo3_ferremateriales.png';
       try {
         // Reducimos un poco el ancho a 45 para que no pise el texto de la derecha
         doc.addImage(logoUrl, 'JPEG', 10, 10, 45, 45);
@@ -100,7 +100,7 @@ export default function CotizarPage() {
       doc.setTextColor(30, 41, 59);
       doc.setFontSize(20);
       doc.setFont('helvetica', 'bold');
-      doc.text('FERREMATERIALES LER C.A.', 55, 25);
+      doc.text('FERREMATERIALES LER C.A.', 45, 25);
 
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
