@@ -88,7 +88,7 @@ export default function CotizarPage() {
       const colorDorado: [number, number, number] = [184, 134, 11];
 
       // --- LOGO GRANDE (Estilo Membrete Original) ---
-      const logoUrl = '/logo2_ferremateriales.jpeg';
+      const logoUrl = '/logo2_ferremateriales.png';
       try {
         // Aumentamos a 55x55 para que destaque
         doc.addImage(logoUrl, 'JPEG', 10, 5, 50, 50);
