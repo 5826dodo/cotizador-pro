@@ -264,7 +264,7 @@ ${listaProd}
       // El flujo de WhatsApp se lanza en paralelo
       setTimeout(() => {
         if (confirm('¿Deseas enviar el resumen por WhatsApp ahora?')) {
-          enviarWhatsApp(clienteSeleccionado, total, carrito);
+          enviarWhatsApp(clienteSeleccionado, total, carrito, observaciones);
         }
       }, 500); // Cerramos el setTimeout aquí con });
 
