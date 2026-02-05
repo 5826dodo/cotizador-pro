@@ -88,7 +88,7 @@ export default function CotizarPage() {
       const colorDorado: [number, number, number] = [184, 134, 11];
 
       // --- 1. LOGO Y MEMBRETE ---
-      const logoUrl = '/logo3_ferremateriales.png';
+      const logoUrl = '/logo4_ferremateriales.png';
       try {
         // Reducimos un poco el ancho a 45 para que no pise el texto de la derecha
         doc.addImage(logoUrl, 'PNG', 10, 10, 45, 45);
