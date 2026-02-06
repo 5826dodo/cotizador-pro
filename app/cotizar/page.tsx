@@ -100,12 +100,12 @@ export default function CotizarPage() {
       doc.setTextColor(30, 41, 59);
       doc.setFontSize(20);
       doc.setFont('helvetica', 'bold');
-      doc.text('FERREMATERIALES LER C.A.', 55, 25);
+      doc.text('FERREMATERIALES LER C.A.', 50, 25);
 
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text('RIF: J-501123764', 60, 32);
-      doc.text('Calidad y confianza en cada material', 60, 37);
+      doc.text('RIF: J-501123764', 50, 32);
+      doc.text('Calidad y confianza en cada material', 50, 37);
 
       // Etiqueta COTIZACIÓN (Aislada a la derecha)
       doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
