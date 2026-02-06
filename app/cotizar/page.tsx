@@ -91,7 +91,7 @@ export default function CotizarPage() {
       const logoUrl = '/logo3_ferremateriales.png';
       try {
         // Reducimos un poco el ancho a 45 para que no pise el texto de la derecha
-        doc.addImage(logoUrl, 'PNG', 10, 10, 40, 40);
+        doc.addImage(logoUrl, 'PNG', 10, 10, 35, 35);
       } catch (e) {
         console.error('Error logo', e);
       }
