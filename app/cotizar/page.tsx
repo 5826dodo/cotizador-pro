@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
 import {
   Trash2,
   Plus,
@@ -24,6 +25,7 @@ export default function CotizarPage() {
   const [cargando, setCargando] = useState(false);
   const [mostrarModalResumen, setMostrarModalResumen] = useState(false); // Estado para el modal
   const [observaciones, setObservaciones] = useState('');
+  const [busquedaCliente, setBusquedaCliente] = useState('');
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -306,23 +308,101 @@ ${listaProd}
             Cotizar
           </h1>
 
-          <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-            <select
-              className="w-full p-5 bg-slate-50 rounded-[1.5rem] border-none ring-2 ring-slate-100 text-xl font-bold outline-none"
-              onChange={(e) =>
-                setClienteSeleccionado(
-                  clientes.find((c) => c.id === e.target.value),
-                )
-              }
-              value={clienteSeleccionado?.id || ''}
-            >
-              <option value="">-- Seleccionar Cliente --</option>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre} {c.empresa && `(${c.empresa})`}
-                </option>
-              ))}
-            </select>
+          {/* REEMPLAZO DEL SELECT POR BUSCADOR INTELIGENTE */}
+          <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 relative">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block ml-2">
+              Cliente (Busca por Nombre, RIF o Cédula)
+            </label>
+
+            <div className="relative">
+              <Search
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                size={24}
+              />
+              <input
+                type="text"
+                placeholder="Escribir para buscar cliente..."
+                className="w-full pl-14 pr-12 py-5 bg-slate-50 rounded-[1.5rem] outline-none ring-2 ring-slate-100 text-xl font-bold transition-all focus:ring-blue-500"
+                // Si hay un cliente seleccionado, mostramos su nombre, si no, lo que se esté escribiendo
+                value={
+                  clienteSeleccionado
+                    ? `${clienteSeleccionado.nombre} ${clienteSeleccionado.apellido || ''}`
+                    : busquedaCliente
+                }
+                onChange={(e) => {
+                  setBusquedaCliente(e.target.value);
+                  if (clienteSeleccionado) setClienteSeleccionado(null);
+                }}
+              />
+
+              {/* Botón para limpiar selección */}
+              {clienteSeleccionado && (
+                <button
+                  onClick={() => {
+                    setClienteSeleccionado(null);
+                    setBusquedaCliente('');
+                  }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-slate-200 p-2 rounded-full text-slate-600 hover:bg-red-500 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              )}
+            </div>
+
+            {/* LISTA DE RESULTADOS FILTRADOS (Aparece solo mientras buscas) */}
+            {!clienteSeleccionado && busquedaCliente.length > 0 && (
+              <div className="absolute z-[100] left-6 right-6 mt-2 bg-white rounded-[2rem] shadow-2xl border border-slate-100 max-h-[350px] overflow-y-auto p-3 custom-scroll">
+                {clientes
+                  .filter((c) => {
+                    const term = busquedaCliente.toLowerCase();
+                    return (
+                      c.nombre?.toLowerCase().includes(term) ||
+                      c.apellido?.toLowerCase().includes(term) ||
+                      c.cedula?.toString().includes(term) ||
+                      c.rif?.toLowerCase().includes(term)
+                    );
+                  })
+                  .map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        setClienteSeleccionado(c);
+                        setBusquedaCliente('');
+                      }}
+                      className="w-full text-left p-4 hover:bg-blue-50 rounded-2xl transition-all flex flex-col border-b border-slate-50 last:border-none group"
+                    >
+                      <span className="font-black text-slate-800 text-lg uppercase group-hover:text-blue-600">
+                        {c.nombre} {c.apellido || ''}
+                      </span>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-xs font-bold px-2 py-1 bg-slate-100 text-slate-500 rounded-md">
+                          ID: {c.cedula || c.rif || 'N/A'}
+                        </span>
+                        {c.empresa && (
+                          <span className="text-xs text-blue-400 font-medium italic">
+                            🏢 {c.empresa}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+
+                {/* Mensaje cuando no hay resultados */}
+                {clientes.filter((c) => {
+                  const term = busquedaCliente.toLowerCase();
+                  return (
+                    c.nombre?.toLowerCase().includes(term) ||
+                    c.cedula?.toString().includes(term)
+                  );
+                }).length === 0 && (
+                  <div className="p-8 text-center">
+                    <p className="text-slate-400 font-bold uppercase text-xs">
+                      No se encontró el cliente
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
