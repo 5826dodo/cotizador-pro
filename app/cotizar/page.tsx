@@ -26,6 +26,9 @@ export default function CotizarPage() {
   const [mostrarModalResumen, setMostrarModalResumen] = useState(false); // Estado para el modal
   const [observaciones, setObservaciones] = useState('');
   const [busquedaCliente, setBusquedaCliente] = useState('');
+  const [tasaBCV, setTasaBCV] = useState<number>(36.5); // Valor inicial por defecto
+  // FORMA CORRECTA
+  const [monedaPrincipal, setMonedaPrincipal] = useState<'USD' | 'BS'>('USD');
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -172,9 +175,17 @@ export default function CotizarPage() {
       doc.setFontSize(16);
       doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
       doc.setFont('helvetica', 'bold');
-      doc.text(`TOTAL A PAGAR: $ ${total.toLocaleString()}`, 196, finalY, {
-        align: 'right',
-      });
+      const totalFinal = monedaPrincipal === 'BS' ? total * tasaBCV : total;
+      const simbolo = monedaPrincipal === 'BS' ? 'Bs.' : '$';
+
+      doc.text(
+        `TOTAL A PAGAR: ${simbolo} ${totalFinal.toLocaleString(monedaPrincipal === 'BS' ? 'es-VE' : 'en-US')}`,
+        196,
+        finalY,
+        {
+          align: 'right',
+        },
+      );
 
       doc.save(`Cotizacion_LER_${cliente.nombre}.pdf`);
     } catch (err) {
@@ -404,6 +415,48 @@ ${listaProd}
               </div>
             )}
           </section>
+          {/* --- PANEL DE TASA Y CAMBIO DE MONEDA --- */}
+          <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="bg-amber-50 p-4 rounded-[1.5rem] border border-amber-100">
+                <DollarSign className="text-amber-600" size={28} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                  Tasa BCV (Bs/$)
+                </p>
+                <input
+                  type="number"
+                  value={tasaBCV}
+                  onChange={(e) => setTasaBCV(parseFloat(e.target.value) || 0)}
+                  className="text-3xl font-black text-slate-800 bg-transparent outline-none w-32 focus:text-blue-600 transition-colors"
+                />
+              </div>
+            </div>
+
+            <div className="flex bg-slate-100 p-2 rounded-[1.8rem] shadow-inner">
+              <button
+                onClick={() => setMonedaPrincipal('USD')}
+                className={`px-8 py-3 rounded-[1.4rem] font-black text-sm transition-all flex items-center gap-2 ${
+                  monedaPrincipal === 'USD'
+                    ? 'bg-white text-blue-600 shadow-md scale-105'
+                    : 'text-slate-400'
+                }`}
+              >
+                $ USD
+              </button>
+              <button
+                onClick={() => setMonedaPrincipal('BS')}
+                className={`px-8 py-3 rounded-[1.4rem] font-black text-sm transition-all flex items-center gap-2 ${
+                  monedaPrincipal === 'BS'
+                    ? 'bg-white text-emerald-600 shadow-md scale-105'
+                    : 'text-slate-400'
+                }`}
+              >
+                Bs BS
+              </button>
+            </div>
+          </section>
 
           <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
             <div className="relative mb-6">
@@ -446,7 +499,16 @@ ${listaProd}
                     </p>
                     <div className="flex justify-between items-end">
                       <span className="text-2xl font-black text-blue-600">
-                        ${p.precio}
+                        <div className="flex justify-between items-end">
+                          <span className="text-2xl font-black text-blue-600">
+                            {monedaPrincipal === 'BS'
+                              ? `Bs. ${(p.precio * tasaBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
+                              : `$ ${p.precio.toLocaleString()}`}
+                          </span>
+                          <span className="text-xs font-bold px-3 py-1 bg-slate-100 text-slate-500 rounded-lg">
+                            Stock: {p.stock}
+                          </span>
+                        </div>
                       </span>
                       <span className="text-xs font-bold px-3 py-1 bg-slate-100 text-slate-500 rounded-lg">
                         Stock: {p.stock}
@@ -497,7 +559,23 @@ ${listaProd}
                   Total
                 </span>
                 <span className="text-4xl font-black text-blue-700">
-                  ${calcularTotal().toLocaleString()}
+                  <div className="flex flex-col items-end">
+                    <span className="text-sm font-black text-slate-400 uppercase">
+                      Total a Pagar
+                    </span>
+                    <span className="text-4xl font-black text-blue-700 leading-none">
+                      {monedaPrincipal === 'BS'
+                        ? `Bs. ${(calcularTotal() * tasaBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
+                        : `$ ${calcularTotal().toLocaleString()}`}
+                    </span>
+                    {/* Sub-indicador de la otra moneda */}
+                    <span className="text-sm font-bold text-slate-400 mt-1">
+                      Equivale a:{' '}
+                      {monedaPrincipal === 'BS'
+                        ? `$ ${calcularTotal().toLocaleString()}`
+                        : `Bs. ${(calcularTotal() * tasaBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`}
+                    </span>
+                  </div>
                 </span>
               </div>
               <button
@@ -533,7 +611,23 @@ ${listaProd}
                   Total
                 </p>
                 <p className="text-2xl font-black">
-                  ${calcularTotal().toLocaleString()}
+                  <div className="flex flex-col items-end">
+                    <span className="text-sm font-black text-slate-400 uppercase">
+                      Total a Pagar
+                    </span>
+                    <span className="text-4xl font-black text-blue-700 leading-none">
+                      {monedaPrincipal === 'BS'
+                        ? `Bs. ${(calcularTotal() * tasaBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
+                        : `$ ${calcularTotal().toLocaleString()}`}
+                    </span>
+                    {/* Sub-indicador de la otra moneda */}
+                    <span className="text-sm font-bold text-slate-400 mt-1">
+                      Equivale a:{' '}
+                      {monedaPrincipal === 'BS'
+                        ? `$ ${calcularTotal().toLocaleString()}`
+                        : `Bs. ${(calcularTotal() * tasaBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`}
+                    </span>
+                  </div>
                 </p>
               </div>
             </div>
@@ -605,7 +699,23 @@ ${listaProd}
                   Total Cotización
                 </span>
                 <span className="text-4xl font-black text-blue-600">
-                  ${calcularTotal().toLocaleString()}
+                  <div className="flex flex-col items-end">
+                    <span className="text-sm font-black text-slate-400 uppercase">
+                      Total a Pagar
+                    </span>
+                    <span className="text-4xl font-black text-blue-700 leading-none">
+                      {monedaPrincipal === 'BS'
+                        ? `Bs. ${(calcularTotal() * tasaBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
+                        : `$ ${calcularTotal().toLocaleString()}`}
+                    </span>
+                    {/* Sub-indicador de la otra moneda */}
+                    <span className="text-sm font-bold text-slate-400 mt-1">
+                      Equivale a:{' '}
+                      {monedaPrincipal === 'BS'
+                        ? `$ ${calcularTotal().toLocaleString()}`
+                        : `Bs. ${(calcularTotal() * tasaBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`}
+                    </span>
+                  </div>
                 </span>
               </div>
               <button
