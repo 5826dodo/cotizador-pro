@@ -85,13 +85,12 @@ export default function HistorialPage() {
   };
 
   const aprobarCotizacion = async (cot: any) => {
-    const confirmar = confirm(
-      '¿Confirmar venta? Se notificará el monto en la moneda original.',
-    );
+    const confirmar = confirm('¿Confirmar venta y descontar stock?');
     if (!confirmar) return;
     setProcesandoAccion(true);
+
     try {
-      // Descontar Stock
+      // 1. Descontar stock en Supabase
       for (const item of cot.productos_seleccionados) {
         const { data: prod } = await supabase
           .from('productos')
@@ -104,27 +103,39 @@ export default function HistorialPage() {
           .eq('id', item.id);
       }
 
+      // 2. Cambiar estado de la cotización
       await supabase
         .from('cotizaciones')
         .update({ estado: 'aprobado' })
         .eq('id', cot.id);
 
-      // Notificación de aprobación con MONEDA ORIGINAL
-      const simbolo = cot.moneda === 'BS' ? 'Bs.' : '$';
-      const montoFinal =
-        cot.moneda === 'BS' ? cot.total * (cot.tasa_bcv || 1) : cot.total;
+      // 3. CONSTRUIR LISTA DE ITEMS PARA TELEGRAM
+      const listaItems = cot.productos_seleccionados
+        .map((item: any) => `▪️ ${item.cantidad}x ${item.nombre.toUpperCase()}`)
+        .join('\n');
 
+      // 4. PREPARAR MONTOS SEGÚN MONEDA GUARDADA
+      const esBS = cot.moneda === 'BS';
+      const simbolo = esBS ? 'Bs.' : '$';
+      const montoFinal = esBS ? cot.total * (cot.tasa_bcv || 1) : cot.total;
+
+      // 5. MENSAJE FINAL
       const mensaje =
-        `✅ *VENTA CERRADA*\n` +
+        `✅ *VENTA APROBADA*\n\n` +
         `👤 *Cliente:* ${cot.clientes?.nombre}\n` +
-        `💰 *Monto:* ${simbolo} ${montoFinal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}\n` +
-        `${cot.moneda === 'BS' ? `📈 *Tasa:* ${cot.tasa_bcv}` : ''}`;
+        `📦 *Productos:*\n${listaItems}\n\n` +
+        `💰 *Total Cobrado:* ${simbolo} ${montoFinal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}\n` +
+        `${esBS ? `📈 *Tasa:* ${cot.tasa_bcv} Bs/$` : `💵 *Referencia:* $${cot.total.toLocaleString()}`}\n\n` +
+        `🚀 _Venta procesada exitosamente_`;
 
       await enviarNotificacionTelegram(mensaje);
+
       setCotizacionSeleccionada(null);
-      cargarHistorial();
+      cargarHistorial(); // Refrescar la lista
+      alert('Venta aprobada y reporte enviado');
     } catch (e) {
-      alert('Error al procesar');
+      console.error(e);
+      alert('Error al procesar la aprobación');
     } finally {
       setProcesandoAccion(false);
     }
