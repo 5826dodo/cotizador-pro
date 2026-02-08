@@ -315,20 +315,26 @@ export default function CotizarPage() {
   const procesarCotizacion = async () => {
     if (!clienteSeleccionado || carrito.length === 0)
       return alert('Faltan datos');
+
     setCargando(true);
     try {
-      const total = calcularTotal();
+      const total = calcularTotal(); // Este total siempre está en USD ($)
+
+      // CLAVE: Guardamos el estado de la moneda y la tasa en el momento de la venta
       const { error } = await supabase.from('cotizaciones').insert([
         {
           cliente_id: clienteSeleccionado.id,
           productos_seleccionados: carrito,
-          total,
+          total: total, // Se guarda en $
           estado: 'pendiente',
+          moneda: monedaPrincipal, // Guardamos 'USD' o 'BS'
+          tasa_bcv: tasaBCV, // Guardamos la tasa usada en ese momento
         },
       ]);
 
       if (error) throw error;
 
+      // Enviamos a Telegram con los datos correctos
       await enviarTelegram(
         clienteSeleccionado,
         total,
@@ -336,9 +342,11 @@ export default function CotizarPage() {
         monedaPrincipal,
         tasaBCV,
       );
+
+      // Generamos el PDF
       descargarPDF(clienteSeleccionado, carrito, total, observaciones);
 
-      // El flujo de WhatsApp se lanza en paralelo
+      // Flujo de WhatsApp
       setTimeout(() => {
         if (confirm('¿Deseas enviar el resumen por WhatsApp ahora?')) {
           enviarWhatsApp(
@@ -350,10 +358,11 @@ export default function CotizarPage() {
             tasaBCV,
           );
         }
-      }, 500); // Cerramos el setTimeout aquí con });
+      }, 500);
 
-      // Estas acciones ocurren de inmediato
       alert('¡Cotización procesada con éxito!');
+
+      // Limpieza de estados
       setCarrito([]);
       setClienteSeleccionado(null);
       setObservaciones('');
