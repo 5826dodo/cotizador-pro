@@ -518,18 +518,23 @@ ${listaProd}
                       {p.nombre}
                     </p>
                     <div className="flex justify-between items-end">
-                      <span className="text-2xl font-black text-blue-600">
-                        <div className="flex justify-between items-end">
-                          <span className="text-2xl font-black text-blue-600">
-                            {monedaPrincipal === 'BS'
-                              ? `Bs. ${(p.precio * tasaBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
-                              : `$ ${p.precio.toLocaleString()}`}
+                      <div className="flex flex-col">
+                        {/* El precio principal siempre en Dólares */}
+                        <span className="text-2xl font-black text-blue-600 leading-none">
+                          ${p.precio.toLocaleString()}
+                        </span>
+
+                        {/* El equivalente en Bs. pequeño abajo (Solo si el switch es BS) */}
+                        {monedaPrincipal === 'BS' && (
+                          <span className="text-[11px] font-black text-emerald-600 mt-1 uppercase tracking-tighter">
+                            ≈ Bs.{' '}
+                            {(p.precio * tasaBCV).toLocaleString('es-VE', {
+                              minimumFractionDigits: 2,
+                            })}
                           </span>
-                          <span className="text-xs font-bold px-3 py-1 bg-slate-100 text-slate-500 rounded-lg">
-                            Stock: {p.stock}
-                          </span>
-                        </div>
-                      </span>
+                        )}
+                      </div>
+
                       <span className="text-xs font-bold px-3 py-1 bg-slate-100 text-slate-500 rounded-lg">
                         Stock: {p.stock}
                       </span>
@@ -581,22 +586,27 @@ ${listaProd}
                   Total
                 </span>
                 <span className="text-4xl font-black text-blue-700">
-                  <div className="flex flex-col items-end">
-                    <span className="text-sm font-black text-slate-400 uppercase">
+                  <div className="flex flex-col items-end mb-6">
+                    <span className="text-sm font-black text-slate-400 uppercase tracking-widest">
                       Total a Pagar
                     </span>
-                    <span className="text-4xl font-black text-blue-700 leading-none">
-                      {monedaPrincipal === 'BS'
-                        ? `Bs. ${(calcularTotal() * tasaBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
-                        : `$ ${calcularTotal().toLocaleString()}`}
+
+                    {/* Monto en Dólares siempre destacado */}
+                    <span className="text-4xl font-black text-blue-700 leading-tight">
+                      ${calcularTotal().toLocaleString()}
                     </span>
-                    {/* Sub-indicador de la otra moneda */}
-                    <span className="text-sm font-bold text-slate-400 mt-1">
-                      Equivale a:{' '}
-                      {monedaPrincipal === 'BS'
-                        ? `$ ${calcularTotal().toLocaleString()}`
-                        : `Bs. ${(calcularTotal() * tasaBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`}
-                    </span>
+
+                    {/* Monto en Bolívares justo debajo como referencia principal */}
+                    <div className="flex items-center gap-2 bg-emerald-50 px-4 py-1 rounded-full border border-emerald-100 mt-1">
+                      <span className="text-xs font-black text-emerald-700 uppercase">
+                        Bs.
+                      </span>
+                      <span className="text-lg font-black text-emerald-600">
+                        {(calcularTotal() * tasaBCV).toLocaleString('es-VE', {
+                          minimumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
                   </div>
                 </span>
               </div>
@@ -633,22 +643,27 @@ ${listaProd}
                   Total
                 </p>
                 <p className="text-2xl font-black">
-                  <div className="flex flex-col items-end">
-                    <span className="text-sm font-black text-slate-400 uppercase">
+                  <div className="flex flex-col items-end mb-6">
+                    <span className="text-sm font-black text-slate-400 uppercase tracking-widest">
                       Total a Pagar
                     </span>
-                    <span className="text-4xl font-black text-blue-700 leading-none">
-                      {monedaPrincipal === 'BS'
-                        ? `Bs. ${(calcularTotal() * tasaBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
-                        : `$ ${calcularTotal().toLocaleString()}`}
+
+                    {/* Monto en Dólares siempre destacado */}
+                    <span className="text-4xl font-black text-blue-700 leading-tight">
+                      ${calcularTotal().toLocaleString()}
                     </span>
-                    {/* Sub-indicador de la otra moneda */}
-                    <span className="text-sm font-bold text-slate-400 mt-1">
-                      Equivale a:{' '}
-                      {monedaPrincipal === 'BS'
-                        ? `$ ${calcularTotal().toLocaleString()}`
-                        : `Bs. ${(calcularTotal() * tasaBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`}
-                    </span>
+
+                    {/* Monto en Bolívares justo debajo como referencia principal */}
+                    <div className="flex items-center gap-2 bg-emerald-50 px-4 py-1 rounded-full border border-emerald-100 mt-1">
+                      <span className="text-xs font-black text-emerald-700 uppercase">
+                        Bs.
+                      </span>
+                      <span className="text-lg font-black text-emerald-600">
+                        {(calcularTotal() * tasaBCV).toLocaleString('es-VE', {
+                          minimumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
                   </div>
                 </p>
               </div>
