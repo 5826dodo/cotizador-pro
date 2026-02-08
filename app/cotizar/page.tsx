@@ -26,7 +26,7 @@ export default function CotizarPage() {
   const [mostrarModalResumen, setMostrarModalResumen] = useState(false); // Estado para el modal
   const [observaciones, setObservaciones] = useState('');
   const [busquedaCliente, setBusquedaCliente] = useState('');
-  const [tasaBCV, setTasaBCV] = useState<number>(36.5); // Valor inicial por defecto
+  const [tasaBCV, setTasaBCV] = useState<number>(382.63); // Valor inicial por defecto
   // FORMA CORRECTA
   const [monedaPrincipal, setMonedaPrincipal] = useState<'USD' | 'BS'>('USD');
 
