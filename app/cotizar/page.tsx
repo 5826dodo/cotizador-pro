@@ -151,15 +151,25 @@ export default function CotizarPage() {
       const notasCortadas = doc.splitTextToSize(textoDestino, 140);
       doc.text(notasCortadas, 45, 86);
 
-      // --- 3. TABLA (La bajamos a 105 para que no choque con la caja de arriba) ---
+      // --- 3. TABLA UNIFICADA ---
+      const simbolo = monedaPrincipal === 'BS' ? 'Bs.' : '$';
+      const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
+
       autoTable(doc, {
         startY: 105,
-        head: [['DESCRIPCIÓN', 'CANT.', 'PRECIO U.', 'SUBTOTAL']],
+        head: [
+          [
+            'DESCRIPCIÓN',
+            'CANT.',
+            `PRECIO (${monedaPrincipal})`,
+            `SUBTOTAL (${monedaPrincipal})`,
+          ],
+        ],
         body: items.map((i) => [
           i.nombre.toUpperCase(),
           i.cantidad,
-          `$ ${i.precio.toLocaleString()}`,
-          `$ ${(i.precio * i.cantidad).toLocaleString()}`,
+          `${simbolo} ${(i.precio * factor).toLocaleString(monedaPrincipal === 'BS' ? 'es-VE' : 'en-US', { minimumFractionDigits: 2 })}`,
+          `${simbolo} ${(i.precio * i.cantidad * factor).toLocaleString(monedaPrincipal === 'BS' ? 'es-VE' : 'en-US', { minimumFractionDigits: 2 })}`,
         ]),
         headStyles: { fillColor: [30, 41, 59], halign: 'center' },
         styles: { fontSize: 8 },
@@ -172,20 +182,30 @@ export default function CotizarPage() {
 
       // --- 4. TOTAL ---
       const finalY = (doc as any).lastAutoTable.finalY + 15;
+      const totalFinal = total * factor;
+
       doc.setFontSize(16);
       doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
       doc.setFont('helvetica', 'bold');
-      const totalFinal = monedaPrincipal === 'BS' ? total * tasaBCV : total;
-      const simbolo = monedaPrincipal === 'BS' ? 'Bs.' : '$';
-
       doc.text(
-        `TOTAL A PAGAR: ${simbolo} ${totalFinal.toLocaleString(monedaPrincipal === 'BS' ? 'es-VE' : 'en-US')}`,
+        `TOTAL A PAGAR: ${simbolo} ${totalFinal.toLocaleString(monedaPrincipal === 'BS' ? 'es-VE' : 'en-US', { minimumFractionDigits: 2 })}`,
         196,
         finalY,
         {
           align: 'right',
         },
       );
+
+      // Opcional: Agregar una pequeña nota al pie indicando la tasa si la cotización es en Bs.
+      if (monedaPrincipal === 'BS') {
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(
+          `Tasa de cambio aplicada: 1 USD = ${tasaBCV} Bs.`,
+          14,
+          finalY + 5,
+        );
+      }
 
       doc.save(`Cotizacion_LER_${cliente.nombre}.pdf`);
     } catch (err) {
@@ -537,6 +557,8 @@ ${listaProd}
                     actualizarItem={actualizarItem}
                     setCarrito={setCarrito}
                     carrito={carrito}
+                    monedaPrincipal={monedaPrincipal}
+                    tasaBCV={tasaBCV}
                   />
                 ))}
               </div>
@@ -661,13 +683,16 @@ ${listaProd}
             >
               {/* Busca donde estaba <ListadoResumen /> en la parte de PC y cámbialo por esto: */}
               <div className="space-y-4">
+                {/* Busca el .map que está dentro del modal y haz lo mismo */}
                 {carrito.map((item) => (
                   <TarjetaProductoCarrito
-                    key={`pc-${item.id}`}
+                    key={`mobile-${item.id}`} // Asegúrate que el key sea distinto al de PC
                     item={item}
                     actualizarItem={actualizarItem}
                     setCarrito={setCarrito}
                     carrito={carrito}
+                    monedaPrincipal={monedaPrincipal} // <--- AÑADIR ESTO
+                    tasaBCV={tasaBCV} // <--- AÑADIR ESTO
                   />
                 ))}
               </div>
@@ -738,6 +763,8 @@ const TarjetaProductoCarrito = ({
   actualizarItem,
   setCarrito,
   carrito,
+  monedaPrincipal,
+  tasaBCV,
 }: any) => (
   <div className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 shadow-sm">
     <div className="flex justify-between items-start mb-4">
@@ -796,7 +823,7 @@ const TarjetaProductoCarrito = ({
       </div>
       <div className="space-y-1">
         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-          Precio Unit.
+          Precio Unit. (USD)
         </label>
         <div className="relative">
           <DollarSign
@@ -810,6 +837,15 @@ const TarjetaProductoCarrito = ({
             className="w-full pl-8 pr-3 py-3 bg-white rounded-2xl ring-1 ring-slate-200 font-black text-blue-600 outline-none"
           />
         </div>
+        {/* Referencia en BS siempre visible si tienes activado el switch de BS */}
+        {monedaPrincipal === 'BS' && (
+          <p className="text-[10px] font-bold text-emerald-600 mt-1 ml-1">
+            = Bs.{' '}
+            {(item.precio * tasaBCV).toLocaleString('es-VE', {
+              minimumFractionDigits: 2,
+            })}
+          </p>
+        )}
       </div>
     </div>
   </div>
