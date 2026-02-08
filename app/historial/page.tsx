@@ -157,7 +157,7 @@ export default function HistorialPage() {
           <div className="flex justify-between items-end mb-8">
             <div>
               <h1 className="text-5xl font-black text-slate-800 tracking-tighter italic">
-                FINANZAS
+                COTIZACIONES Y FINANZAS
               </h1>
               <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">
                 Resumen de ingresos reales
@@ -274,7 +274,17 @@ export default function HistorialPage() {
                   </h3>
                   <p className="text-[10px] text-slate-400 font-bold uppercase">
                     {new Date(cot.created_at).toLocaleDateString()} •{' '}
-                    {cot.estado}
+                    {cot.estado === 'pendiente' ? (
+                      <span className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200 shadow-sm animate-pulse">
+                        <AlertCircle size={14} />
+                        Pendiente
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-emerald-500 text-white border border-emerald-600 shadow-md">
+                        <CheckCircle2 size={14} />
+                        Aprobado
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
