@@ -271,7 +271,7 @@ export default function CotizarPage() {
   };
 
   // --- LÓGICA DE TELEGRAM (RESTAURADA) ---
-  c; // 1. Cambia la firma de la función para recibir moneda y tasa
+  // 1. Cambia la firma de la función para recibir moneda y tasa
   const enviarTelegram = async (
     cliente: any,
     total: number,
