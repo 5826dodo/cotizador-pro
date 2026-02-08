@@ -13,6 +13,7 @@ import {
   Loader2,
   TrendingUp,
   DollarSign,
+  Wallet,
 } from 'lucide-react';
 
 export default function HistorialPage() {
@@ -38,26 +39,31 @@ export default function HistorialPage() {
     cargarHistorial();
   }, []);
 
-  // --- LÓGICA DE CÁLCULOS PARA DASHBOARD (Convertido a USD para métricas uniformes) ---
+  // --- LÓGICA DE MÉTRICAS (CAJAS SEPARADAS) ---
   const ventasAprobadas = cotizaciones.filter((c) => c.estado === 'aprobado');
 
-  // Total Mes (Todo llevado a USD para poder comparar con la meta)
-  const totalMes = ventasAprobadas
+  // 1. Dinero en Dólares (Solo lo que se vendió en moneda USD)
+  const cajaDolaresMes = ventasAprobadas
+    .filter(
+      (c) =>
+        new Date(c.created_at).getMonth() === new Date().getMonth() &&
+        c.moneda !== 'BS',
+    )
+    .reduce((acc, curr) => acc + curr.total, 0);
+
+  // 2. Dinero en Bolívares (Solo lo que se vendió en moneda BS)
+  const cajaBolivaresMes = ventasAprobadas
+    .filter(
+      (c) =>
+        new Date(c.created_at).getMonth() === new Date().getMonth() &&
+        c.moneda === 'BS',
+    )
+    .reduce((acc, curr) => acc + curr.total * (curr.tasa_bcv || 1), 0);
+
+  // 3. Meta General (Llevando todo a una base USD para ver rendimiento)
+  const totalEquivalenteMes = ventasAprobadas
     .filter((c) => new Date(c.created_at).getMonth() === new Date().getMonth())
     .reduce((acc, curr) => acc + curr.total, 0);
-
-  // Total Semana (Todo llevado a USD)
-  const totalSemana = ventasAprobadas
-    .filter((c) => {
-      const fecha = new Date(c.created_at);
-      const hoy = new Date();
-      const hace7Dias = new Date(hoy.setDate(hoy.getDate() - 7));
-      return fecha >= hace7Dias;
-    })
-    .reduce((acc, curr) => acc + curr.total, 0);
-
-  const metaSemanal = 5000;
-  const porcentajeSemana = Math.min((totalSemana / metaSemanal) * 100, 100);
 
   // --- ACCIONES ---
   const enviarReporteMensual = async () => {
@@ -65,42 +71,27 @@ export default function HistorialPage() {
       .toLocaleString('es-ES', { month: 'long' })
       .toUpperCase();
 
-    // Desglose para el reporte
-    const enDolares = ventasAprobadas
-      .filter(
-        (c) =>
-          new Date(c.created_at).getMonth() === new Date().getMonth() &&
-          c.moneda !== 'BS',
-      )
-      .reduce((acc, curr) => acc + curr.total, 0);
-
-    const enBolivares = ventasAprobadas
-      .filter(
-        (c) =>
-          new Date(c.created_at).getMonth() === new Date().getMonth() &&
-          c.moneda === 'BS',
-      )
-      .reduce((acc, curr) => acc + curr.total * (curr.tasa_bcv || 1), 0);
-
     const mensajeReporte =
-      `📊 *REPORTE DE VENTAS MENSUAL*\n` +
-      `📅 *Mes:* ${mesNombre}\n` +
+      `📊 *ESTADÍSTICAS DE VENTA - ${mesNombre}*\n` +
       `--------------------------\n` +
-      `💵 *Ingresos USD:* *$${enDolares.toLocaleString()}*\n` +
-      `🇻🇪 *Ingresos BS:* *Bs. ${enBolivares.toLocaleString('es-VE')}*\n` +
-      `📈 *Total Equivalente:* *$${totalMes.toLocaleString()}*\n` +
+      `🇻🇪 *Caja Bolívares:* \n*Bs. ${cajaBolivaresMes.toLocaleString('es-VE', { minimumFractionDigits: 2 })}*\n\n` +
+      `💵 *Caja Dólares:* \n*$${cajaDolaresMes.toLocaleString()}*\n` +
       `--------------------------\n` +
-      `🚀 _Generado desde el Panel Administrativo_`;
+      `📈 *Ventas Totales:* ${ventasAprobadas.length}\n` +
+      `🚀 _Reporte de Flujo de Caja_`;
 
     await enviarNotificacionTelegram(mensajeReporte);
-    alert('Reporte enviado a Telegram');
+    alert('Reporte detallado enviado a Telegram');
   };
 
   const aprobarCotizacion = async (cot: any) => {
-    const confirmar = confirm('¿Confirmar venta y descontar stock?');
+    const confirmar = confirm(
+      '¿Confirmar venta? Se notificará el monto en la moneda original.',
+    );
     if (!confirmar) return;
     setProcesandoAccion(true);
     try {
+      // Descontar Stock
       for (const item of cot.productos_seleccionados) {
         const { data: prod } = await supabase
           .from('productos')
@@ -112,16 +103,22 @@ export default function HistorialPage() {
           .update({ stock: (prod?.stock || 0) - item.cantidad })
           .eq('id', item.id);
       }
+
       await supabase
         .from('cotizaciones')
         .update({ estado: 'aprobado' })
         .eq('id', cot.id);
 
+      // Notificación de aprobación con MONEDA ORIGINAL
       const simbolo = cot.moneda === 'BS' ? 'Bs.' : '$';
       const montoFinal =
         cot.moneda === 'BS' ? cot.total * (cot.tasa_bcv || 1) : cot.total;
 
-      const mensaje = `✅ *VENTA APROBADA*\n👤 *Cliente:* ${cot.clientes?.nombre}\n💰 *Total:* ${simbolo} ${montoFinal.toLocaleString('es-VE')}`;
+      const mensaje =
+        `✅ *VENTA CERRADA*\n` +
+        `👤 *Cliente:* ${cot.clientes?.nombre}\n` +
+        `💰 *Monto:* ${simbolo} ${montoFinal.toLocaleString('es-VE', { minimumFractionDigits: 2 })}\n` +
+        `${cot.moneda === 'BS' ? `📈 *Tasa:* ${cot.tasa_bcv}` : ''}`;
 
       await enviarNotificacionTelegram(mensaje);
       setCotizacionSeleccionada(null);
@@ -144,170 +141,153 @@ export default function HistorialPage() {
   return (
     <main className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
-        {/* DASHBOARD HEADER */}
+        {/* DASHBOARD CON CAJAS SEPARADAS */}
         <section className="mb-8">
-          <div className="flex flex-col gap-6 mb-8">
+          <div className="flex justify-between items-end mb-8">
             <div>
               <h1 className="text-5xl font-black text-slate-800 tracking-tighter italic">
-                HISTORIAL
+                FINANZAS
               </h1>
-              <p className="text-lg text-slate-500 font-medium tracking-wide">
-                Control de ingresos y ventas bi-monetario
+              <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">
+                Resumen de ingresos reales
               </p>
             </div>
-
-            <div className="flex flex-col md:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={24}
-                />
-                <input
-                  type="text"
-                  placeholder="Buscar por cliente..."
-                  className="w-full pl-14 pr-4 py-5 bg-white rounded-[1.5rem] ring-1 ring-slate-200 text-xl font-medium outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                />
-              </div>
-              <input
-                type="date"
-                className="pl-6 pr-6 py-5 bg-white rounded-[1.5rem] ring-1 ring-slate-200 text-lg font-bold outline-none"
-                value={filtroFecha}
-                onChange={(e) => setFiltroFecha(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* CARD SEMANA */}
-            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm">
-              <div className="flex items-center gap-2 mb-2 text-blue-600">
-                <TrendingUp size={20} />
-                <span className="text-xs font-black uppercase tracking-widest text-slate-400">
-                  Semana (Ref $)
-                </span>
-              </div>
-              <h3 className="text-3xl font-black text-slate-800">
-                ${totalSemana.toLocaleString()}
-              </h3>
-              <div className="mt-4 w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-blue-600 h-full"
-                  style={{ width: `${porcentajeSemana}%` }}
-                ></div>
-              </div>
-            </div>
-
-            {/* CARD MES */}
-            <div className="bg-blue-600 p-6 rounded-[2.5rem] shadow-xl text-white">
-              <span className="text-xs font-black uppercase tracking-widest opacity-80">
-                Mes (Ref $)
-              </span>
-              <h3 className="text-4xl font-black mt-1">
-                ${totalMes.toLocaleString()}
-              </h3>
-              <div className="inline-flex items-center gap-1 mt-3 text-xs font-bold bg-white/20 px-3 py-1 rounded-full uppercase">
-                {ventasAprobadas.length} Ventas Totales
-              </div>
-            </div>
-
-            {/* CARD APROBADAS */}
-            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-center">
-              <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                Estado Aprobado
-              </span>
-              <h3 className="text-3xl font-black text-slate-800">
-                {ventasAprobadas.length}
-              </h3>
-            </div>
-
-            {/* BOTON REPORTE */}
             <button
               onClick={enviarReporteMensual}
-              className="bg-slate-900 hover:bg-black p-6 rounded-[2.5rem] text-white flex flex-col items-center justify-center gap-2 transition-all active:scale-95 group"
+              className="bg-slate-900 p-4 rounded-2xl text-white flex items-center gap-3 hover:bg-black transition-all"
             >
-              <FileText size={28} className="text-blue-400" />
-              <span className="text-xs font-black uppercase text-center leading-none">
-                Reporte
-                <br />
-                Telegram
+              <FileText size={20} className="text-blue-400" />
+              <span className="text-xs font-black uppercase">
+                Enviar Reporte
               </span>
             </button>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* CAJA BS */}
+            <div className="bg-emerald-600 p-6 rounded-[2.5rem] shadow-xl shadow-emerald-100 text-white relative overflow-hidden">
+              <Wallet
+                className="absolute -right-4 -top-4 opacity-20"
+                size={120}
+              />
+              <span className="text-xs font-black uppercase tracking-widest opacity-80">
+                Efectivo / Transferencia BS
+              </span>
+              <h3 className="text-3xl font-black mt-1">
+                Bs. {cajaBolivaresMes.toLocaleString('es-VE')}
+              </h3>
+              <p className="text-[10px] font-bold mt-2 bg-white/20 inline-block px-2 py-1 rounded">
+                MES ACTUAL
+              </p>
+            </div>
+
+            {/* CAJA USD */}
+            <div className="bg-blue-600 p-6 rounded-[2.5rem] shadow-xl shadow-blue-100 text-white relative overflow-hidden">
+              <DollarSign
+                className="absolute -right-4 -top-4 opacity-20"
+                size={120}
+              />
+              <span className="text-xs font-black uppercase tracking-widest opacity-80">
+                Divisas USD
+              </span>
+              <h3 className="text-4xl font-black mt-1">
+                ${cajaDolaresMes.toLocaleString()}
+              </h3>
+              <p className="text-[10px] font-bold mt-2 bg-white/20 inline-block px-2 py-1 rounded">
+                MES ACTUAL
+              </p>
+            </div>
+
+            {/* RENDIMIENTO (HÍBRIDO) */}
+            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col justify-center">
+              <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                Ventas Totales (Ref $)
+              </span>
+              <h3 className="text-3xl font-black text-slate-800">
+                ${totalEquivalenteMes.toLocaleString()}
+              </h3>
+              <div className="mt-2 flex items-center gap-2">
+                <div className="h-2 flex-1 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-slate-800"
+                    style={{ width: '65%' }}
+                  ></div>
+                </div>
+                <span className="text-[10px] font-black text-slate-400">
+                  65% META
+                </span>
+              </div>
+            </div>
+          </div>
         </section>
 
-        {/* LISTADO DE OPERACIONES */}
-        <div className="grid gap-4 mb-20">
+        {/* BUSCADOR */}
+        <div className="flex gap-3 mb-6">
+          <div className="relative flex-1">
+            <Search
+              className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400"
+              size={20}
+            />
+            <input
+              type="text"
+              placeholder="Buscar por cliente o empresa..."
+              className="w-full pl-14 pr-4 py-4 bg-white rounded-2xl ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 font-bold"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+          </div>
+          <input
+            type="date"
+            className="px-4 py-4 bg-white rounded-2xl ring-1 ring-slate-200 font-bold outline-none"
+            value={filtroFecha}
+            onChange={(e) => setFiltroFecha(e.target.value)}
+          />
+        </div>
+
+        {/* LISTADO */}
+        <div className="grid gap-3">
           {historialFiltrado.map((cot) => (
             <div
               key={cot.id}
-              className="bg-white p-6 rounded-[2.2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6"
+              className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4"
             >
-              <div className="flex items-center gap-5 w-full md:w-auto">
+              <div className="flex items-center gap-4 w-full md:w-auto">
                 <div
-                  className={`p-5 rounded-2xl ${cot.moneda === 'BS' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}
+                  className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black ${cot.moneda === 'BS' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}
                 >
-                  {cot.moneda === 'BS' ? (
-                    <span className="font-black text-xl">Bs</span>
-                  ) : (
-                    <DollarSign size={32} />
-                  )}
+                  {cot.moneda === 'BS' ? 'Bs' : '$'}
                 </div>
                 <div>
-                  <h3 className="font-black text-slate-800 text-2xl tracking-tight leading-none mb-2">
+                  <h3 className="font-black text-slate-800 uppercase tracking-tight">
                     {cot.clientes?.nombre}
                   </h3>
-                  <div className="flex items-center gap-3">
-                    <p className="text-sm text-slate-400 font-bold">
-                      {new Date(cot.created_at).toLocaleDateString()}
-                    </p>
-                    <span
-                      className={`text-xs font-black px-3 py-1 rounded-full uppercase ${cot.estado === 'pendiente' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}
-                    >
-                      {cot.estado}
-                    </span>
-                  </div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">
+                    {new Date(cot.created_at).toLocaleDateString()} •{' '}
+                    {cot.estado}
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between w-full md:w-auto gap-8 border-t md:border-t-0 pt-4 md:pt-0">
-                <div className="text-left md:text-right">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    Monto Operación
-                  </p>
+              <div className="flex items-center justify-between w-full md:w-auto gap-6">
+                <div className="text-right">
                   {cot.moneda === 'BS' ? (
-                    <>
-                      <p className="text-3xl font-black text-emerald-600 leading-none">
-                        Bs.{' '}
-                        {(cot.total * (cot.tasa_bcv || 1)).toLocaleString(
-                          'es-VE',
-                          { minimumFractionDigits: 2 },
-                        )}
-                      </p>
-                      <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase">
-                        Ref: ${cot.total.toLocaleString()}
-                      </p>
-                    </>
+                    <p className="text-2xl font-black text-emerald-600">
+                      Bs.{' '}
+                      {(cot.total * (cot.tasa_bcv || 1)).toLocaleString(
+                        'es-VE',
+                      )}
+                    </p>
                   ) : (
-                    <>
-                      <p className="text-3xl font-black text-blue-600 leading-none">
-                        ${cot.total.toLocaleString()}
-                      </p>
-                      <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase">
-                        Ref: Bs.{' '}
-                        {(cot.total * (cot.tasa_bcv || 1)).toLocaleString(
-                          'es-VE',
-                        )}
-                      </p>
-                    </>
+                    <p className="text-2xl font-black text-blue-600">
+                      ${cot.total.toLocaleString()}
+                    </p>
                   )}
                 </div>
                 <button
                   onClick={() => setCotizacionSeleccionada(cot)}
-                  className="bg-slate-100 p-5 rounded-3xl text-slate-600 hover:bg-blue-600 hover:text-white transition-all active:scale-90"
+                  className="p-4 bg-slate-50 rounded-2xl text-slate-400 hover:bg-slate-900 hover:text-white transition-all"
                 >
-                  <Eye size={28} />
+                  <Eye size={20} />
                 </button>
               </div>
             </div>
