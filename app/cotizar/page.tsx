@@ -219,6 +219,8 @@ export default function CotizarPage() {
     total: number,
     items: any[],
     notas: string,
+    moneda: string,
+    tasa: number,
   ) => {
     let telefono = cliente.telefono;
 
@@ -231,31 +233,35 @@ export default function CotizarPage() {
     }
 
     const telLimpio = telefono.replace(/\D/g, '');
+    const factor = moneda === 'BS' ? tasa : 1;
+    const simbolo = moneda === 'BS' ? 'Bs.' : '$';
 
-    // 1. Formatear la lista de productos de forma limpia
     const listaProd = items
       .map((i) => {
-        return `🔹 *${i.nombre.trim()}*\nCant: ${i.cantidad} -> $${(i.precio * i.cantidad).toLocaleString()}`;
+        const subtotal = (i.precio * i.cantidad * factor).toLocaleString(
+          'es-VE',
+          { minimumFractionDigits: 2 },
+        );
+        return `🔹 *${i.nombre.trim()}*\nCant: ${i.cantidad} -> ${simbolo}${subtotal}`;
       })
       .join('\n\n');
 
-    // 2. Construir el mensaje (usamos emojis normales, son más confiables si se envían bien)
+    const totalTexto = `${simbolo} ${(total * factor).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
+
     const textoMensaje = `🏗️ *FERREMATERIALES LER C.A.*
---------------------------------------------
+    --------------------------------------------
+    👤 *Cliente:* ${cliente.nombre}
+    🆔 *C.I./RIF:* ${cliente.cedula || 'N/A'}
+    📍 *Entrega:* ${notas || 'Retiro en tienda'}
+    💰 *Moneda:* ${moneda === 'BS' ? 'Bolívares (BCV)' : 'Dólares'}
 
-👤 *Cliente:* ${cliente.nombre}
-🆔 *C.I./RIF:* ${cliente.cedula || 'N/A'}
-📍 *Entrega:* ${notas || 'Retiro en tienda'}
+    📝 *RESUMEN:*
+    ${listaProd}
 
-📝 *RESUMEN DE COTIZACIÓN:*
-
-${listaProd}
-
-💵 *TOTAL A PAGAR: $${total.toLocaleString()}*
-
---------------------------------------------
-📄 _El PDF ha sido generado y descargado._
-🛠️ *¡Estamos para servirle!*`;
+    💵 *TOTAL A PAGAR: ${totalTexto}*
+    --------------------------------------------
+    ${moneda === 'BS' ? `_Tasa del día: ${tasa} Bs._\n` : ''}
+    🛠️ *¡Estamos para servirle!*`;
 
     // 3. LA CLAVE: Usar encodeURIComponent para que los emojis viajen como código seguro
     const url = `https://wa.me/${telLimpio}?text=${encodeURIComponent(textoMensaje)}`;
@@ -265,14 +271,31 @@ ${listaProd}
   };
 
   // --- LÓGICA DE TELEGRAM (RESTAURADA) ---
-  const enviarTelegram = async (cliente: any, total: number, items: any[]) => {
+  c; // 1. Cambia la firma de la función para recibir moneda y tasa
+  const enviarTelegram = async (
+    cliente: any,
+    total: number,
+    items: any[],
+    moneda: string,
+    tasa: number,
+  ) => {
     const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
     const chatId = process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID;
+
+    // Calculamos montos según la moneda
+    const factor = moneda === 'BS' ? tasa : 1;
+    const simbolo = moneda === 'BS' ? 'Bs.' : '$';
+    const montoFinal = (total * factor).toLocaleString(
+      moneda === 'BS' ? 'es-VE' : 'en-US',
+      { minimumFractionDigits: 2 },
+    );
+
     const listaProd = items
       .map((i) => `- ${i.nombre} (x${i.cantidad})`)
       .join('\n');
 
-    const texto = `🛠️ *FERREMATERIALES LER C.A.*\n\n📄 *Nueva Cotización*\n👤 *Cliente:* ${cliente.nombre}\n💰 *Total:* $${total.toLocaleString()}\n\n📌 *Estado:* PENDIENTE\n\n*Items:*\n${listaProd}`;
+    // Incluimos la moneda en el mensaje
+    const texto = `🛠️ *FERREMATERIALES LER C.A.*\n\n📄 *Nueva Cotización (${moneda})*\n👤 *Cliente:* ${cliente.nombre}\n💰 *Total:* ${simbolo} ${montoFinal}\n${moneda === 'BS' ? `📈 *Tasa:* ${tasa} Bs/$\n` : ''}\n📌 *Estado:* PENDIENTE\n\n*Items:*\n${listaProd}`;
 
     try {
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -306,13 +329,26 @@ ${listaProd}
 
       if (error) throw error;
 
-      await enviarTelegram(clienteSeleccionado, total, carrito);
+      await enviarTelegram(
+        clienteSeleccionado,
+        total,
+        carrito,
+        monedaPrincipal,
+        tasaBCV,
+      );
       descargarPDF(clienteSeleccionado, carrito, total, observaciones);
 
       // El flujo de WhatsApp se lanza en paralelo
       setTimeout(() => {
         if (confirm('¿Deseas enviar el resumen por WhatsApp ahora?')) {
-          enviarWhatsApp(clienteSeleccionado, total, carrito, observaciones);
+          enviarWhatsApp(
+            clienteSeleccionado,
+            total,
+            carrito,
+            observaciones,
+            monedaPrincipal,
+            tasaBCV,
+          );
         }
       }, 500); // Cerramos el setTimeout aquí con });
 
