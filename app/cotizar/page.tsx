@@ -677,93 +677,102 @@ ${listaProd}
       )}
 
       {mostrarModalResumen && (
-        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center">
-          <div className="bg-white w-full max-w-2xl h-[90vh] rounded-t-[3rem] flex flex-col overflow-hidden shadow-2xl animate-in slide-in-from-bottom-full">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-end justify-center">
+          {/* Contenedor Principal del Modal */}
+          <div className="bg-slate-100 w-full max-w-2xl h-[92vh] rounded-t-[3rem] flex flex-col overflow-hidden shadow-2xl animate-in slide-in-from-bottom-full duration-300">
+            {/* Indicador visual de "arrastre" (estilo iPhone) */}
+            <div className="w-full flex justify-center pt-3 pb-1 shrink-0 bg-white">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
+            </div>
+
             {/* CABECERA FIJA */}
-            <div className="p-6 border-b flex justify-between items-center bg-white shrink-0">
-              <h2 className="text-2xl font-black text-slate-800">Resumen</h2>
+            <div className="px-6 py-4 border-b bg-white flex justify-between items-center shrink-0">
+              <div>
+                <h2 className="text-2xl font-black text-slate-800 leading-none">
+                  Mi Carrito
+                </h2>
+                <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mt-1">
+                  {carrito.length} productos seleccionados
+                </p>
+              </div>
               <button
                 onClick={() => setMostrarModalResumen(false)}
-                className="p-3 bg-slate-100 rounded-full"
+                className="p-3 bg-slate-100 text-slate-500 rounded-full active:scale-90 transition-all"
               >
                 <X size={24} />
               </button>
             </div>
 
-            {/* CUERPO CON SCROLL ESTABLE */}
-            {/* Importante: id="modal-scroll-area" para control de scroll */}
+            {/* CUERPO CON SCROLL - Aquí cambiamos el fondo a slate-100 para que las tarjetas blancas resalten */}
             <div
-              className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50"
-              style={{ WebkitOverflowScrolling: 'touch' }}
+              className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-100"
+              style={{ overscrollBehavior: 'contain' }} // <--- CLAVE: Evita recargar la página al llegar al tope
             >
-              {/* Busca donde estaba <ListadoResumen /> en la parte de PC y cámbialo por esto: */}
-              <div className="space-y-4">
-                {/* Busca el .map que está dentro del modal y haz lo mismo */}
+              <div className="space-y-3">
                 {carrito.map((item) => (
-                  <TarjetaProductoCarrito
-                    key={`mobile-${item.id}`} // Asegúrate que el key sea distinto al de PC
-                    item={item}
-                    actualizarItem={actualizarItem}
-                    setCarrito={setCarrito}
-                    carrito={carrito}
-                    monedaPrincipal={monedaPrincipal} // <--- AÑADIR ESTO
-                    tasaBCV={tasaBCV} // <--- AÑADIR ESTO
-                  />
+                  <div
+                    key={`mobile-${item.id}`}
+                    className="bg-white rounded-[2rem] p-1 shadow-md border border-white"
+                  >
+                    <TarjetaProductoCarrito
+                      item={item}
+                      actualizarItem={actualizarItem}
+                      setCarrito={setCarrito}
+                      carrito={carrito}
+                      monedaPrincipal={monedaPrincipal}
+                      tasaBCV={tasaBCV}
+                    />
+                  </div>
                 ))}
               </div>
+
               <button
                 onClick={() => setMostrarModalResumen(false)}
-                className="w-full py-4 border-2 border-dashed border-blue-200 rounded-3xl text-blue-500 font-black text-sm uppercase tracking-widest hover:bg-blue-50 transition-all"
+                className="w-full py-6 mt-4 border-2 border-dashed border-slate-300 rounded-[2rem] text-slate-400 font-black text-xs uppercase tracking-widest active:bg-white transition-all"
               >
-                + Seguir agregando productos
+                + Agregar más productos
               </button>
             </div>
 
-            {/* PIE DE PÁGINA FIJO */}
-            <div className="p-8 bg-white border-t border-slate-100 shrink-0">
-              {/* AGREGAR ESTO AQUÍ: */}
+            {/* PIE DE PÁGINA FIJO (Resumen de Totales) */}
+            <div className="p-6 bg-white border-t border-slate-200 shrink-0 shadow-[0_-10px_20px_rgba(0,0,0,0,05)]">
               <div className="mb-4">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
-                  Notas / Dirección de Envío
-                </label>
                 <textarea
                   value={observaciones}
                   onChange={(e) => setObservaciones(e.target.value)}
-                  placeholder="Ej: Entrega en obra, contacto..."
-                  className="w-full p-3 bg-slate-50 rounded-2xl border-2 border-slate-100 text-sm outline-none focus:border-blue-500 transition-all resize-none"
+                  placeholder="Notas de entrega o dirección..."
+                  className="w-full p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 text-sm outline-none focus:border-blue-500 transition-all resize-none"
                   rows={2}
                 />
               </div>
-              <div className="flex justify-between items-end mb-6">
-                <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">
-                  Total Cotización
-                </span>
-                <span className="text-4xl font-black text-blue-600">
-                  <div className="flex flex-col items-end">
-                    <span className="text-sm font-black text-slate-400 uppercase">
-                      Total a Pagar
+
+              <div className="flex justify-between items-center mb-6 px-2">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Total Estimado
+                  </span>
+                  <span className="text-3xl font-black text-blue-600">
+                    ${calcularTotal().toLocaleString()}
+                  </span>
+                </div>
+                {monedaPrincipal === 'BS' && (
+                  <div className="text-right">
+                    <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">
+                      En Bolívares
                     </span>
-                    <span className="text-4xl font-black text-blue-700 leading-none">
-                      {monedaPrincipal === 'BS'
-                        ? `Bs. ${(calcularTotal() * tasaBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
-                        : `$ ${calcularTotal().toLocaleString()}`}
-                    </span>
-                    {/* Sub-indicador de la otra moneda */}
-                    <span className="text-sm font-bold text-slate-400 mt-1">
-                      Equivale a:{' '}
-                      {monedaPrincipal === 'BS'
-                        ? `$ ${calcularTotal().toLocaleString()}`
-                        : `Bs. ${(calcularTotal() * tasaBCV).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`}
-                    </span>
+                    <p className="text-xl font-black text-emerald-600 leading-none">
+                      Bs. {(calcularTotal() * tasaBCV).toLocaleString('es-VE')}
+                    </p>
                   </div>
-                </span>
+                )}
               </div>
+
               <button
                 onClick={procesarCotizacion}
                 disabled={cargando}
-                className="w-full py-6 rounded-[2rem] bg-blue-600 text-white text-2xl font-black shadow-xl shadow-blue-200 active:scale-95 transition-all"
+                className="w-full py-5 rounded-[2rem] bg-blue-600 text-white text-xl font-black shadow-xl shadow-blue-200 active:scale-95 transition-all"
               >
-                {cargando ? 'REGISTRANDO...' : 'FINALIZAR VENTA'}
+                {cargando ? 'PROCESANDO...' : 'GENERAR COTIZACIÓN'}
               </button>
             </div>
           </div>
@@ -781,9 +790,13 @@ const TarjetaProductoCarrito = ({
   monedaPrincipal,
   tasaBCV,
 }: any) => (
-  <div className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 shadow-sm">
-    <div className="flex justify-between items-start mb-4">
-      <span className="text-lg font-black text-slate-700 leading-tight flex-1">
+  <div className="bg-white p-4 rounded-[1.8rem]">
+    {' '}
+    {/* Reducir padding de 5 a 4 */}
+    <div className="flex justify-between items-start mb-2">
+      {' '}
+      {/* Reducir margen inferior */}
+      <span className="text-base font-black text-slate-700 leading-tight flex-1 pr-2">
         {item.nombre}
       </span>
       <button
@@ -793,8 +806,7 @@ const TarjetaProductoCarrito = ({
         <Trash2 size={20} />
       </button>
     </div>
-
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-2 gap-3">
       <div className="space-y-1">
         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
           Cant.
