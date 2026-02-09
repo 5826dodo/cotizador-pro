@@ -1,69 +1,105 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// Inicializamos Gemini
-const genAI = new GoogleGenerativeAI('AIzaSyAY3_HRuhvrwwDZTXBDGBjTofAKsiBU3jQ');
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const chatId = body.message?.chat?.id.toString();
-    const text = body.message?.text; // Mensaje original del usuario
+    const chatId = body.message?.chat?.id?.toString();
+    const text = body.message?.text || '';
 
     // 1. SEGURIDAD
     if (chatId !== process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID) {
       return NextResponse.json({ ok: true });
     }
 
-    // 2. LLAMADA A LA IA PARA ENTENDER LA INTENCIÓN
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    // 2. DETECCIÓN DE INTENCIÓN (Híbrida: IA + Palabras Clave)
+    let intent = '[OTRO]';
 
-    const prompt = `Eres el asistente de la ferretería "FERREMATERIALES LER C.A.". 
-    El dueño te pregunta: "${text}".
-    
-    Tu tarea es clasificar su intención en una sola palabra:
-    [CIERRE] -> Si pregunta por ventas, cuánto se hizo hoy, dinero en caja o cierre.
-    [STOCK] -> Si pregunta por productos, inventario o qué falta.
-    [OTRO] -> Si es un saludo o no se entiende.
-    
-    Responde solo la palabra entre corchetes.`;
+    // Primero intentamos con IA (Usando Fetch Directo a la v1 estable)
+    try {
+      const apiKey = 'AIzaSyAY3_HRuhvrwwDZTXBDGBjTofAKsiBU3jQ'; // Tu clave actual
+      const aiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `Clasifica el mensaje del dueño de una ferretería: "${text}". Responde SOLAMENTE con una de estas etiquetas: [CIERRE], [STOCK] u [OTRO].`,
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+      );
 
-    const result = await model.generateContent(prompt);
-    const intent = result.response.text().toUpperCase();
+      const data = await aiResponse.json();
+      // Extraemos la respuesta de la IA
+      if (data.candidates && data.candidates[0].content.parts[0].text) {
+        intent = data.candidates[0].content.parts[0].text.toUpperCase();
+      }
+    } catch (e) {
+      console.error(
+        'Error en llamada a IA, usando detección por palabras clave',
+      );
+    }
 
-    // 3. LOGICA DE DECISIÓN (Aquí usamos tus funciones que ya funcionan)
-    if (intent.includes('[CIERRE]')) {
+    // 3. LÓGICA DE DECISIÓN (Si la IA falla o no está segura, revisamos palabras clave)
+    const msg = text.toLowerCase();
+
+    if (
+      intent.includes('[CIERRE]') ||
+      msg.includes('cierre') ||
+      msg.includes('venta') ||
+      msg.includes('caja')
+    ) {
       await enviarCierreCaja(chatId);
-    } else if (intent.includes('[STOCK]')) {
+    } else if (
+      intent.includes('[STOCK]') ||
+      msg.includes('stock') ||
+      msg.includes('inventario') ||
+      msg.includes('falta')
+    ) {
       await enviarReporteStock(chatId);
     } else {
       await enviarMensaje(
         chatId,
-        '👋 ¡Hola Jefe! Estoy listo para ayudarle.\n\nPuedes preguntarme cosas como:\n📊 *¿Cómo van las ventas hoy?*\n📦 *¿Qué productos están bajos?*',
+        '👋 ¡Hola Jefe! Estoy listo.\n\nPuedes preguntarme por:\n📊 *Ventas de hoy*\n📦 *Productos bajos*',
       );
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    // Si la IA falla por la API KEY, el bot no se muere, te avisa:
-    console.error('Error Webhook:', error);
-    return NextResponse.json({ ok: true });
+    console.error('Error general Webhook:', error);
+    return NextResponse.json({ ok: true }); // Siempre responder OK a Telegram para evitar bucles
   }
 }
 
-// --- TUS FUNCIONES (Mantenlas exactamente igual) ---
+// --- TUS FUNCIONES DE CONSULTA (Optimizadas) ---
 
 async function enviarCierreCaja(chatId: string) {
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = new Date()
+    .toLocaleString('en-US', { timeZone: 'America/Caracas' })
+    .split(',')[0];
+  // Convertimos a formato YYYY-MM-DD para Supabase
+  const d = new Date(hoy);
+  const fechaFormateada = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+
   const { data: cots } = await supabase
     .from('cotizaciones')
     .select('*')
     .eq('estado', 'aprobado')
-    .gte('created_at', hoy);
+    .gte('created_at', fechaFormateada);
 
   if (!cots || cots.length === 0) {
-    return enviarMensaje(chatId, '📭 Jefe, aún no hay ventas aprobadas hoy.');
+    return enviarMensaje(
+      chatId,
+      '📭 Jefe, aún no hay ventas aprobadas registradas el día de hoy.',
+    );
   }
 
   const totalBs = cots
@@ -74,7 +110,14 @@ async function enviarCierreCaja(chatId: string) {
     .filter((c) => c.moneda === 'USD')
     .reduce((acc, curr) => acc + curr.total, 0);
 
-  const mensaje = `💰 *CIERRE DE CAJA*\n🇻🇪 Bs. ${totalBs.toLocaleString('es-VE')}\n💵 $${totalUsd.toLocaleString()}\n📈 Ventas: ${cots.length}`;
+  const mensaje =
+    `💰 *REPORTE DE VENTAS (HOY)*\n` +
+    `--------------------------\n` +
+    `🇻🇪 *Bolívares:* Bs. ${totalBs.toLocaleString('es-VE')}\n` +
+    `💵 *Dólares:* $${totalUsd.toLocaleString()}\n` +
+    `📈 *Ventas:* ${cots.length}\n` +
+    `--------------------------`;
+
   await enviarMensaje(chatId, mensaje);
 }
 
@@ -86,11 +129,14 @@ async function enviarReporteStock(chatId: string) {
     .order('stock', { ascending: true });
 
   if (!prods || prods.length === 0) {
-    return enviarMensaje(chatId, '✅ Inventario óptimo.');
+    return enviarMensaje(
+      chatId,
+      '✅ Jefe, el inventario está al día. No hay productos con stock crítico.',
+    );
   }
 
   const lista = prods.map((p) => `⚠️ ${p.nombre}: *${p.stock}*`).join('\n');
-  await enviarMensaje(chatId, `📦 *STOCK BAJO*\n\n${lista}`);
+  await enviarMensaje(chatId, `📦 *ALERTAS DE INVENTARIO*\n\n${lista}`);
 }
 
 async function enviarMensaje(chatId: string, texto: string) {
