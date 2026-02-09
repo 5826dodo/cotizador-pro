@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     }
 
     // 2. LLAMADA A LA IA PARA ENTENDER LA INTENCIÓN
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const prompt = `Eres el asistente de la ferretería "FERREMATERIALES LER C.A.". 
     El dueño te pregunta: "${text}".
