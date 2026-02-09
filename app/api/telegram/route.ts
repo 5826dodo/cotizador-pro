@@ -7,31 +7,35 @@ export async function POST(req: Request) {
     const chatId = body.message?.chat?.id?.toString();
     const text = body.message?.text || '';
 
-    // 1. SEGURIDAD
-    if (chatId !== process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID) {
+    if (chatId !== process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID)
       return NextResponse.json({ ok: true });
-    }
 
     const apiKey = 'AIzaSyAY3_HRuhvrwwDZTXBDGBjTofAKsiBU3jQ';
 
-    // 2. RECOLECTAR CONTEXTO (Ventas, Tasa, Stock)
-    const inicioHoy = new Date();
-    inicioHoy.setHours(0, 0, 0, 0);
-    const finHoy = new Date();
-    finHoy.setHours(23, 59, 59, 999);
+    // 1. RECOLECTAR CONTEXTO (Ajustado a tu estructura de tabla)
+    // Usamos la fecha de ayer y hoy para asegurar que capturemos el rango correcto
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const hoyISO = hoy.toISOString();
 
-    const [tasaRes, ventasRes, stockRes] = await Promise.all([
-      supabase
-        .from('configuracion')
-        .select('valor')
-        .eq('clave', 'tasa_bcv')
-        .maybeSingle(),
+    const [ventasRes, ultimaTasaRes, stockRes] = await Promise.all([
+      // Buscamos ventas aprobadas desde el inicio de hoy
       supabase
         .from('cotizaciones')
         .select('total, moneda, tasa_bcv')
         .eq('estado', 'aprobado')
-        .gte('created_at', inicioHoy.toISOString())
-        .lte('created_at', finHoy.toISOString()),
+        .gte('created_at', hoyISO),
+
+      // Buscamos la tasa de la última cotización aprobada de cualquier fecha
+      supabase
+        .from('cotizaciones')
+        .select('tasa_bcv')
+        .eq('estado', 'aprobado')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+
+      // Stock bajo
       supabase
         .from('productos')
         .select('nombre, stock')
@@ -39,54 +43,69 @@ export async function POST(req: Request) {
         .limit(8),
     ]);
 
-    // Procesar totales
+    // 2. PROCESAR TOTALES (Convertimos a número por si acaso vienen como string)
     const ventas = ventasRes.data || [];
-    const totalBs = ventas
-      .filter((v) => v.moneda === 'BS')
-      .reduce((acc, curr) => acc + curr.total * (curr.tasa_bcv || 1), 0);
-    const totalUsd = ventas
-      .filter((v) => v.moneda === 'USD')
-      .reduce((acc, curr) => acc + curr.total, 0);
+    let totalBs = 0;
+    let totalUsd = 0;
+
+    ventas.forEach((v) => {
+      const monto = parseFloat(v.total) || 0;
+      if (v.moneda === 'BS') {
+        totalBs += monto;
+      } else if (v.moneda === 'USD') {
+        totalUsd += monto;
+      }
+    });
+
+    const tasaActual = ultimaTasaRes.data?.tasa_bcv || 'No registrada';
     const productosBajos =
       stockRes.data?.map((p) => `${p.nombre} (${p.stock})`).join(', ') ||
-      'Ninguno';
+      'Todo al día';
 
-    // 3. PROMPT PARA LENGUAJE NATURAL
-    const promptContexto = `
-      Eres el asistente inteligente de "FERREMATERIALES LER C.A.". Hablas de forma ejecutiva, amable y eficiente.
+    // 3. PROMPT DE LENGUAJE NATURAL
+    const promptContexto = `Eres el asistente inteligente de la ferretería "FERREMATERIALES LER C.A.". 
+    Tu tono es servicial, profesional y muy claro.
+
+    CONTEXTO DEL SISTEMA:
+    - Tasa de cambio actual: ${tasaActual} Bs/$.
+    - Ventas de hoy: ${ventas.length} pedidos aprobados.
+    - Acumulado hoy: Bs. ${totalBs.toLocaleString('es-VE')} y $${totalUsd.toLocaleString('en-US')}.
+    - Alerta de Inventario (Stock bajo): ${productosBajos}.
+
+    MENSAJE DEL JEFE: "${text}"
+
+    INSTRUCCIONES:
+    - Responde de forma fluida y natural.
+    - Si el jefe saluda, responde amablemente y dale un resumen rápido de la tasa o ventas.
+    - Si pregunta por ventas, dale los totales en Bs y $.
+    - Si pregunta por la tasa, menciónala según la última venta.
+    - Usa emojis de ferretería y finanzas.`;
+
+    // 4. LLAMADA A GEMINI 1.5 FLASH
+    let respuestaFinal = '';
+    try {
+      const aiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptContexto }] }],
+          }),
+        },
+      );
+
+      const data = await aiResponse.json();
+      respuestaFinal = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      if (!respuestaFinal) throw new Error('Sin respuesta de IA');
+    } catch (e) {
+      // Fallback amigable si la IA falla
+      respuestaFinal = `👋 ¡Hola Jefe! Hubo un detalle con la IA, pero aquí le tengo los datos:
       
-      DATOS REALES DEL SISTEMA AHORA:
-      - Tasa BCV: ${tasaRes.data?.valor || '45.50'} Bs/$.
-      - Ventas Hoy: ${ventas.length} ventas aprobadas.
-      - Totales: Bs. ${totalBs.toLocaleString('es-VE')} y $${totalUsd.toLocaleString()}.
-      - Stock Bajo: ${productosBajos}.
-      
-      MENSAJE DEL JEFE: "${text}"
-      
-      INSTRUCCIONES: 
-      1. Responde al mensaje del jefe usando los datos anteriores. 
-      2. Si pregunta por algo que no está en los datos (como el precio de un tornillo), dile que para precios específicos debe darte el nombre exacto del producto.
-      3. Usa emojis para que sea fácil de leer en Telegram.
-    `;
-
-    // 4. PETICIÓN A GEMINI 1.5 PRO
-    const aiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: promptContexto }] }],
-          generationConfig: { temperature: 0.7 },
-        }),
-      },
-    );
-
-    const data = await aiResponse.json();
-    let respuestaFinal = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!respuestaFinal) {
-      respuestaFinal = `Jefe, tuve un problema con la IA, pero aquí tiene los datos crudos:\n💰 Ventas: $${totalUsd}\n🇻🇪 Tasa: ${tasaRes.data?.valor}\n📦 Stock bajo: ${productosBajos}`;
+💰 *Ventas hoy:* Bs. ${totalBs.toLocaleString('es-VE')} / $${totalUsd.toLocaleString()}
+📈 *Tasa:* ${tasaActual} Bs/$
+⚠️ *Stock bajo:* ${productosBajos}`;
     }
 
     // 5. ENVIAR A TELEGRAM
@@ -105,7 +124,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('Error Webhook:', error);
+    console.error('Error:', error);
     return NextResponse.json({ ok: true });
   }
 }
