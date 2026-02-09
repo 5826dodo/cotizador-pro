@@ -2,37 +2,31 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export async function POST(req: Request) {
+  const apiKey = 'AIzaSyAY3_HRuhvrwwDZTXBDGBjTofAKsiBU3jQ';
+  const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
+  let chatId = '';
+
   try {
     const body = await req.json();
-    const chatId = body.message?.chat?.id?.toString();
+    chatId = body.message?.chat?.id?.toString();
     const text = body.message?.text || '';
 
     if (chatId !== process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID)
       return NextResponse.json({ ok: true });
 
-    const apiKey = 'AIzaSyAY3_HRuhvrwwDZTXBDGBjTofAKsiBU3jQ';
+    // 1. FECHA PARA VENEZUELA (Ajuste manual de zona horaria)
+    const fechaHoy = new Date();
+    fechaHoy.setHours(fechaHoy.getHours() - 4); // Ajuste simple a UTC-4
+    const hoyISO = fechaHoy.toISOString().split('T')[0];
 
-    // 1. DETERMINAR QUÉ BUSCAR (Lógica previa)
-    const mensajeMinuscula = text.toLowerCase();
-
-    // Rango de fechas para Venezuela (Hoy)
-    const hoy = new Date();
-    const inicioHoy = new Date(
-      hoy.getFullYear(),
-      hoy.getMonth(),
-      hoy.getDate(),
-    ).toISOString();
-
-    // 2. BUSCAR DATOS EN SUPABASE (Multitarea)
-    const [ventasRes, ultimaTasaRes, stockRes, productoEspecifico] =
+    // 2. BUSCAR DATOS (Con logs para ver qué falla)
+    const [ventasRes, ultimaTasaRes, stockRes, busquedaProdRes] =
       await Promise.all([
-        // Ventas de hoy
         supabase
           .from('cotizaciones')
           .select('total, moneda, tasa_bcv')
           .eq('estado', 'aprobado')
-          .gte('created_at', inicioHoy),
-        // Tasa actual
+          .gte('created_at', hoyISO),
         supabase
           .from('cotizaciones')
           .select('tasa_bcv')
@@ -40,94 +34,86 @@ export async function POST(req: Request) {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
-        // Stock crítico
         supabase
           .from('productos')
           .select('nombre, stock')
-          .lt('stock', 10)
+          .lt('stock', 20)
           .limit(5),
-        // Búsqueda de producto (Si el jefe pregunta por algo específico)
-        mensajeMinuscula.length > 3
-          ? supabase
-              .from('productos')
-              .select('nombre, precio, stock')
-              .ilike('nombre', `%${text.split(' ').pop()}%`)
-              .limit(3)
-          : { data: null },
+        supabase
+          .from('productos')
+          .select('nombre, precio, stock')
+          .ilike('nombre', `%${text.split(' ').pop()}%`)
+          .limit(2),
       ]);
 
-    // 3. PROCESAR RESULTADOS
+    // Procesar Ventas
     const ventas = ventasRes.data || [];
-    let totalBs = 0;
-    let totalUsd = 0;
+    let totalBs = 0,
+      totalUsd = 0;
     ventas.forEach((v) => {
-      const monto = parseFloat(v.total) || 0;
-      if (v.moneda === 'BS') totalBs += monto;
-      else if (v.moneda === 'USD') totalUsd += monto;
+      const t = parseFloat(v.total) || 0;
+      if (v.moneda === 'BS') totalBs += t;
+      else totalUsd += t;
     });
 
-    const tasaActual = ultimaTasaRes.data?.tasa_bcv || '36.50';
-    const listaStockBajo =
+    const tasa = ultimaTasaRes.data?.tasa_bcv || 'No definida';
+    const prodsBajos =
       stockRes.data?.map((p) => `${p.nombre}(${p.stock})`).join(', ') ||
       'Todo bien';
-    const datosProducto = productoEspecifico.data
-      ? JSON.stringify(productoEspecifico.data)
-      : 'No se buscó producto específico';
+    const prodEncontrado =
+      busquedaProdRes.data && busquedaProdRes.data.length > 0
+        ? JSON.stringify(busquedaProdRes.data)
+        : 'No encontré ese producto específico';
 
-    // 4. CONSTRUIR EL PROMPT PARA LENGUAJE NATURAL
-    const promptContexto = `
-      Eres el encargado de FERREMATERIALES LER C.A. Hablas de forma natural, fluida y con emojis.
-      
-      DATOS REALES DEL SISTEMA:
-      - Tasa actual: ${tasaActual} Bs/$.
-      - Ventas de hoy: ${ventas.length} aprobadas (Total: Bs. ${totalBs} / $${totalUsd}).
-      - Productos con poco stock: ${listaStockBajo}.
-      - Información de inventario encontrada: ${datosProducto}.
+    // 3. CONSTRUIR RESPUESTA CON IA
+    const prompt = `Eres el asistente de FERREMATERIALES LER C.A.
+    DATOS: Tasa ${tasa} Bs/$. Ventas Hoy: $${totalUsd} y Bs.${totalBs} (${ventas.length} ventas). 
+    Stock Bajo: ${prodsBajos}. 
+    Info Producto solicitado: ${prodEncontrado}.
+    JEFE DICE: "${text}".
+    RESPONDE: De forma natural, breve y profesional con emojis.`;
 
-      EL JEFE DICE: "${text}"
-
-      TAREA: 
-      Responde al jefe de forma conversacional. 
-      - Si pregunta por un precio o producto, usa la "Información de inventario encontrada".
-      - Si pregunta por ventas, dale el resumen de hoy.
-      - Si no hay datos de lo que pide, dile amablemente que no encontraste ese producto exacto.
-    `;
-
-    // 5. LLAMADA A LA IA
     const aiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: promptContexto }] }],
-          generationConfig: { temperature: 0.8 }, // Más alto para que sea más natural
-        }),
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
       },
     );
 
-    const data = await aiResponse.json();
+    const aiData = await aiResponse.json();
     const respuestaFinal =
-      data.candidates?.[0]?.content?.parts?.[0]?.text ||
-      'Jefe, estoy teniendo un problema para procesar el mensaje. ¿Podría repetirlo?';
+      aiData.candidates?.[0]?.content?.parts?.[0]?.text ||
+      'Jefe, la IA no respondió, pero aquí tiene los datos:\n\n💰 Ventas: $' +
+        totalUsd +
+        '\n📈 Tasa: ' +
+        tasa;
 
-    // 6. ENVIAR A TELEGRAM
-    await fetch(
-      `https://api.telegram.org/bot${process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN}/sendMessage`,
-      {
+    // 4. ENVÍO FINAL
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: respuestaFinal,
+        parse_mode: 'Markdown',
+      }),
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error: any) {
+    // SI ALGO FALLA, EL BOT TE DIRÁ QUÉ FUE DIRECTAMENTE
+    if (chatId) {
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          text: respuestaFinal,
-          parse_mode: 'Markdown',
+          text: `❌ ERROR CRÍTICO: ${error.message}`,
         }),
-      },
-    );
-
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    console.error('Error:', error);
+      });
+    }
     return NextResponse.json({ ok: true });
   }
 }
