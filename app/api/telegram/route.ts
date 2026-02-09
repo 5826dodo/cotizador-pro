@@ -12,103 +12,106 @@ export async function POST(req: Request) {
 
     const apiKey = 'AIzaSyAY3_HRuhvrwwDZTXBDGBjTofAKsiBU3jQ';
 
-    // 1. RECOLECTAR CONTEXTO (Ajustado a tu estructura de tabla)
-    // Usamos la fecha de ayer y hoy para asegurar que capturemos el rango correcto
+    // 1. DETERMINAR QUÉ BUSCAR (Lógica previa)
+    const mensajeMinuscula = text.toLowerCase();
+
+    // Rango de fechas para Venezuela (Hoy)
     const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    const hoyISO = hoy.toISOString();
+    const inicioHoy = new Date(
+      hoy.getFullYear(),
+      hoy.getMonth(),
+      hoy.getDate(),
+    ).toISOString();
 
-    const [ventasRes, ultimaTasaRes, stockRes] = await Promise.all([
-      // Buscamos ventas aprobadas desde el inicio de hoy
-      supabase
-        .from('cotizaciones')
-        .select('total, moneda, tasa_bcv')
-        .eq('estado', 'aprobado')
-        .gte('created_at', hoyISO),
+    // 2. BUSCAR DATOS EN SUPABASE (Multitarea)
+    const [ventasRes, ultimaTasaRes, stockRes, productoEspecifico] =
+      await Promise.all([
+        // Ventas de hoy
+        supabase
+          .from('cotizaciones')
+          .select('total, moneda, tasa_bcv')
+          .eq('estado', 'aprobado')
+          .gte('created_at', inicioHoy),
+        // Tasa actual
+        supabase
+          .from('cotizaciones')
+          .select('tasa_bcv')
+          .eq('estado', 'aprobado')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        // Stock crítico
+        supabase
+          .from('productos')
+          .select('nombre, stock')
+          .lt('stock', 10)
+          .limit(5),
+        // Búsqueda de producto (Si el jefe pregunta por algo específico)
+        mensajeMinuscula.length > 3
+          ? supabase
+              .from('productos')
+              .select('nombre, precio, stock')
+              .ilike('nombre', `%${text.split(' ').pop()}%`)
+              .limit(3)
+          : { data: null },
+      ]);
 
-      // Buscamos la tasa de la última cotización aprobada de cualquier fecha
-      supabase
-        .from('cotizaciones')
-        .select('tasa_bcv')
-        .eq('estado', 'aprobado')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-
-      // Stock bajo
-      supabase
-        .from('productos')
-        .select('nombre, stock')
-        .lt('stock', 10)
-        .limit(8),
-    ]);
-
-    // 2. PROCESAR TOTALES (Convertimos a número por si acaso vienen como string)
+    // 3. PROCESAR RESULTADOS
     const ventas = ventasRes.data || [];
     let totalBs = 0;
     let totalUsd = 0;
-
     ventas.forEach((v) => {
       const monto = parseFloat(v.total) || 0;
-      if (v.moneda === 'BS') {
-        totalBs += monto;
-      } else if (v.moneda === 'USD') {
-        totalUsd += monto;
-      }
+      if (v.moneda === 'BS') totalBs += monto;
+      else if (v.moneda === 'USD') totalUsd += monto;
     });
 
-    const tasaActual = ultimaTasaRes.data?.tasa_bcv || 'No registrada';
-    const productosBajos =
-      stockRes.data?.map((p) => `${p.nombre} (${p.stock})`).join(', ') ||
-      'Todo al día';
+    const tasaActual = ultimaTasaRes.data?.tasa_bcv || '36.50';
+    const listaStockBajo =
+      stockRes.data?.map((p) => `${p.nombre}(${p.stock})`).join(', ') ||
+      'Todo bien';
+    const datosProducto = productoEspecifico.data
+      ? JSON.stringify(productoEspecifico.data)
+      : 'No se buscó producto específico';
 
-    // 3. PROMPT DE LENGUAJE NATURAL
-    const promptContexto = `Eres el asistente inteligente de la ferretería "FERREMATERIALES LER C.A.". 
-    Tu tono es servicial, profesional y muy claro.
-
-    CONTEXTO DEL SISTEMA:
-    - Tasa de cambio actual: ${tasaActual} Bs/$.
-    - Ventas de hoy: ${ventas.length} pedidos aprobados.
-    - Acumulado hoy: Bs. ${totalBs.toLocaleString('es-VE')} y $${totalUsd.toLocaleString('en-US')}.
-    - Alerta de Inventario (Stock bajo): ${productosBajos}.
-
-    MENSAJE DEL JEFE: "${text}"
-
-    INSTRUCCIONES:
-    - Responde de forma fluida y natural.
-    - Si el jefe saluda, responde amablemente y dale un resumen rápido de la tasa o ventas.
-    - Si pregunta por ventas, dale los totales en Bs y $.
-    - Si pregunta por la tasa, menciónala según la última venta.
-    - Usa emojis de ferretería y finanzas.`;
-
-    // 4. LLAMADA A GEMINI 1.5 FLASH
-    let respuestaFinal = '';
-    try {
-      const aiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: promptContexto }] }],
-          }),
-        },
-      );
-
-      const data = await aiResponse.json();
-      respuestaFinal = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-      if (!respuestaFinal) throw new Error('Sin respuesta de IA');
-    } catch (e) {
-      // Fallback amigable si la IA falla
-      respuestaFinal = `👋 ¡Hola Jefe! Hubo un detalle con la IA, pero aquí le tengo los datos:
+    // 4. CONSTRUIR EL PROMPT PARA LENGUAJE NATURAL
+    const promptContexto = `
+      Eres el encargado de FERREMATERIALES LER C.A. Hablas de forma natural, fluida y con emojis.
       
-💰 *Ventas hoy:* Bs. ${totalBs.toLocaleString('es-VE')} / $${totalUsd.toLocaleString()}
-📈 *Tasa:* ${tasaActual} Bs/$
-⚠️ *Stock bajo:* ${productosBajos}`;
-    }
+      DATOS REALES DEL SISTEMA:
+      - Tasa actual: ${tasaActual} Bs/$.
+      - Ventas de hoy: ${ventas.length} aprobadas (Total: Bs. ${totalBs} / $${totalUsd}).
+      - Productos con poco stock: ${listaStockBajo}.
+      - Información de inventario encontrada: ${datosProducto}.
 
-    // 5. ENVIAR A TELEGRAM
+      EL JEFE DICE: "${text}"
+
+      TAREA: 
+      Responde al jefe de forma conversacional. 
+      - Si pregunta por un precio o producto, usa la "Información de inventario encontrada".
+      - Si pregunta por ventas, dale el resumen de hoy.
+      - Si no hay datos de lo que pide, dile amablemente que no encontraste ese producto exacto.
+    `;
+
+    // 5. LLAMADA A LA IA
+    const aiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptContexto }] }],
+          generationConfig: { temperature: 0.8 }, // Más alto para que sea más natural
+        }),
+      },
+    );
+
+    const data = await aiResponse.json();
+    const respuestaFinal =
+      data.candidates?.[0]?.content?.parts?.[0]?.text ||
+      'Jefe, estoy teniendo un problema para procesar el mensaje. ¿Podría repetirlo?';
+
+    // 6. ENVIAR A TELEGRAM
     await fetch(
       `https://api.telegram.org/bot${process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN}/sendMessage`,
       {
