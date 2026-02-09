@@ -12,49 +12,66 @@ export async function POST(req: Request) {
 
     const apiKey = 'AIzaSyAY3_HRuhvrwwDZTXBDGBjTofAKsiBU3jQ';
 
-    // 1. LE DAMOS CONTEXTO DE LA BASE DE DATOS A GEMINI
-    // Aquí podrías traer una muestra de datos o la tasa actual de una tabla
+    // 1. OBTENER TASA BCV
     const { data: tasaData } = await supabase
       .from('configuracion')
       .select('valor')
       .eq('clave', 'tasa_bcv')
-      .single();
+      .maybeSingle();
     const tasaActual = tasaData?.valor || 'no definida';
 
-    const promptGlobal = `
-      Eres el asistente inteligente de "FERREMATERIALES LER C.A.".
-      Tienes acceso a la base de datos de la ferretería.
+    const promptGlobal = `Eres el asistente de "FERREMATERIALES LER C.A.".
       Tasa BCV hoy: ${tasaActual}.
-      
-      El jefe dice: "${text}"
-      
-      Tu tarea es decidir qué información necesito buscar. Responde SOLAMENTE con una de estas etiquetas:
-      [PRECIO:nombre_producto] -> Si pregunta cuánto cuesta algo.
-      [STOCK_INDIVIDUAL:nombre_producto] -> Si pregunta cuánto queda de un producto específico.
-      [INVENTARIO_GENERAL] -> Si quiere ver todo lo que falta o stock bajo.
-      [VENTAS_HOY] -> Si pregunta por el dinero del día o cierre.
-      [TASA] -> Si pregunta por el dólar o tasa.
-      [SALUDO] -> Si solo saluda.
-    `;
+      Mensaje del jefe: "${text}"
+      Responde SOLAMENTE con una etiqueta:
+      [PRECIO:producto], [STOCK_INDIVIDUAL:producto], [INVENTARIO_GENERAL], [VENTAS_HOY], [TASA], [SALUDO]`;
 
-    // 2. LLAMADA A LA IA PARA DECIDIR ACCIÓN
-    const aiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: promptGlobal }] }],
-        }),
-      },
-    );
+    // 2. LLAMADA A LA IA CON SEGURIDAD
+    let decision = '[SALUDO]';
+    try {
+      const aiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptGlobal }] }],
+          }),
+        },
+      );
 
-    const data = await aiResponse.json();
-    const decision = data.candidates[0].content.parts[0].text.trim();
+      const data = await aiResponse.json();
 
-    // 3. EJECUCIÓN SEGÚN LENGUAJE NATURAL
-    if (decision.includes('[PRECIO:')) {
-      const producto = decision.split(':')[1].replace(']', '');
+      if (
+        data &&
+        data.candidates &&
+        data.candidates[0]?.content?.parts?.[0]?.text
+      ) {
+        decision = data.candidates[0].content.parts[0].text.trim();
+      } else {
+        // Fallback manual si la IA no responde correctamente
+        const lowText = text.toLowerCase();
+        if (lowText.includes('cierre') || lowText.includes('venta'))
+          decision = '[VENTAS_HOY]';
+        else if (
+          lowText.includes('stock') ||
+          lowText.includes('inventario') ||
+          lowText.includes('falta')
+        )
+          decision = '[INVENTARIO_GENERAL]';
+        else if (lowText.includes('tasa') || lowText.includes('dolar'))
+          decision = '[TASA]';
+      }
+    } catch (e) {
+      console.error('Error en fetch de IA:', e);
+    }
+
+    // 3. EJECUCIÓN DE LÓGICA
+    if (
+      decision.includes('[PRECIO:') ||
+      decision.includes('[STOCK_INDIVIDUAL:')
+    ) {
+      const producto = decision.split(':')[1]?.replace(']', '') || text;
       await buscarPrecio(chatId, producto, apiKey);
     } else if (decision.includes('[VENTAS_HOY]')) {
       await enviarCierreCaja(chatId);
@@ -68,18 +85,19 @@ export async function POST(req: Request) {
     } else {
       await enviarMensaje(
         chatId,
-        '👋 ¡Hola Jefe! Estoy listo. Puedo darle precios, stock de productos, ventas del día o la tasa BCV. ¿Qué necesita saber?',
+        '👋 ¡Hola Jefe! Estoy listo. Puedo darle precios, stock, ventas del día o la tasa BCV. ¿Qué desea consultar?',
       );
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error General:', error);
     return NextResponse.json({ ok: true });
   }
 }
 
-// --- NUEVA FUNCIÓN: BUSCAR PRECIO DE UN PRODUCTO ESPECÍFICO ---
+// --- FUNCIONES AUXILIARES ---
+
 async function buscarPrecio(
   chatId: string,
   nombreBusqueda: string,
@@ -88,46 +106,46 @@ async function buscarPrecio(
   const { data: prods } = await supabase
     .from('productos')
     .select('nombre, precio_usd, stock')
-    .ilike('nombre', `%${nombreBusqueda}%`) // Busca coincidencias parciales
+    .ilike('nombre', `%${nombreBusqueda.trim()}%`)
     .limit(3);
 
   if (!prods || prods.length === 0) {
     return enviarMensaje(
       chatId,
-      `No encontré ningún producto que se llame "${nombreBusqueda}".`,
+      `No encontré productos relacionados con "${nombreBusqueda}".`,
     );
   }
 
-  // Usamos la IA para que redacte la respuesta bonito
-  const promptRedaccion = `
-    El jefe preguntó por el precio de "${nombreBusqueda}".
-    Encontré estos datos: ${JSON.stringify(prods)}.
-    Redacta una respuesta breve y profesional para el jefe informando precios y stock.
-  `;
-
-  const resIA = await fetch(
-    `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: promptRedaccion }] }],
-      }),
-    },
-  );
-  const dataIA = await resIA.json();
-  await enviarMensaje(chatId, dataIA.candidates[0].content.parts[0].text);
+  try {
+    const promptRedaccion = `El jefe de la ferretería preguntó por "${nombreBusqueda}". Encontré esto: ${JSON.stringify(prods)}. Responde breve con precios y stock.`;
+    const resIA = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptRedaccion }] }],
+        }),
+      },
+    );
+    const dataIA = await resIA.json();
+    const textoFinal =
+      dataIA.candidates?.[0]?.content?.parts?.[0]?.text ||
+      'Aquí tiene los datos, jefe.';
+    await enviarMensaje(chatId, textoFinal);
+  } catch (e) {
+    // Si la redacción de la IA falla, enviamos los datos crudos
+    const lista = prods
+      .map((p) => `🔹 ${p.nombre}: $${p.precio_usd} (Stock: ${p.stock})`)
+      .join('\n');
+    await enviarMensaje(chatId, `Jefe, esto fue lo que encontré:\n\n${lista}`);
+  }
 }
-
-// ... (Manten tus funciones de enviarCierreCaja y enviarReporteStock igual)
-
-// --- TUS FUNCIONES DE CONSULTA (Optimizadas) ---
 
 async function enviarCierreCaja(chatId: string) {
   const hoy = new Date()
     .toLocaleString('en-US', { timeZone: 'America/Caracas' })
     .split(',')[0];
-  // Convertimos a formato YYYY-MM-DD para Supabase
   const d = new Date(hoy);
   const fechaFormateada = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
 
@@ -138,29 +156,20 @@ async function enviarCierreCaja(chatId: string) {
     .gte('created_at', fechaFormateada);
 
   if (!cots || cots.length === 0) {
-    return enviarMensaje(
-      chatId,
-      '📭 Jefe, aún no hay ventas aprobadas registradas el día de hoy.',
-    );
+    return enviarMensaje(chatId, '📭 Jefe, aún no hay ventas aprobadas hoy.');
   }
 
   const totalBs = cots
     .filter((c) => c.moneda === 'BS')
     .reduce((acc, curr) => acc + curr.total * (curr.tasa_bcv || 1), 0);
-
   const totalUsd = cots
     .filter((c) => c.moneda === 'USD')
     .reduce((acc, curr) => acc + curr.total, 0);
 
-  const mensaje =
-    `💰 *REPORTE DE VENTAS (HOY)*\n` +
-    `--------------------------\n` +
-    `🇻🇪 *Bolívares:* Bs. ${totalBs.toLocaleString('es-VE')}\n` +
-    `💵 *Dólares:* $${totalUsd.toLocaleString()}\n` +
-    `📈 *Ventas:* ${cots.length}\n` +
-    `--------------------------`;
-
-  await enviarMensaje(chatId, mensaje);
+  await enviarMensaje(
+    chatId,
+    `💰 *CIERRE DE HOY*\n\n🇻🇪 *Bs:* ${totalBs.toLocaleString('es-VE')}\n💵 *USD:* $${totalUsd.toLocaleString()}\n📈 *Ventas:* ${cots.length}`,
+  );
 }
 
 async function enviarReporteStock(chatId: string) {
@@ -169,16 +178,10 @@ async function enviarReporteStock(chatId: string) {
     .select('nombre, stock')
     .lt('stock', 10)
     .order('stock', { ascending: true });
-
-  if (!prods || prods.length === 0) {
-    return enviarMensaje(
-      chatId,
-      '✅ Jefe, el inventario está al día. No hay productos con stock crítico.',
-    );
-  }
-
+  if (!prods || prods.length === 0)
+    return enviarMensaje(chatId, '✅ Inventario al día, jefe.');
   const lista = prods.map((p) => `⚠️ ${p.nombre}: *${p.stock}*`).join('\n');
-  await enviarMensaje(chatId, `📦 *ALERTAS DE INVENTARIO*\n\n${lista}`);
+  await enviarMensaje(chatId, `📦 *STOCK BAJO*\n\n${lista}`);
 }
 
 async function enviarMensaje(chatId: string, texto: string) {
