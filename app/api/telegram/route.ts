@@ -142,21 +142,31 @@ async function buscarPrecio(
   }
 }
 
+// --- FUNCIÓN DE CIERRE CORREGIDA (Rango de 24h) ---
 async function enviarCierreCaja(chatId: string) {
-  const hoy = new Date()
-    .toLocaleString('en-US', { timeZone: 'America/Caracas' })
-    .split(',')[0];
-  const d = new Date(hoy);
-  const fechaFormateada = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+  // Creamos el rango de hoy en Venezuela (VET es UTC-4)
+  const inicioHoy = new Date();
+  inicioHoy.setHours(0, 0, 0, 0);
 
-  const { data: cots } = await supabase
+  const finHoy = new Date();
+  finHoy.setHours(23, 59, 59, 999);
+
+  const { data: cots, error } = await supabase
     .from('cotizaciones')
     .select('*')
     .eq('estado', 'aprobado')
-    .gte('created_at', fechaFormateada);
+    .gte('created_at', inicioHoy.toISOString())
+    .lte('created_at', finHoy.toISOString());
+
+  if (error) {
+    return enviarMensaje(chatId, `❌ Error en DB: ${error.message}`);
+  }
 
   if (!cots || cots.length === 0) {
-    return enviarMensaje(chatId, '📭 Jefe, aún no hay ventas aprobadas hoy.');
+    return enviarMensaje(
+      chatId,
+      '📭 Jefe, no encontré ventas aprobadas para la fecha de hoy en el sistema.',
+    );
   }
 
   const totalBs = cots
@@ -166,10 +176,30 @@ async function enviarCierreCaja(chatId: string) {
     .filter((c) => c.moneda === 'USD')
     .reduce((acc, curr) => acc + curr.total, 0);
 
-  await enviarMensaje(
-    chatId,
-    `💰 *CIERRE DE HOY*\n\n🇻🇪 *Bs:* ${totalBs.toLocaleString('es-VE')}\n💵 *USD:* $${totalUsd.toLocaleString()}\n📈 *Ventas:* ${cots.length}`,
-  );
+  const mensaje =
+    `💰 *CIERRE DE CAJA*\n` +
+    `--------------------------\n` +
+    `🇻🇪 *Bs:* ${totalBs.toLocaleString('es-VE')}\n` +
+    `💵 *USD:* $${totalUsd.toLocaleString()}\n` +
+    `📈 *Ventas:* ${cots.length}\n` +
+    `📅 *Desde:* ${inicioHoy.toLocaleTimeString()}\n` +
+    `--------------------------`;
+
+  await enviarMensaje(chatId, mensaje);
+}
+
+// --- FUNCIÓN DE TASA (Con más seguridad) ---
+async function obtenerTasaActual() {
+  try {
+    const { data } = await supabase
+      .from('configuracion')
+      .select('valor')
+      .eq('clave', 'tasa_bcv')
+      .single();
+    return data?.valor || '75.00'; // Valor por defecto si falla
+  } catch {
+    return '75.00';
+  }
 }
 
 async function enviarReporteStock(chatId: string) {
