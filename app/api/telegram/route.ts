@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Inicializamos Gemini
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
+const genAI = new GoogleGenerativeAI('AIzaSyAY3_HRuhvrwwDZTXBDGBjTofAKsiBU3jQ');
 
 export async function POST(req: Request) {
   try {
