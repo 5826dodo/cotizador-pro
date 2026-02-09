@@ -1,45 +1,30 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
+import { supabase } from '@/lib/supabase'; // Ajusta la ruta a tu config de supabase
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const chatId = body.message?.chat?.id.toString();
-    const userMessage = body.message?.text;
+    const text = body.message?.text?.toLowerCase();
 
+    // SEGURIDAD: Solo responde a tu ID de Telegram
     if (chatId !== process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID) {
       return NextResponse.json({ ok: true });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
-    // 1. LA IA DETERMINA LA INTENCIÓN
-    const promptIntent = `Eres el asistente de una ferretería. El jefe dice: "${userMessage}".
-    Debes clasificar su mensaje en una sola palabra dentro de estos corchetes:
-    [CIERRE] - Si pregunta por ventas, dinero, caja o cómo fue el día.
-    [STOCK] - Si pregunta por productos, inventario, qué falta o stock bajo.
-    [SALUDO] - Si solo saluda o pregunta quién eres.
-    [OTRO] - Si no entiendes o es otra cosa.
-    Responde solo la etiqueta.`;
-
-    const resultIntent = await model.generateContent(promptIntent);
-    const intent = resultIntent.response.text().trim();
-
-    // 2. EJECUTAMOS LA LÓGICA SEGÚN LA IA
-    if (intent.includes('[CIERRE]')) {
-      const datos = await obtenerDatosCierre();
-      await enviarRespuestaIA(chatId, userMessage, datos, 'ventas y caja');
-    } else if (intent.includes('[STOCK]')) {
-      const datos = await obtenerDatosStock();
-      await enviarRespuestaIA(chatId, userMessage, datos, 'inventario bajo');
+    if (text === '/cierre' || text === 'cierre' || text === 'ventas hoy') {
+      await enviarCierreCaja(chatId);
+    } else if (
+      text === '/inventario' ||
+      text === 'inventario bajo' ||
+      text === 'stock'
+    ) {
+      await enviarReporteStock(chatId);
     } else {
-      // Para saludos o desconocidos, que la IA responda amigablemente
-      const promptFriendly = `Eres el asistente de FERREMATERIALES LER C.A. El jefe dice: "${userMessage}". Responde cordialmente y dile que puedes darle reportes de ventas o stock.`;
-      const res = await model.generateContent(promptFriendly);
-      await enviarMensaje(chatId, res.response.text());
+      await enviarMensaje(
+        chatId,
+        'Hola Jefe. Comandos disponibles:\n\n📊 *cierre* - Ver ventas de hoy\n📦 *stock* - Ver productos bajos',
+      );
     }
 
     return NextResponse.json({ ok: true });
@@ -49,65 +34,63 @@ export async function POST(req: Request) {
   }
 }
 
-// --- NUEVA FUNCIÓN: LA IA REDACTA EL REPORTE FINAL ---
-async function enviarRespuestaIA(
-  chatId: string,
-  preguntaJefe: string,
-  datos: any,
-  tipo: string,
-) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+// --- FUNCIONES DE CONSULTA ---
 
-  const promptFinal = `
-    Eres el asistente inteligente de la ferretería FERREMATERIALES LER C.A.
-    El jefe preguntó: "${preguntaJefe}"
-    Aquí tienes los datos reales del sistema sobre ${tipo}: ${JSON.stringify(datos)}
-    
-    Tu tarea: Redacta un mensaje breve y profesional para Telegram. 
-    - Si son ventas, resume el total en Bs y $. 
-    - Si es stock, menciona los productos más críticos.
-    - Usa emojis y negritas. Si no hay datos, infórmalo amablemente.
-  `;
-
-  const result = await model.generateContent(promptFinal);
-  await enviarMensaje(chatId, result.response.text());
-}
-
-// --- FUNCIONES AUXILIARES PARA OBTENER DATOS ---
-
-async function obtenerDatosCierre() {
+async function enviarCierreCaja(chatId: string) {
   const hoy = new Date().toISOString().split('T')[0];
-  const { data } = await supabase
+
+  const { data: cots } = await supabase
     .from('cotizaciones')
     .select('*')
     .eq('estado', 'aprobado')
     .gte('created_at', hoy);
 
-  if (!data) return 'No hay ventas hoy';
+  if (!cots || cots.length === 0) {
+    return enviarMensaje(
+      chatId,
+      '📭 Jefe, aún no se han registrado ventas aprobadas el día de hoy.',
+    );
+  }
 
-  const totalBs = data
+  const totalBs = cots
     .filter((c) => c.moneda === 'BS')
     .reduce((acc, curr) => acc + curr.total * (curr.tasa_bcv || 1), 0);
-  const totalUsd = data
+
+  const totalUsd = cots
     .filter((c) => c.moneda === 'USD')
     .reduce((acc, curr) => acc + curr.total, 0);
 
-  return {
-    total_bolivares: totalBs,
-    total_dolares: totalUsd,
-    cantidad_ventas: data.length,
-  };
+  const mensaje =
+    `💰 *CIERRE DE CAJA (HOY)*\n` +
+    `--------------------------\n` +
+    `🇻🇪 *Bolívares:* Bs. ${totalBs.toLocaleString('es-VE')}\n` +
+    `💵 *Dólares:* $${totalUsd.toLocaleString()}\n` +
+    `--------------------------\n` +
+    `📈 *Ventas cerradas:* ${cots.length}\n` +
+    `📅 Fecha: ${new Date().toLocaleDateString()}`;
+
+  await enviarMensaje(chatId, mensaje);
 }
 
-async function obtenerDatosStock() {
-  const { data } = await supabase
+async function enviarReporteStock(chatId: string) {
+  const { data: prods } = await supabase
     .from('productos')
     .select('nombre, stock')
-    .lt('stock', 10)
+    .lt('stock', 10) // Cambia el 10 por tu límite de stock bajo
     .order('stock', { ascending: true });
-  return data || [];
+
+  if (!prods || prods.length === 0) {
+    return enviarMensaje(
+      chatId,
+      '✅ Jefe, todo el inventario está en niveles óptimos.',
+    );
+  }
+
+  const lista = prods.map((p) => `⚠️ ${p.nombre}: *${p.stock}*`).join('\n');
+  await enviarMensaje(chatId, `📦 *STOCK BAJO (ALERTA)*\n\n${lista}`);
 }
 
+// --- FUNCIÓN PARA ENVIAR RESPUESTA ---
 async function enviarMensaje(chatId: string, texto: string) {
   const token = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
