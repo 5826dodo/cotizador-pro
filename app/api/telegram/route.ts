@@ -12,12 +12,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    // 2. DETECCIÓN DE INTENCIÓN (Híbrida: IA + Palabras Clave)
+    // 2. DETECCIÓN DE INTENCIÓN (Mejorada)
     let intent = '[OTRO]';
 
-    // Primero intentamos con IA (Usando Fetch Directo a la v1 estable)
     try {
-      const apiKey = 'AIzaSyAY3_HRuhvrwwDZTXBDGBjTofAKsiBU3jQ'; // Tu clave actual
+      const apiKey = 'AIzaSyAY3_HRuhvrwwDZTXBDGBjTofAKsiBU3jQ';
       const aiResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
         {
@@ -28,7 +27,10 @@ export async function POST(req: Request) {
               {
                 parts: [
                   {
-                    text: `Clasifica el mensaje del dueño de una ferretería: "${text}". Responde SOLAMENTE con una de estas etiquetas: [CIERRE], [STOCK] u [OTRO].`,
+                    text: `Analiza el mensaje del dueño de una ferretería: "${text}". 
+          Si pregunta por inventario, existencias, productos o qué falta, responde únicamente: [STOCK].
+          Si pregunta por ventas, dinero, caja o cierre, responde únicamente: [CIERRE].
+          Si es un saludo u otra cosa, responde: [OTRO].`,
                   },
                 ],
               },
@@ -38,37 +40,42 @@ export async function POST(req: Request) {
       );
 
       const data = await aiResponse.json();
-      // Extraemos la respuesta de la IA
+
       if (data.candidates && data.candidates[0].content.parts[0].text) {
-        intent = data.candidates[0].content.parts[0].text.toUpperCase();
+        // Limpiamos la respuesta por si la IA agrega puntos o espacios
+        intent = data.candidates[0].content.parts[0].text.toUpperCase().trim();
+        console.log('IA detectó intención:', intent);
       }
     } catch (e) {
-      console.error(
-        'Error en llamada a IA, usando detección por palabras clave',
-      );
+      console.error('Error en llamada a IA');
     }
 
-    // 3. LÓGICA DE DECISIÓN (Si la IA falla o no está segura, revisamos palabras clave)
+    // 3. LÓGICA DE DECISIÓN (Más agresiva para no fallar)
     const msg = text.toLowerCase();
 
+    // Verificamos tanto lo que dijo la IA como palabras clave manuales
     if (
-      intent.includes('[CIERRE]') ||
+      intent.includes('CIERRE') ||
       msg.includes('cierre') ||
       msg.includes('venta') ||
-      msg.includes('caja')
+      msg.includes('caja') ||
+      msg.includes('plata') ||
+      msg.includes('cuanto se hizo')
     ) {
       await enviarCierreCaja(chatId);
     } else if (
-      intent.includes('[STOCK]') ||
+      intent.includes('STOCK') ||
       msg.includes('stock') ||
       msg.includes('inventario') ||
-      msg.includes('falta')
+      msg.includes('falta') ||
+      msg.includes('productos') ||
+      msg.includes('existencia')
     ) {
       await enviarReporteStock(chatId);
     } else {
       await enviarMensaje(
         chatId,
-        '👋 ¡Hola Jefe! Estoy listo.\n\nPuedes preguntarme por:\n📊 *Ventas de hoy*\n📦 *Productos bajos*',
+        '👋 ¡Hola Jefe! No estoy seguro de qué reporte necesita.\n\nEscriba *cierre* para las ventas o *stock* para el inventario.',
       );
     }
 
