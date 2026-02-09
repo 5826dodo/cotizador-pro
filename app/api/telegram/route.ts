@@ -7,84 +7,119 @@ export async function POST(req: Request) {
     const chatId = body.message?.chat?.id?.toString();
     const text = body.message?.text || '';
 
-    // 1. SEGURIDAD
-    if (chatId !== process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID) {
+    if (chatId !== process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID)
       return NextResponse.json({ ok: true });
-    }
 
-    // 2. DETECCIÓN DE INTENCIÓN (Mejorada)
-    let intent = '[OTRO]';
+    const apiKey = 'AIzaSyAY3_HRuhvrwwDZTXBDGBjTofAKsiBU3jQ';
 
-    try {
-      const apiKey = 'AIzaSyAY3_HRuhvrwwDZTXBDGBjTofAKsiBU3jQ';
-      const aiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `Analiza el mensaje del dueño de una ferretería: "${text}". 
-          Si pregunta por inventario, existencias, productos o qué falta, responde únicamente: [STOCK].
-          Si pregunta por ventas, dinero, caja o cierre, responde únicamente: [CIERRE].
-          Si es un saludo u otra cosa, responde: [OTRO].`,
-                  },
-                ],
-              },
-            ],
-          }),
-        },
-      );
+    // 1. LE DAMOS CONTEXTO DE LA BASE DE DATOS A GEMINI
+    // Aquí podrías traer una muestra de datos o la tasa actual de una tabla
+    const { data: tasaData } = await supabase
+      .from('configuracion')
+      .select('valor')
+      .eq('clave', 'tasa_bcv')
+      .single();
+    const tasaActual = tasaData?.valor || 'no definida';
 
-      const data = await aiResponse.json();
+    const promptGlobal = `
+      Eres el asistente inteligente de "FERREMATERIALES LER C.A.".
+      Tienes acceso a la base de datos de la ferretería.
+      Tasa BCV hoy: ${tasaActual}.
+      
+      El jefe dice: "${text}"
+      
+      Tu tarea es decidir qué información necesito buscar. Responde SOLAMENTE con una de estas etiquetas:
+      [PRECIO:nombre_producto] -> Si pregunta cuánto cuesta algo.
+      [STOCK_INDIVIDUAL:nombre_producto] -> Si pregunta cuánto queda de un producto específico.
+      [INVENTARIO_GENERAL] -> Si quiere ver todo lo que falta o stock bajo.
+      [VENTAS_HOY] -> Si pregunta por el dinero del día o cierre.
+      [TASA] -> Si pregunta por el dólar o tasa.
+      [SALUDO] -> Si solo saluda.
+    `;
 
-      if (data.candidates && data.candidates[0].content.parts[0].text) {
-        // Limpiamos la respuesta por si la IA agrega puntos o espacios
-        intent = data.candidates[0].content.parts[0].text.toUpperCase().trim();
-        console.log('IA detectó intención:', intent);
-      }
-    } catch (e) {
-      console.error('Error en llamada a IA');
-    }
+    // 2. LLAMADA A LA IA PARA DECIDIR ACCIÓN
+    const aiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptGlobal }] }],
+        }),
+      },
+    );
 
-    // 3. LÓGICA DE DECISIÓN (Más agresiva para no fallar)
-    const msg = text.toLowerCase();
+    const data = await aiResponse.json();
+    const decision = data.candidates[0].content.parts[0].text.trim();
 
-    // Verificamos tanto lo que dijo la IA como palabras clave manuales
-    if (
-      intent.includes('CIERRE') ||
-      msg.includes('cierre') ||
-      msg.includes('venta') ||
-      msg.includes('caja') ||
-      msg.includes('plata') ||
-      msg.includes('cuanto se hizo')
-    ) {
+    // 3. EJECUCIÓN SEGÚN LENGUAJE NATURAL
+    if (decision.includes('[PRECIO:')) {
+      const producto = decision.split(':')[1].replace(']', '');
+      await buscarPrecio(chatId, producto, apiKey);
+    } else if (decision.includes('[VENTAS_HOY]')) {
       await enviarCierreCaja(chatId);
-    } else if (
-      intent.includes('STOCK') ||
-      msg.includes('stock') ||
-      msg.includes('inventario') ||
-      msg.includes('falta') ||
-      msg.includes('productos') ||
-      msg.includes('existencia')
-    ) {
+    } else if (decision.includes('[INVENTARIO_GENERAL]')) {
       await enviarReporteStock(chatId);
+    } else if (decision.includes('[TASA]')) {
+      await enviarMensaje(
+        chatId,
+        `📢 Jefe, la tasa configurada hoy es de **${tasaActual} Bs/$**.`,
+      );
     } else {
       await enviarMensaje(
         chatId,
-        '👋 ¡Hola Jefe! No estoy seguro de qué reporte necesita.\n\nEscriba *cierre* para las ventas o *stock* para el inventario.',
+        '👋 ¡Hola Jefe! Estoy listo. Puedo darle precios, stock de productos, ventas del día o la tasa BCV. ¿Qué necesita saber?',
       );
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('Error general Webhook:', error);
-    return NextResponse.json({ ok: true }); // Siempre responder OK a Telegram para evitar bucles
+    console.error('Error:', error);
+    return NextResponse.json({ ok: true });
   }
 }
+
+// --- NUEVA FUNCIÓN: BUSCAR PRECIO DE UN PRODUCTO ESPECÍFICO ---
+async function buscarPrecio(
+  chatId: string,
+  nombreBusqueda: string,
+  apiKey: string,
+) {
+  const { data: prods } = await supabase
+    .from('productos')
+    .select('nombre, precio_usd, stock')
+    .ilike('nombre', `%${nombreBusqueda}%`) // Busca coincidencias parciales
+    .limit(3);
+
+  if (!prods || prods.length === 0) {
+    return enviarMensaje(
+      chatId,
+      `No encontré ningún producto que se llame "${nombreBusqueda}".`,
+    );
+  }
+
+  // Usamos la IA para que redacte la respuesta bonito
+  const promptRedaccion = `
+    El jefe preguntó por el precio de "${nombreBusqueda}".
+    Encontré estos datos: ${JSON.stringify(prods)}.
+    Redacta una respuesta breve y profesional para el jefe informando precios y stock.
+  `;
+
+  const resIA = await fetch(
+    `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: promptRedaccion }] }],
+      }),
+    },
+  );
+  const dataIA = await resIA.json();
+  await enviarMensaje(chatId, dataIA.candidates[0].content.parts[0].text);
+}
+
+// ... (Manten tus funciones de enviarCierreCaja y enviarReporteStock igual)
 
 // --- TUS FUNCIONES DE CONSULTA (Optimizadas) ---
 
