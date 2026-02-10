@@ -66,7 +66,7 @@ export async function POST(req: Request) {
       ? busquedaProdRes.data.map((p) => `${p.nombre}: $${p.precio}`).join(' | ')
       : 'No encontrado';
 
-    // 4. LLAMADA A GEMINI (ESTRUCTURA MÍNIMA PARA EVITAR ERRORES)
+    // 4. LLAMADA A GEMINI (RUTA ESTABLE V1)
     let respuestaFinal = '';
     try {
       const promptIA = `Eres el asistente de FERREMATERIALES LER C.A. 
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       Responde corto y con emojis.`;
 
       const aiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: {
@@ -93,18 +93,18 @@ export async function POST(req: Request) {
 
       const aiData = await aiResponse.json();
 
+      // Si la v1 falla, intentamos capturar el error
       if (
         aiData.candidates &&
         aiData.candidates[0]?.content?.parts?.[0]?.text
       ) {
         respuestaFinal = aiData.candidates[0].content.parts[0].text;
       } else {
-        // Forzamos el error para que lo veas en Telegram una última vez
-        const msg = aiData.error?.message || 'Respuesta vacia';
-        respuestaFinal = `⚠️ ERROR: ${msg}`;
+        const msg = aiData.error?.message || 'Error de respuesta';
+        respuestaFinal = `⚠️ DIAGNÓSTICO: ${msg}`;
       }
     } catch (e: any) {
-      // Si falla la conexión a Google, mostramos los datos manuales
+      // Si todo falla, al menos el jefe tiene su reporte manual
       respuestaFinal = `💰 *VENTAS:* $${totalUsd} / Bs.${totalBs.toLocaleString('es-VE')}\n📈 *TASA:* ${tasaA}\n📦 *STOCK:* ${sBajo}`;
     }
     // 5. TELEGRAM
