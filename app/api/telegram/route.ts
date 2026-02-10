@@ -66,49 +66,35 @@ export async function POST(req: Request) {
       ? busquedaProdRes.data.map((p) => `${p.nombre}: $${p.precio}`).join(' | ')
       : 'No encontrado';
 
-    // 4. LLAMADA A GEMINI (ESTRUCTURA MODERNA)
+    // 4. LLAMADA A GEMINI (DIAGNÓSTICO DIRECTO)
     let respuestaFinal = '';
     try {
-      const payload = {
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: `Eres el asistente de FERREMATERIALES LER C.A. Datos: Tasa ${tasaA}, Ventas: $${totalUsd}/Bs.${totalBs}, Stock bajo: ${sBajo}, Info productos encontrados: ${pInfo}. El jefe pregunta: "${text}". Responde corto, con emojis y usa los datos.`,
-              },
-            ],
-          },
-        ],
-        generationConfig: { maxOutputTokens: 200, temperature: 0.7 },
-      };
-
       const aiResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            contents: [
+              { parts: [{ text: `Hola, responde 'IA activa' si me lees.` }] },
+            ],
+          }),
         },
       );
 
       const aiData = await aiResponse.json();
 
+      // Si Google responde con éxito
       if (aiData.candidates?.[0]?.content?.parts?.[0]?.text) {
+        // Si llegamos aquí, la IA funciona. Entonces armamos la respuesta real.
         respuestaFinal = aiData.candidates[0].content.parts[0].text;
       } else {
-        throw new Error('IA Error');
+        // ESTO NOS DIRÁ EL ERROR REAL EN TELEGRAM
+        const errorDetalle = aiData.error?.message || JSON.stringify(aiData);
+        respuestaFinal = `⚠️ *ERROR DE GOOGLE:* ${errorDetalle}`;
       }
-    } catch (e) {
-      // SI LA IA FALLA, RESPUESTA INTELIGENTE MANUAL
-      if (
-        text.toLowerCase().includes('precio') ||
-        text.toLowerCase().includes('cuanto cuesta')
-      ) {
-        respuestaFinal = `💰 *INFO DE PRODUCTO:*\n${pInfo}\n\n📈 *TASA:* ${tasaA} Bs/$`;
-      } else {
-        respuestaFinal = `👋 *REPORTE:* \n💰 Ventas: $${totalUsd} / Bs.${totalBs.toLocaleString('es-VE')}\n📈 Tasa: ${tasaA}\n📦 Stock Bajo: ${sBajo}`;
-      }
+    } catch (e: any) {
+      respuestaFinal = `📡 *ERROR DE RED:* ${e.message}`;
     }
 
     // 5. TELEGRAM
