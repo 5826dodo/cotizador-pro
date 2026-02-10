@@ -162,7 +162,7 @@ export default function HistorialPage() {
           <div className="flex justify-between items-end mb-8">
             <div>
               <h1 className="text-5xl font-black text-slate-800 tracking-tighter italic">
-                COTIZACIONES Y FINANZAS
+                FINANZAS
               </h1>
               <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">
                 Resumen de ingresos reales
