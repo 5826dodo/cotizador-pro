@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 
 export async function POST(req: Request) {
   // Asegúrate de que esta clave no tenga restricciones de IP en Google Cloud Console
-  const apiKey = 'AIzaSyAY3_HRuhvrwwDZTXBDGBjTofAKsiBU3jQ';
+  const apiKey = 'AIzaSyAMI1aTHRkxXYmxguSQRUzdMxTz0OWB5sw';
   const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
   let chatId = '';
 
@@ -66,22 +66,27 @@ export async function POST(req: Request) {
       ? busquedaProdRes.data.map((p) => `${p.nombre}: $${p.precio}`).join(' | ')
       : 'No encontrado';
 
-    // 4. LLAMADA A GEMINI (VERSIÓN ESTABLE)
+    // 4. LLAMADA A GEMINI (ESTRUCTURA MÍNIMA PARA EVITAR ERRORES)
     let respuestaFinal = '';
     try {
       const promptIA = `Eres el asistente de FERREMATERIALES LER C.A. 
-      Datos: Tasa ${tasaA}, Ventas Hoy: $${totalUsd}/Bs.${totalBs.toLocaleString('es-VE')}, Stock bajo: ${sBajo}. 
-      Productos encontrados: ${pInfo}. 
-      Jefe dice: "${text}". 
-      Responde breve, natural y con emojis.`;
+      Tasa: ${tasaA}. Ventas: $${totalUsd}/Bs.${totalBs}. Stock bajo: ${sBajo}. 
+      Busqueda: ${pInfo}. Pregunta: "${text}". 
+      Responde corto y con emojis.`;
 
       const aiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: promptIA }] }],
+            contents: [
+              {
+                parts: [{ text: promptIA }],
+              },
+            ],
           }),
         },
       );
@@ -94,21 +99,13 @@ export async function POST(req: Request) {
       ) {
         respuestaFinal = aiData.candidates[0].content.parts[0].text;
       } else {
-        // Diagnóstico en caso de que siga fallando
-        const errorMsg =
-          aiData.error?.message || 'Error desconocido en la respuesta';
-        throw new Error(errorMsg);
+        // Forzamos el error para que lo veas en Telegram una última vez
+        const msg = aiData.error?.message || 'Respuesta vacia';
+        respuestaFinal = `⚠️ ERROR: ${msg}`;
       }
     } catch (e: any) {
-      // Mantenemos el modo de emergencia pero ya con los datos limpios
-      if (
-        text.toLowerCase().includes('precio') ||
-        text.toLowerCase().includes('cuanto')
-      ) {
-        respuestaFinal = `💰 *INFO DE PRODUCTO:*\n${pInfo}\n\n📈 *TASA:* ${tasaA} Bs/$`;
-      } else {
-        respuestaFinal = `👋 *REPORTE RÁPIDO:* \n💰 Ventas: $${totalUsd} / Bs.${totalBs.toLocaleString('es-VE')}\n📈 Tasa: ${tasaA}\n📦 Stock Bajo: ${sBajo}\n\n_(Nota: IA en mantenimiento)_`;
-      }
+      // Si falla la conexión a Google, mostramos los datos manuales
+      respuestaFinal = `💰 *VENTAS:* $${totalUsd} / Bs.${totalBs.toLocaleString('es-VE')}\n📈 *TASA:* ${tasaA}\n📦 *STOCK:* ${sBajo}`;
     }
     // 5. TELEGRAM
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
