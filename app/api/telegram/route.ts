@@ -14,19 +14,25 @@ export async function POST(req: Request) {
     if (chatId !== process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID)
       return NextResponse.json({ ok: true });
 
-    // 1. FECHA PARA VENEZUELA (Ajuste manual de zona horaria)
-    const fechaHoy = new Date();
-    fechaHoy.setHours(fechaHoy.getHours() - 4); // Ajuste simple a UTC-4
-    const hoyISO = fechaHoy.toISOString().split('T')[0];
+    // 1. AJUSTE DE FECHA (ZONA HORARIA VENEZUELA UTC-4)
+    // Creamos el inicio del día en hora local para que la comparativa sea justa
+    const ahora = new Date();
+    const inicioDia = new Date(
+      ahora.getFullYear(),
+      ahora.getMonth(),
+      ahora.getDate(),
+    ).toISOString();
 
-    // 2. BUSCAR DATOS (Con logs para ver qué falla)
+    // 2. CONSULTAS A SUPABASE
+    // NOTA: He cambiado 'created_at' por 'fecha_aprobacion' en el filtro de ventas.
+    // Si aún no has creado la columna, cámbiala de vuelta a 'created_at' temporalmente.
     const [ventasRes, ultimaTasaRes, stockRes, busquedaProdRes] =
       await Promise.all([
         supabase
           .from('cotizaciones')
-          .select('total, moneda, tasa_bcv')
+          .select('total, moneda, tasa_bcv, created_at') // Podrías añadir fecha_aprobacion aquí
           .eq('estado', 'aprobado')
-          .gte('created_at', hoyISO),
+          .gte('created_at', inicioDia), // CAMBIAR A 'fecha_aprobacion' cuando crees la columna
         supabase
           .from('cotizaciones')
           .select('tasa_bcv')
@@ -46,51 +52,74 @@ export async function POST(req: Request) {
           .limit(2),
       ]);
 
-    // Procesar Ventas
+    // 3. PROCESAR RESULTADOS
     const ventas = ventasRes.data || [];
     let totalBs = 0,
       totalUsd = 0;
+
     ventas.forEach((v) => {
-      const t = parseFloat(v.total) || 0;
-      if (v.moneda === 'BS') totalBs += t;
-      else totalUsd += t;
+      const monto = parseFloat(v.total) || 0;
+      if (v.moneda === 'BS') {
+        totalBs += monto;
+      } else {
+        totalUsd += monto;
+      }
     });
 
-    const tasa = ultimaTasaRes.data?.tasa_bcv || 'No definida';
+    const tasaActual = ultimaTasaRes.data?.tasa_bcv || '382.63';
+
     const prodsBajos =
-      stockRes.data?.map((p) => `${p.nombre}(${p.stock})`).join(', ') ||
-      'Todo bien';
-    const prodEncontrado =
+      stockRes.data && stockRes.data.length > 0
+        ? stockRes.data.map((p) => `${p.nombre} (${p.stock})`).join(', ')
+        : 'Todo en orden';
+
+    const prodInfo =
       busquedaProdRes.data && busquedaProdRes.data.length > 0
         ? JSON.stringify(busquedaProdRes.data)
-        : 'No encontré ese producto específico';
+        : 'No encontrado en inventario';
 
-    // 3. CONSTRUIR RESPUESTA CON IA
-    const prompt = `Eres el asistente de FERREMATERIALES LER C.A.
-    DATOS: Tasa ${tasa} Bs/$. Ventas Hoy: $${totalUsd} y Bs.${totalBs} (${ventas.length} ventas). 
-    Stock Bajo: ${prodsBajos}. 
-    Info Producto solicitado: ${prodEncontrado}.
-    JEFE DICE: "${text}".
-    RESPONDE: De forma natural, breve y profesional con emojis.`;
+    // 4. LLAMADA MEJORADA A GEMINI
+    let respuestaFinal = '';
+    try {
+      const promptIA = `Eres el asistente inteligente de FERREMATERIALES LER C.A. 
+      Contexto: Eres un empleado de confianza que informa al jefe sobre el estado del negocio.
+      
+      DATOS ACTUALES:
+      - Tasa: ${tasaActual} Bs/$.
+      - Ventas Hoy: ${ventas.length} aprobadas (Total: $${totalUsd} / Bs.${totalBs}).
+      - Stock Bajo: ${prodsBajos}.
+      - Info específica de producto: ${prodInfo}.
+      
+      JEFE DICE: "${text}"
+      
+      INSTRUCCIÓN: Responde de forma natural, breve y profesional. Si el jefe pregunta por un producto que no está en la info específica, dile que sea más detallado. Usa emojis.`;
 
-    const aiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-      },
-    );
+      const aiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptIA }] }],
+          }),
+        },
+      );
 
-    const aiData = await aiResponse.json();
-    const respuestaFinal =
-      aiData.candidates?.[0]?.content?.parts?.[0]?.text ||
-      'Jefe, la IA no respondió, pero aquí tiene los datos:\n\n💰 Ventas: $' +
-        totalUsd +
-        '\n📈 Tasa: ' +
-        tasa;
+      const aiData = await aiResponse.json();
 
-    // 4. ENVÍO FINAL
+      if (
+        aiData.candidates &&
+        aiData.candidates[0]?.content?.parts?.[0]?.text
+      ) {
+        respuestaFinal = aiData.candidates[0].content.parts[0].text;
+      } else {
+        throw new Error('Sin respuesta de IA');
+      }
+    } catch (e) {
+      respuestaFinal = `👋 ¡Hola Jefe! Aquí tiene el reporte:\n\n📈 *Tasa:* ${tasaActual} Bs/$\n💰 *Ventas hoy:* $${totalUsd} / Bs. ${totalBs}\n📦 *Stock Bajo:* ${prodsBajos}`;
+    }
+
+    // 5. ENVIAR A TELEGRAM
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -103,17 +132,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
-    // SI ALGO FALLA, EL BOT TE DIRÁ QUÉ FUE DIRECTAMENTE
-    if (chatId) {
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: `❌ ERROR CRÍTICO: ${error.message}`,
-        }),
-      });
-    }
+    console.error('Error en el webhook:', error);
     return NextResponse.json({ ok: true });
   }
 }

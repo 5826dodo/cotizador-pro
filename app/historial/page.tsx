@@ -103,10 +103,15 @@ export default function HistorialPage() {
           .eq('id', item.id);
       }
 
-      // 2. Cambiar estado de la cotización
+      // 2. Cambiar estado Y guardar FECHA DE APROBACIÓN REAL
+      const ahoraVzla = new Date().toISOString(); // Guardamos el momento exacto
+
       await supabase
         .from('cotizaciones')
-        .update({ estado: 'aprobado' })
+        .update({
+          estado: 'aprobado',
+          fecha_aprobacion: ahoraVzla, // <--- Nueva columna
+        })
         .eq('id', cot.id);
 
       // 3. CONSTRUIR LISTA DE ITEMS PARA TELEGRAM
