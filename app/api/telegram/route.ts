@@ -66,37 +66,50 @@ export async function POST(req: Request) {
       ? busquedaProdRes.data.map((p) => `${p.nombre}: $${p.precio}`).join(' | ')
       : 'No encontrado';
 
-    // 4. LLAMADA A GEMINI (DIAGNÓSTICO DIRECTO)
+    // 4. LLAMADA A GEMINI (VERSIÓN ESTABLE)
     let respuestaFinal = '';
     try {
+      const promptIA = `Eres el asistente de FERREMATERIALES LER C.A. 
+      Datos: Tasa ${tasaA}, Ventas Hoy: $${totalUsd}/Bs.${totalBs.toLocaleString('es-VE')}, Stock bajo: ${sBajo}. 
+      Productos encontrados: ${pInfo}. 
+      Jefe dice: "${text}". 
+      Responde breve, natural y con emojis.`;
+
       const aiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [
-              { parts: [{ text: `Hola, responde 'IA activa' si me lees.` }] },
-            ],
+            contents: [{ parts: [{ text: promptIA }] }],
           }),
         },
       );
 
       const aiData = await aiResponse.json();
 
-      // Si Google responde con éxito
-      if (aiData.candidates?.[0]?.content?.parts?.[0]?.text) {
-        // Si llegamos aquí, la IA funciona. Entonces armamos la respuesta real.
+      if (
+        aiData.candidates &&
+        aiData.candidates[0]?.content?.parts?.[0]?.text
+      ) {
         respuestaFinal = aiData.candidates[0].content.parts[0].text;
       } else {
-        // ESTO NOS DIRÁ EL ERROR REAL EN TELEGRAM
-        const errorDetalle = aiData.error?.message || JSON.stringify(aiData);
-        respuestaFinal = `⚠️ *ERROR DE GOOGLE:* ${errorDetalle}`;
+        // Diagnóstico en caso de que siga fallando
+        const errorMsg =
+          aiData.error?.message || 'Error desconocido en la respuesta';
+        throw new Error(errorMsg);
       }
     } catch (e: any) {
-      respuestaFinal = `📡 *ERROR DE RED:* ${e.message}`;
+      // Mantenemos el modo de emergencia pero ya con los datos limpios
+      if (
+        text.toLowerCase().includes('precio') ||
+        text.toLowerCase().includes('cuanto')
+      ) {
+        respuestaFinal = `💰 *INFO DE PRODUCTO:*\n${pInfo}\n\n📈 *TASA:* ${tasaA} Bs/$`;
+      } else {
+        respuestaFinal = `👋 *REPORTE RÁPIDO:* \n💰 Ventas: $${totalUsd} / Bs.${totalBs.toLocaleString('es-VE')}\n📈 Tasa: ${tasaA}\n📦 Stock Bajo: ${sBajo}\n\n_(Nota: IA en mantenimiento)_`;
+      }
     }
-
     // 5. TELEGRAM
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
