@@ -15,14 +15,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
 
     // 1. AJUSTE DE FECHA (ZONA HORARIA VENEZUELA)
-    // Usamos el inicio del día pero restando unas horas para compensar el UTC de Supabase
     const ahora = new Date();
     const inicioDiaVzla = new Date(
       ahora.getFullYear(),
       ahora.getMonth(),
       ahora.getDate(),
     );
-    // Ajuste opcional: si son pasadas las 12am UTC pero en Vzla es ayer, esto lo captura
     const inicioDiaIso = inicioDiaVzla.toISOString();
 
     // 2. CONSULTAS A SUPABASE
@@ -32,7 +30,7 @@ export async function POST(req: Request) {
           .from('cotizaciones')
           .select('total, moneda, tasa_bcv, fecha_aprobacion')
           .eq('estado', 'aprobado')
-          .gte('fecha_aprobacion', inicioDiaIso), // Cambiado a fecha_aprobacion
+          .gte('fecha_aprobacion', inicioDiaIso),
         supabase
           .from('cotizaciones')
           .select('tasa_bcv')
@@ -52,56 +50,44 @@ export async function POST(req: Request) {
           .limit(2),
       ]);
 
-    // 3. PROCESAR RESULTADOS CON CÁLCULO DE DIVISA
+    // 3. PROCESAR RESULTADOS
     const ventas = ventasRes.data || [];
     let totalBs = 0,
       totalUsd = 0;
 
     ventas.forEach((v) => {
-      const montoReferencialDolar = parseFloat(v.total) || 0;
-      const tasaDeEsaVenta = parseFloat(v.tasa_bcv) || 1;
-
+      const montoD = parseFloat(v.total) || 0;
+      const tasaV = parseFloat(v.tasa_bcv) || 1;
       if (v.moneda === 'BS') {
-        // IMPORTANTE: Si la moneda es BS, multiplicamos el total($) por la tasa
-        totalBs += montoReferencialDolar * tasaDeEsaVenta;
+        totalBs += montoD * tasaV;
       } else {
-        // Si es USD, sumamos directo a los dólares
-        totalUsd += montoReferencialDolar;
+        totalUsd += montoD;
       }
     });
 
     const tasaActual = ultimaTasaRes.data?.tasa_bcv || '382.63';
-
     const prodsBajos =
-      stockRes.data && stockRes.data.length > 0
-        ? stockRes.data.map((p) => `${p.nombre} (${p.stock})`).join(', ')
-        : 'Todo en orden';
-
+      stockRes.data?.map((p) => `${p.nombre} (${p.stock})`).join(', ') ||
+      'Todo en orden';
     const prodInfo =
       busquedaProdRes.data && busquedaProdRes.data.length > 0
         ? JSON.stringify(busquedaProdRes.data)
-        : 'No encontrado en inventario';
+        : 'No hay info específica';
 
-    // 4. LLAMADA MEJORADA A GEMINI
+    // 4. LLAMADA A GEMINI CON MANEJO DE ERRORES MEJORADO
     let respuestaFinal = '';
-    try {
-      const promptIA = `Eres el asistente inteligente de FERREMATERIALES LER C.A. 
-      Contexto: Informa al jefe sobre el negocio.
-      
-      DATOS REALES:
-      - Tasa actual: ${tasaActual} Bs/$.
-      - Ventas de hoy: ${ventas.length} aprobadas.
-      - Total en Bolívares: Bs. ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })}.
-      - Total en Dólares: $${totalUsd.toLocaleString()}.
-      - Stock Crítico: ${prodsBajos}.
-      - Inventario específico: ${prodInfo}.
-      
-      JEFE DICE: "${text}"
-      
-      INSTRUCCIÓN: Responde natural y profesional con emojis. Si hay ventas en BS, menciónalas con su monto en bolívares.`;
 
+    const promptIA = `Eres el asistente de FERREMATERIALES LER C.A.
+    Tasa: ${tasaActual} Bs/$. 
+    Ventas Hoy: ${ventas.length} ventas ($${totalUsd} y Bs.${totalBs.toLocaleString('es-VE')}). 
+    Stock Bajo: ${prodsBajos}. 
+    Busqueda Producto: ${prodInfo}.
+    Pregunta: "${text}".
+    Responde natural y breve con emojis.`;
+
+    try {
       const aiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -112,11 +98,25 @@ export async function POST(req: Request) {
       );
 
       const aiData = await aiResponse.json();
-      respuestaFinal =
-        aiData.candidates?.[0]?.content?.parts?.[0]?.text ||
-        'Jefe, no pude procesar la respuesta de la IA.';
+
+      if (
+        aiData.candidates &&
+        aiData.candidates[0]?.content?.parts?.[0]?.text
+      ) {
+        respuestaFinal = aiData.candidates[0].content.parts[0].text;
+      } else {
+        // Si la IA responde pero no trae texto (ej. por seguridad o bloqueo)
+        throw new Error('IA sin contenido');
+      }
     } catch (e) {
-      respuestaFinal = `👋 ¡Hola Jefe! Aquí tiene el reporte:\n\n📈 *Tasa:* ${tasaActual} Bs/$\n💰 *Ventas hoy:* $${totalUsd} / Bs. ${totalBs.toLocaleString('es-VE')}\n📦 *Stock Bajo:* ${prodsBajos}`;
+      // ESTE ES EL FAILSAFE: Si la IA falla, construimos el mensaje manualmente
+      respuestaFinal =
+        `👋 *REPORTE DE HOY*\n\n` +
+        `📈 *Tasa:* ${tasaActual} Bs/$\n` +
+        `💰 *Ventas:* $${totalUsd.toLocaleString()} / Bs. ${totalBs.toLocaleString('es-VE')}\n` +
+        `📦 *Ventas realizadas:* ${ventas.length}\n` +
+        `⚠️ *Stock bajo:* ${prodsBajos}\n\n` +
+        `_Nota: La IA no está disponible, pero aquí están tus datos reales._`;
     }
 
     // 5. ENVIAR A TELEGRAM
@@ -131,8 +131,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ ok: true });
-  } catch (error: any) {
-    console.error('Error en el webhook:', error);
+  } catch (error) {
     return NextResponse.json({ ok: true });
   }
 }
