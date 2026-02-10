@@ -2,15 +2,13 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 export async function POST(req: Request) {
-  // Asegúrate de que esta clave no tenga restricciones de IP en Google Cloud Console
-  const apiKey = 'AIzaSyAMI1aTHRkxXYmxguSQRUzdMxTz0OWB5sw';
   const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
   let chatId = '';
 
   try {
     const body = await req.json();
     chatId = body.message?.chat?.id?.toString();
-    const text = body.message?.text || '';
+    const text = (body.message?.text || '').toLowerCase();
 
     if (chatId !== process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID)
       return NextResponse.json({ ok: true });
@@ -58,55 +56,43 @@ export async function POST(req: Request) {
     });
 
     const tasaA = ultimaTasaRes.data?.tasa_bcv || '382.63';
-    const sBajo =
-      stockRes.data?.map((p) => `${p.nombre}(${p.stock})`).join(', ') || 'OK';
-
-    // Formateamos la info del producto buscado para que la IA la entienda fácil
+    const sBajo = stockRes.data?.length
+      ? stockRes.data.map((p) => `• ${p.nombre} (${p.stock})`).join('\n')
+      : '✅ Todo en orden';
     const pInfo = busquedaProdRes.data?.length
-      ? busquedaProdRes.data.map((p) => `${p.nombre}: $${p.precio}`).join(' | ')
-      : 'No encontrado';
+      ? busquedaProdRes.data
+          .map(
+            (p) =>
+              `📦 *${p.nombre.toUpperCase()}*\n💰 Precio: $${p.precio}\n📉 Stock: ${p.stock}`,
+          )
+          .join('\n\n')
+      : 'No encontré ese producto en el inventario.';
 
-    // 4. LLAMADA A GEMINI (RUTA ESTABLE V1)
+    // 4. LÓGICA DE RESPUESTA (Asistente Local)
     let respuestaFinal = '';
-    try {
-      const promptIA = `Eres el asistente de FERREMATERIALES LER C.A. 
-      Tasa: ${tasaA}. Ventas: $${totalUsd}/Bs.${totalBs}. Stock bajo: ${sBajo}. 
-      Busqueda: ${pInfo}. Pregunta: "${text}". 
-      Responde corto y con emojis.`;
 
-      const aiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [{ text: promptIA }],
-              },
-            ],
-          }),
-        },
-      );
-
-      const aiData = await aiResponse.json();
-
-      // Si la v1 falla, intentamos capturar el error
-      if (
-        aiData.candidates &&
-        aiData.candidates[0]?.content?.parts?.[0]?.text
-      ) {
-        respuestaFinal = aiData.candidates[0].content.parts[0].text;
-      } else {
-        const msg = aiData.error?.message || 'Error de respuesta';
-        respuestaFinal = `⚠️ DIAGNÓSTICO: ${msg}`;
-      }
-    } catch (e: any) {
-      // Si todo falla, al menos el jefe tiene su reporte manual
-      respuestaFinal = `💰 *VENTAS:* $${totalUsd} / Bs.${totalBs.toLocaleString('es-VE')}\n📈 *TASA:* ${tasaA}\n📦 *STOCK:* ${sBajo}`;
+    if (
+      text.includes('precio') ||
+      text.includes('cuanto') ||
+      text.includes('stock')
+    ) {
+      respuestaFinal = `🔍 *RESULTADO DE BÚSQUEDA:*\n\n${pInfo}\n\n📈 *Tasa actual:* ${tasaA} Bs/$`;
+    } else if (
+      text.includes('venta') ||
+      text.includes('hoy') ||
+      text.includes('reporte')
+    ) {
+      respuestaFinal =
+        `📊 *REPORTE DE VENTAS HOY*\n\n` +
+        `✅ *Ventas aprobadas:* ${ventas.length}\n` +
+        `💵 *Total Dólares:* $${totalUsd.toLocaleString()}\n` +
+        `🇻🇪 *Total Bolívares:* Bs. ${totalBs.toLocaleString('es-VE')}\n\n` +
+        `📈 *Tasa BCV:* ${tasaA} Bs/$\n\n` +
+        `📦 *Stock Crítico:* \n${sBajo}`;
+    } else {
+      respuestaFinal = `👋 ¡Hola Jefe! ¿En qué puedo ayudarle?\n\nPuede preguntarme por:\n• *Ventas de hoy*\n• *Precio de un producto*\n• *Reporte general*`;
     }
+
     // 5. TELEGRAM
     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
