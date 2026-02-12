@@ -23,6 +23,10 @@ export default function AdminPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    // 1. Si ya está cargando, salir para evitar duplicados
+    if (loading) return;
+
     setLoading(true);
     setMensaje('');
 
@@ -31,10 +35,10 @@ export default function AdminPage() {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     const plan = formData.get('plan') as string;
-    // SOLUCIÓN FECHA:
     const vencimiento = `${formData.get('vencimiento')}T23:59:59Z`;
 
     try {
+      // 2. Crear la Empresa
       const { data: nuevaEmpresa, error: errEmpresa } = await supabase
         .from('empresas')
         .insert([{ nombre, plan_activo: plan, fecha_vencimiento: vencimiento }])
@@ -43,6 +47,7 @@ export default function AdminPage() {
 
       if (errEmpresa) throw errEmpresa;
 
+      // 3. Crear el Usuario
       const { data: nuevoUsuario, error: errAuth } = await supabase.auth.signUp(
         {
           email,
@@ -52,8 +57,9 @@ export default function AdminPage() {
 
       if (errAuth) throw errAuth;
 
+      // 4. Vincular Perfil
       if (nuevoUsuario.user) {
-        await supabase.from('perfiles').insert([
+        const { error: errPerfil } = await supabase.from('perfiles').insert([
           {
             id: nuevoUsuario.user.id,
             email,
@@ -61,24 +67,19 @@ export default function AdminPage() {
             empresa_id: nuevaEmpresa.id,
           },
         ]);
+        if (errPerfil) throw errPerfil;
       }
 
-      // SOLUCIÓN REFRESCO:
-      setTimeout(async () => {
-        await cargarEmpresas();
-        setMensaje('✅ Todo listo: Empresa y Admin creados');
-        (e.target as HTMLFormElement).reset();
-      }, 800);
+      // 5. Éxito: Limpiar y Refrescar
+      setMensaje('✅ Registro completado exitosamente');
+      (e.target as HTMLFormElement).reset(); // Limpia los campos del formulario
+
+      // Refrescamos la lista de empresas
+      await cargarEmpresas();
     } catch (error: any) {
-      // Si es error de límite de email, damos un mensaje amigable
-      if (error.message.includes('rate limit')) {
-        setMensaje(
-          '❌ Límite de registros alcanzado. Espera unos minutos o cambia el límite en Supabase.',
-        );
-      } else {
-        setMensaje('❌ Error: ' + error.message);
-      }
+      setMensaje('❌ Error: ' + error.message);
     } finally {
+      // 6. Apagamos el loading al final de todo
       setLoading(false);
     }
   };
