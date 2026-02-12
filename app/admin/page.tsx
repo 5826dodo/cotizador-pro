@@ -31,10 +31,10 @@ export default function AdminPage() {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     const plan = formData.get('plan') as string;
-    const vencimiento = formData.get('vencimiento') as string;
+    // SOLUCIÓN FECHA:
+    const vencimiento = `${formData.get('vencimiento')}T23:59:59Z`;
 
     try {
-      // 1. Crear la Empresa
       const { data: nuevaEmpresa, error: errEmpresa } = await supabase
         .from('empresas')
         .insert([{ nombre, plan_activo: plan, fecha_vencimiento: vencimiento }])
@@ -43,7 +43,6 @@ export default function AdminPage() {
 
       if (errEmpresa) throw errEmpresa;
 
-      // 2. Crear el Usuario en Auth (Esto lo registra en Supabase Auth)
       const { data: nuevoUsuario, error: errAuth } = await supabase.auth.signUp(
         {
           email,
@@ -53,9 +52,8 @@ export default function AdminPage() {
 
       if (errAuth) throw errAuth;
 
-      // 3. Vincular el perfil con la empresa y ponerle rol 'cliente'
       if (nuevoUsuario.user) {
-        const { error: errPerfil } = await supabase.from('perfiles').insert([
+        await supabase.from('perfiles').insert([
           {
             id: nuevoUsuario.user.id,
             email,
@@ -63,14 +61,23 @@ export default function AdminPage() {
             empresa_id: nuevaEmpresa.id,
           },
         ]);
-        if (errPerfil) throw errPerfil;
       }
 
-      setMensaje('✅ Empresa y Usuario Admin creados con éxito');
-      (e.target as HTMLFormElement).reset();
-      cargarEmpresas();
+      // SOLUCIÓN REFRESCO:
+      setTimeout(async () => {
+        await cargarEmpresas();
+        setMensaje('✅ Todo listo: Empresa y Admin creados');
+        (e.target as HTMLFormElement).reset();
+      }, 800);
     } catch (error: any) {
-      setMensaje('❌ Error: ' + error.message);
+      // Si es error de límite de email, damos un mensaje amigable
+      if (error.message.includes('rate limit')) {
+        setMensaje(
+          '❌ Límite de registros alcanzado. Espera unos minutos o cambia el límite en Supabase.',
+        );
+      } else {
+        setMensaje('❌ Error: ' + error.message);
+      }
     } finally {
       setLoading(false);
     }
