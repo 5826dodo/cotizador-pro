@@ -7,24 +7,28 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  // Corregimos el tipo de estado para permitir strings (mensajes de error)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
+    setErrorMsg(null); // Limpiamos errores previos
 
-    const { error } = await supabase.auth.signInWithPassword({
+    // Renombramos el error que devuelve Supabase a 'authError' para no chocar
+    const { error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error) {
-      setError(error.message);
+    if (authError) {
+      // Si hay error de Supabase, lo guardamos en nuestro estado
+      setErrorMsg(authError.message);
       setLoading(false);
     } else {
-      router.push('/dashboard'); // O la ruta principal de tu sistema
+      // Si todo sale bien, vamos al dashboard
+      router.push('/dashboard');
       router.refresh();
     }
   };
@@ -64,15 +68,18 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {error && (
-            <div className="text-sm text-red-500 text-center">{error}</div>
+          {/* Mostramos el mensaje de error si existe */}
+          {errorMsg && (
+            <div className="text-sm text-red-500 text-center font-medium">
+              {errorMsg}
+            </div>
           )}
 
           <div>
             <button
               type="submit"
               disabled={loading}
-              className="group relative flex w-full justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none disabled:bg-blue-400"
+              className="group relative flex w-full justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none disabled:bg-blue-400 transition-colors"
             >
               {loading ? 'Cargando...' : 'Iniciar Sesión'}
             </button>
