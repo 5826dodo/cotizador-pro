@@ -16,41 +16,43 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMsg(null);
 
-    try {
-      // 1. Intento de Login
-      const { data: authData, error: authError } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+    console.log('Iniciando intento de login...');
 
-      if (authError) throw authError;
+    // 1. Intentar autenticar
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-      // 2. Obtener el perfil (con un pequeño delay para asegurar que la sesión se guardó)
-      const { data: perfil, error: perfilError } = await supabase
-        .from('perfiles')
-        .select('rol')
-        .eq('id', authData.user?.id)
-        .single();
-
-      if (perfilError) {
-        console.error('Error cargando perfil:', perfilError);
-        // Si no hay perfil, lo mandamos al dashboard por defecto para que no se trabe
-        router.push('/dashboard');
-      } else {
-        // 3. Redirección según rol
-        if (perfil?.rol === 'superadmin') {
-          router.push('/admin');
-        } else {
-          router.push('/dashboard');
-        }
-      }
-
-      router.refresh();
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Ocurrió un error inesperado');
+    if (authError) {
+      alert('Error de Auth: ' + authError.message);
+      setErrorMsg(authError.message);
       setLoading(false);
+      return;
     }
+
+    alert('¡Login exitoso! Ahora buscando perfil...');
+
+    // 2. Intentar buscar perfil (Si esto falla, el alert no saldrá)
+    const { data: perfil, error: perfilError } = await supabase
+      .from('perfiles')
+      .select('rol')
+      .eq('id', data.user?.id)
+      .single();
+
+    if (perfilError) {
+      console.log('Error de perfil, enviando a dashboard por defecto');
+      router.push('/dashboard');
+    } else {
+      alert('Perfil encontrado: ' + perfil.rol);
+      const destino = perfil.rol === 'superadmin' ? '/admin' : '/dashboard';
+      router.push(destino);
+    }
+
+    // 3. Forzar refresco
+    setTimeout(() => {
+      router.refresh();
+    }, 500);
   };
 
   return (
