@@ -27,8 +27,21 @@ export default function LoginPage() {
       setErrorMsg(authError.message);
       setLoading(false);
     } else {
-      // Si todo sale bien, vamos al dashboard
-      router.push('/dashboard');
+      // 1. Consultar el rol del usuario que acaba de entrar
+      const { data: userData } = await supabase.auth.getUser();
+      const { data: perfil } = await supabase
+        .from('perfiles')
+        .select('rol')
+        .eq('id', userData.user?.id)
+        .single();
+
+      // 2. Redirigir según el rol
+      if (perfil?.rol === 'superadmin') {
+        router.push('/admin');
+      } else {
+        router.push('/dashboard');
+      }
+
       router.refresh();
     }
   };
