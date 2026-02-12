@@ -30,7 +30,7 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         {/* AGREGAMOS EL NAVBAR AQUÍ PARA QUE APAREZCA EN TODAS LAS PÁGINAS */}
-        <Navbar />
+        {/* <Navbar /> */}
 
         {/* EL CONTENIDO DE LAS PÁGINAS SE RENDERIZA AQUÍ ABAJO */}
         {children}
