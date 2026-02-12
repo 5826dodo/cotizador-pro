@@ -20,7 +20,7 @@ export default function Navbar() {
             href="/"
             className="text-blue-600 font-black tracking-tighter text-xl hover:opacity-80 transition-opacity"
           >
-            PRO
+            COTI
           </Link>
 
           <div className="flex gap-1 md:gap-2">

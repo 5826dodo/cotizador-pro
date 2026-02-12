@@ -16,43 +16,24 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMsg(null);
 
-    console.log('Iniciando intento de login...');
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword(
+        {
+          email,
+          password,
+        },
+      );
 
-    // 1. Intentar autenticar
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+      if (authError) throw authError;
 
-    if (authError) {
-      alert('Error de Auth: ' + authError.message);
-      setErrorMsg(authError.message);
+      // PRUEBA DE FUEGO: Forzamos el salto a /admin directamente
+      // Sin preguntar a la base de datos por ahora
+      window.location.href = '/admin';
+    } catch (err: any) {
+      alert('Error detectado: ' + err.message);
+      setErrorMsg(err.message);
       setLoading(false);
-      return;
     }
-
-    alert('¡Login exitoso! Ahora buscando perfil...');
-
-    // 2. Intentar buscar perfil (Si esto falla, el alert no saldrá)
-    const { data: perfil, error: perfilError } = await supabase
-      .from('perfiles')
-      .select('rol')
-      .eq('id', data.user?.id)
-      .single();
-
-    if (perfilError) {
-      console.log('Error de perfil, enviando a dashboard por defecto');
-      router.push('/dashboard');
-    } else {
-      alert('Perfil encontrado: ' + perfil.rol);
-      const destino = perfil.rol === 'superadmin' ? '/admin' : '/dashboard';
-      router.push(destino);
-    }
-
-    // 3. Forzar refresco
-    setTimeout(() => {
-      router.refresh();
-    }, 500);
   };
 
   return (
