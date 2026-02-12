@@ -16,24 +16,20 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMsg(null);
 
-    try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword(
-        {
-          email,
-          password,
-        },
-      );
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-      if (authError) throw authError;
-
-      // PRUEBA DE FUEGO: Forzamos el salto a /admin directamente
-      // Sin preguntar a la base de datos por ahora
-      window.location.href = '/admin';
-    } catch (err: any) {
-      alert('Error detectado: ' + err.message);
-      setErrorMsg(err.message);
+    if (authError) {
+      setErrorMsg(authError.message);
       setLoading(false);
+      return;
     }
+
+    // Si llegamos aquí, el login es correcto en Supabase.
+    // Forzamos la entrada al admin.
+    window.location.href = '/admin';
   };
 
   return (
