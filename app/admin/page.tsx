@@ -166,6 +166,7 @@ export default function AdminPage() {
             </thead>
             <tbody>
               {empresas.map((emp) => (
+                // Dentro de tu tabla en el map de empresas
                 <tr key={emp.id} className="border-b hover:bg-slate-50">
                   <td className="p-3 font-medium">{emp.nombre}</td>
                   <td className="p-3">
@@ -173,7 +174,13 @@ export default function AdminPage() {
                       {emp.plan_activo}
                     </span>
                   </td>
-                  <td className="p-3 text-sm">
+                  <td className="p-3 text-xs text-slate-500">
+                    {/* Fecha de creación */}
+                    Registro: {new Date(emp.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="p-3 text-sm font-bold text-red-600">
+                    {/* Fecha de vencimiento */}
+                    Vence:{' '}
                     {new Date(emp.fecha_vencimiento).toLocaleDateString()}
                   </td>
                 </tr>
