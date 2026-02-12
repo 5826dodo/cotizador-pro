@@ -14,35 +14,42 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setErrorMsg(null); // Limpiamos errores previos
+    setErrorMsg(null);
 
-    // Renombramos el error que devuelve Supabase a 'authError' para no chocar
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      // 1. Intento de Login
+      const { data: authData, error: authError } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-    if (authError) {
-      // Si hay error de Supabase, lo guardamos en nuestro estado
-      setErrorMsg(authError.message);
-      setLoading(false);
-    } else {
-      // 1. Consultar el rol del usuario que acaba de entrar
-      const { data: userData } = await supabase.auth.getUser();
-      const { data: perfil } = await supabase
+      if (authError) throw authError;
+
+      // 2. Obtener el perfil (con un pequeño delay para asegurar que la sesión se guardó)
+      const { data: perfil, error: perfilError } = await supabase
         .from('perfiles')
         .select('rol')
-        .eq('id', userData.user?.id)
+        .eq('id', authData.user?.id)
         .single();
 
-      // 2. Redirigir según el rol
-      if (perfil?.rol === 'superadmin') {
-        router.push('/admin');
-      } else {
+      if (perfilError) {
+        console.error('Error cargando perfil:', perfilError);
+        // Si no hay perfil, lo mandamos al dashboard por defecto para que no se trabe
         router.push('/dashboard');
+      } else {
+        // 3. Redirección según rol
+        if (perfil?.rol === 'superadmin') {
+          router.push('/admin');
+        } else {
+          router.push('/dashboard');
+        }
       }
 
       router.refresh();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Ocurrió un error inesperado');
+      setLoading(false);
     }
   };
 
