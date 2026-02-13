@@ -57,18 +57,26 @@ export default function AdminPage() {
 
       if (errAuth) throw errAuth;
 
-      // 4. Vincular Perfil
+      // ... (resto del código igual hasta el paso 4)
+
+      // 4. Vincular o Actualizar Perfil
       if (nuevoUsuario.user) {
-        const { error: errPerfil } = await supabase.from('perfiles').insert([
+        // Usamos .upsert en lugar de .insert para evitar el error de "duplicate key"
+        // y asegurar que el rol sea 'cliente' y tenga su 'empresa_id'
+        const { error: errPerfil } = await supabase.from('perfiles').upsert(
           {
             id: nuevoUsuario.user.id,
-            email,
-            rol: 'cliente',
+            email: email,
+            rol: 'cliente', // Forzamos que sea cliente y no vendedor
             empresa_id: nuevaEmpresa.id,
           },
-        ]);
+          { onConflict: 'id' }, // Si el ID ya existe (por el trigger), actualiza los datos
+        );
+
         if (errPerfil) throw errPerfil;
       }
+
+      // ... (resto del código igual)
 
       // 5. Éxito: Limpiar y Refrescar
       setMensaje('✅ Registro completado exitosamente');

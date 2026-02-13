@@ -29,20 +29,46 @@ export default function CotizarPage() {
   const [tasaBCV, setTasaBCV] = useState<number>(382.63); // Valor inicial por defecto
   // FORMA CORRECTA
   const [monedaPrincipal, setMonedaPrincipal] = useState<'USD' | 'BS'>('USD');
+  // 1. Agrega este estado al principio
+  const [miEmpresaId, setMiEmpresaId] = useState<string | null>(null);
 
   useEffect(() => {
     const cargarDatos = async () => {
-      const { data: c } = await supabase
-        .from('clientes')
-        .select('*')
-        .order('nombre');
-      const { data: p } = await supabase
-        .from('productos')
-        .select('*')
-        .gt('stock', 0)
-        .order('nombre');
-      if (c) setClientes(c);
-      if (p) setProductosInventario(p);
+      // 1. Obtener el usuario actual
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        // 2. Obtener el empresa_id de su perfil
+        const { data: perfil } = await supabase
+          .from('perfiles')
+          .select('empresa_id')
+          .eq('id', user.id)
+          .single();
+
+        if (perfil?.empresa_id) {
+          setMiEmpresaId(perfil.empresa_id);
+
+          // 3. Cargar Clientes FILTRADOS por empresa
+          const { data: c } = await supabase
+            .from('clientes')
+            .select('*')
+            .eq('empresa_id', perfil.empresa_id) // <--- Filtro SaaS
+            .order('nombre');
+
+          // 4. Cargar Productos FILTRADOS por empresa
+          const { data: p } = await supabase
+            .from('productos')
+            .select('*')
+            .eq('empresa_id', perfil.empresa_id) // <--- Filtro SaaS
+            .gt('stock', 0)
+            .order('nombre');
+
+          if (c) setClientes(c);
+          if (p) setProductosInventario(p);
+        }
+      }
     };
     cargarDatos();
   }, []);
@@ -316,19 +342,25 @@ export default function CotizarPage() {
     if (!clienteSeleccionado || carrito.length === 0)
       return alert('Faltan datos');
 
+    if (!miEmpresaId)
+      return alert(
+        'Error: No se pudo identificar tu empresa. Recarga la página.',
+      );
+
     setCargando(true);
     try {
-      const total = calcularTotal(); // Este total siempre está en USD ($)
+      const total = calcularTotal();
 
-      // CLAVE: Guardamos el estado de la moneda y la tasa en el momento de la venta
       const { error } = await supabase.from('cotizaciones').insert([
         {
           cliente_id: clienteSeleccionado.id,
           productos_seleccionados: carrito,
-          total: total, // Se guarda en $
+          total: total,
+          empresa_id: miEmpresaId, // <--- Vinculación correcta
           estado: 'pendiente',
-          moneda: monedaPrincipal, // Guardamos 'USD' o 'BS'
-          tasa_bcv: tasaBCV, // Guardamos la tasa usada en ese momento
+          moneda: monedaPrincipal,
+          tasa_bcv: tasaBCV,
+          observaciones: observaciones, // Asegúrate de incluir este campo si existe en tu DB
         },
       ]);
 
