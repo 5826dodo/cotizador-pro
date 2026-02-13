@@ -40,6 +40,18 @@ export async function middleware(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
+    // Si el usuario está logueado pero intenta ver el login, sácalo de ahí
+    if (url.pathname.startsWith('/login')) {
+      const destino = perfil?.rol === 'admin' ? '/admin' : '/dashboard';
+      return NextResponse.redirect(new URL(destino, request.url));
+    }
+
+    // Si está en la raíz (/), mándalo a su panel según el rol
+    if (url.pathname === '/') {
+      const destino = perfil?.rol === 'admin' ? '/admin' : '/dashboard';
+      return NextResponse.redirect(new URL(destino, request.url));
+    }
+
     // Si es admin e intenta ir a otro lado que no sea /admin
     if (perfil?.rol === 'admin' && !url.pathname.startsWith('/admin')) {
       return NextResponse.redirect(new URL('/admin', request.url));

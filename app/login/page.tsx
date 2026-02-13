@@ -22,14 +22,18 @@ export default function LoginPage() {
     });
 
     if (authError) {
-      setErrorMsg(authError.message);
+      setErrorMsg('Credenciales incorrectas o error de conexión');
       setLoading(false);
       return;
     }
 
-    // Si llegamos aquí, el login es correcto en Supabase.
-    // Forzamos la entrada al admin.
-    window.location.href = '/admin';
+    // IMPORTANTE: router.refresh() asegura que Next.js reconozca la nueva cookie
+    // antes de intentar la redirección.
+    router.refresh();
+
+    // En lugar de window.location, usamos una redirección limpia a la raíz.
+    // El Middleware se encargará de leer el rol y mandarte a /admin o /dashboard.
+    router.push('/');
   };
 
   return (
