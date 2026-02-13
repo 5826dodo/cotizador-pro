@@ -15,6 +15,10 @@ export default function Navbar() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      const pathname = usePathname();
+
+      // No renderizar Navbar en el login
+      if (pathname === '/login') return null;
       if (user) {
         const { data } = await supabase
           .from('perfiles')
