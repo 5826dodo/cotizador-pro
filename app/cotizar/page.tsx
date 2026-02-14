@@ -360,7 +360,6 @@ export default function CotizarPage() {
           estado: 'pendiente',
           moneda: monedaPrincipal,
           tasa_bcv: tasaBCV,
-          observaciones: observaciones, // Asegúrate de incluir este campo si existe en tu DB
         },
       ]);
 
