@@ -41,7 +41,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-8 rounded-lg bg-white p-8 shadow-lg">
         <div>
           <h2 className="text-center text-3xl font-extrabold text-gray-900">
-            FERREMATERIALES LER
+            SISCOTPRO
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Ingresa a tu panel de control
