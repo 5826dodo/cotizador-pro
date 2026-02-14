@@ -2,61 +2,80 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import Link from 'next/link';
-import { Trash2, Edit3, X, UserPlus, Save } from 'lucide-react';
+import {
+  Trash2,
+  Edit3,
+  X,
+  UserPlus,
+  Save,
+  Building2,
+  Phone,
+  Mail,
+  Fingerprint,
+} from 'lucide-react';
 
 export default function ClientesPage() {
   const [clientes, setClientes] = useState<any[]>([]);
   const [idEditando, setIdEditando] = useState<string | null>(null);
-  const [empresaId, setEmpresaId] = useState<string | null>(null); // Guardar el ID de la empresa logueada
+  const [empresaId, setEmpresaId] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(true);
 
   // Estados del formulario
   const [nombre, setNombre] = useState('');
   const [cedula, setCedula] = useState('');
   const [telefono, setTelefono] = useState('');
   const [email, setEmail] = useState('');
-  const [nombreEmpresaCliente, setNombreEmpresaCliente] = useState(''); // El nombre de la empresa del cliente
+  const [nombreEmpresaCliente, setNombreEmpresaCliente] = useState('');
   const [mensaje, setMensaje] = useState('');
 
+  // 1. Cargar el perfil del usuario para obtener su empresa_id
   useEffect(() => {
-    const inicializar = async () => {
-      // 1. Obtener la sesión del usuario actual
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+    const obtenerPerfilYClientes = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-      if (session?.user) {
-        // Asumiendo que guardas el empresa_id en la metadata del usuario o tienes una tabla de perfiles
-        // Si lo tienes en la tabla 'usuarios' o 'perfiles', búscalo aquí:
-        const { data: perfil } = await supabase
-          .from('usuarios') // Ajusta el nombre de tu tabla de perfiles/usuarios
-          .select('empresa_id')
-          .eq('id', session.user.id)
-          .single();
+        if (session?.user) {
+          const { data: perfil, error: errorPerfil } = await supabase
+            .from('perfiles')
+            .select('empresa_id')
+            .eq('id', session.user.id)
+            .single();
 
-        if (perfil?.empresa_id) {
-          setEmpresaId(perfil.empresa_id);
-          obtenerClientes(perfil.empresa_id);
+          if (errorPerfil) throw errorPerfil;
+
+          if (perfil?.empresa_id) {
+            setEmpresaId(perfil.empresa_id);
+            await cargarClientes(perfil.empresa_id);
+          }
         }
+      } catch (error: any) {
+        console.error('Error inicializando:', error.message);
+      } finally {
+        setCargando(false);
       }
     };
 
-    inicializar();
+    obtenerPerfilYClientes();
   }, []);
 
-  const obtenerClientes = async (id: string) => {
+  // 2. Función para cargar clientes filtrados por empresa
+  const cargarClientes = async (idEmpresa: string) => {
     const { data, error } = await supabase
       .from('clientes')
       .select('*')
-      .eq('empresa_id', id) // FILTRO CRÍTICO
+      .eq('empresa_id', idEmpresa)
       .order('nombre', { ascending: true });
 
-    if (error) console.error('Error cargando clientes:', error);
+    if (error) console.error('Error al obtener clientes:', error);
     if (data) setClientes(data);
   };
 
+  // 3. Guardar o Actualizar Cliente
   const guardarCliente = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!empresaId) return alert('No se detectó el ID de tu empresa.');
+    if (!empresaId) return alert('No se pudo identificar tu empresa.');
 
     const telLimpio = telefono.replace(/\D/g, '');
     const datosCliente = {
@@ -64,8 +83,8 @@ export default function ClientesPage() {
       cedula,
       telefono: telLimpio,
       email,
-      empresa: nombreEmpresaCliente, // Nombre visual de la empresa del cliente
-      empresa_id: empresaId, // VINCULACIÓN CON TU EMPRESA LOGUEADA
+      empresa: nombreEmpresaCliente,
+      empresa_id: empresaId, // Vínculo obligatorio
     };
 
     try {
@@ -75,30 +94,34 @@ export default function ClientesPage() {
           .update(datosCliente)
           .eq('id', idEditando);
         if (error) throw error;
-        setMensaje('✅ Cliente actualizado');
+        setMensaje('✅ Cliente actualizado con éxito');
       } else {
         const { error } = await supabase
           .from('clientes')
           .insert([datosCliente]);
         if (error) throw error;
-        setMensaje('✅ Cliente registrado');
+        setMensaje('✅ Cliente registrado con éxito');
       }
+
       resetearFormulario();
-      obtenerClientes(empresaId);
+      await cargarClientes(empresaId);
+
+      setTimeout(() => setMensaje(''), 3000);
     } catch (error: any) {
       alert('Error: ' + error.message);
     }
   };
 
+  // 4. Eliminar Cliente
   const eliminarCliente = async (id: string) => {
     if (!confirm('¿Seguro que deseas eliminar este cliente?')) return;
     try {
       const { error } = await supabase.from('clientes').delete().eq('id', id);
       if (error) throw error;
       setMensaje('🗑️ Cliente eliminado');
-      if (empresaId) obtenerClientes(empresaId);
+      if (empresaId) cargarClientes(empresaId);
     } catch (error: any) {
-      alert('Error al eliminar.');
+      alert('Error al eliminar el cliente');
     }
   };
 
@@ -121,9 +144,18 @@ export default function ClientesPage() {
     setNombreEmpresaCliente('');
   };
 
+  if (cargando) {
+    return (
+      <div className="min-h-screen flex items-center justify-center font-black text-blue-600">
+        CARGANDO DATOS...
+      </div>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 p-4 md:p-8 text-slate-900">
       <div className="max-w-5xl mx-auto space-y-6">
+        {/* HEADER */}
         <header className="flex justify-between items-center bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
           <div>
             <h1 className="text-3xl font-black text-blue-700 tracking-tighter">
@@ -131,7 +163,7 @@ export default function ClientesPage() {
             </h1>
             <Link
               href="/cotizar"
-              className="text-sm font-bold text-blue-400 hover:text-blue-600"
+              className="text-sm font-bold text-blue-400 hover:text-blue-600 transition-colors"
             >
               ← Regresar a Cotización
             </Link>
@@ -141,77 +173,136 @@ export default function ClientesPage() {
           </div>
         </header>
 
-        <section className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-blue-50 relative">
-          <h2 className="text-xl font-black mb-6">
+        {/* FORMULARIO */}
+        <section className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-blue-50 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4">
+            {idEditando ? (
+              <Edit3 className="text-blue-50" size={100} />
+            ) : (
+              <UserPlus className="text-blue-50" size={100} />
+            )}
+          </div>
+
+          <h2 className="text-xl font-black mb-6 flex items-center gap-2 relative z-10">
             {idEditando ? 'Editando Cliente' : 'Nuevo Registro'}
           </h2>
+
           <form
             onSubmit={guardarCliente}
-            className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10"
           >
             <input
               placeholder="Nombre Completo"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              className="bg-slate-50 p-4 rounded-2xl border-none"
+              className="bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-medium"
               required
             />
             <input
               placeholder="Cédula o RIF"
               value={cedula}
               onChange={(e) => setCedula(e.target.value)}
-              className="bg-slate-50 p-4 rounded-2xl border-none"
+              className="bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-medium"
             />
             <input
               placeholder="Teléfono"
               value={telefono}
               onChange={(e) => setTelefono(e.target.value)}
-              className="bg-slate-50 p-4 rounded-2xl border-none"
+              className="bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-medium"
             />
             <input
               placeholder="Email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="bg-slate-50 p-4 rounded-2xl border-none"
+              className="bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-medium"
             />
             <input
               placeholder="Empresa del cliente (Opcional)"
               value={nombreEmpresaCliente}
               onChange={(e) => setNombreEmpresaCliente(e.target.value)}
-              className="bg-slate-50 p-4 rounded-2xl border-none md:col-span-2"
+              className="bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-medium md:col-span-2"
             />
-            <button
-              className={`md:col-span-2 py-4 rounded-2xl font-black text-white ${idEditando ? 'bg-green-600' : 'bg-blue-600'}`}
-            >
-              {idEditando ? 'ACTUALIZAR' : 'REGISTRAR'}
-            </button>
+
+            <div className="md:col-span-2 flex gap-3">
+              <button
+                type="submit"
+                className={`flex-1 ${idEditando ? 'bg-green-600' : 'bg-blue-600'} text-white py-4 rounded-2xl font-black shadow-lg hover:opacity-90 transition-all flex items-center justify-center gap-2`}
+              >
+                {idEditando ? <Save size={20} /> : <UserPlus size={20} />}
+                {idEditando ? 'ACTUALIZAR DATOS' : 'REGISTRAR CLIENTE'}
+              </button>
+
+              {idEditando && (
+                <button
+                  type="button"
+                  onClick={resetearFormulario}
+                  className="bg-slate-200 text-slate-600 px-6 rounded-2xl font-black"
+                >
+                  <X size={20} />
+                </button>
+              )}
+            </div>
           </form>
+
+          {mensaje && (
+            <div className="mt-4 p-3 bg-green-50 text-green-600 rounded-xl text-center font-bold animate-fade-in">
+              {mensaje}
+            </div>
+          )}
         </section>
 
-        {/* LISTADO FILTRADO */}
+        {/* LISTADO DE CLIENTES */}
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {clientes.map((c) => (
             <div
               key={c.id}
-              className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100"
+              className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-shadow"
             >
-              <h3 className="font-black text-xl text-slate-800">{c.nombre}</h3>
-              <p className="text-sm text-slate-500 mb-4">
-                {c.empresa || 'Particular'}
-              </p>
-              <div className="flex gap-2">
+              <div>
+                <div className="mb-4">
+                  <h3 className="font-black text-xl text-slate-800 leading-tight mb-1">
+                    {c.nombre}
+                  </h3>
+                  <span className="text-[10px] font-black bg-blue-100 text-blue-600 px-3 py-1 rounded-full uppercase flex items-center gap-1 w-fit">
+                    <Fingerprint size={12} /> {c.cedula || 'S/N'}
+                  </span>
+                </div>
+
+                <div className="space-y-3 pt-4 border-t border-slate-50">
+                  <div className="flex items-center gap-3 text-slate-600">
+                    <Building2 size={16} className="text-blue-400" />
+                    <p className="text-sm font-bold">
+                      {c.empresa || 'Particular'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 text-slate-600">
+                    <Phone size={16} className="text-blue-400" />
+                    <p className="text-sm font-medium">
+                      {c.telefono || 'Sin teléfono'}
+                    </p>
+                  </div>
+                  {c.email && (
+                    <div className="flex items-center gap-3 text-slate-600">
+                      <Mail size={16} className="text-blue-400" />
+                      <p className="text-sm font-medium truncate">{c.email}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-6">
                 <button
                   onClick={() => prepararEdicion(c)}
-                  className="flex-1 bg-blue-50 text-blue-600 py-2 rounded-xl font-bold"
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-50 text-blue-600 rounded-2xl font-bold active:scale-95 transition-all"
                 >
-                  Editar
+                  <Edit3 size={18} /> Editar
                 </button>
                 <button
                   onClick={() => eliminarCliente(c.id)}
-                  className="flex-1 bg-red-50 text-red-600 py-2 rounded-xl font-bold"
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-50 text-red-600 rounded-2xl font-bold active:scale-95 transition-all"
                 >
-                  Borrar
+                  <Trash2 size={18} /> Borrar
                 </button>
               </div>
             </div>
