@@ -152,7 +152,14 @@ export default function CotizarPage() {
       // Etiqueta COTIZACIÓN
       doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
       doc.setFontSize(16);
-      doc.text('COTIZACIÓN', 196, 25, { align: 'right' });
+      // Definimos el título según el tipo de operación
+      const tituloDocumento =
+        tipoOperacion === 'venta_directa' ? 'NOTA DE ENTREGA' : 'COTIZACIÓN';
+
+      // Etiqueta Dinámica
+      doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
+      doc.setFontSize(16);
+      doc.text(tituloDocumento, 196, 25, { align: 'right' }); // <--- Aquí usamos la variable
       doc.setFontSize(9);
       doc.setTextColor(100, 116, 139);
       doc.text(`N°: ${Math.floor(Date.now() / 10000)}`, 196, 32, {
@@ -175,7 +182,6 @@ export default function CotizarPage() {
       doc.text('CLIENTE:', 20, 72);
       doc.text('RIF / C.I.:', 20, 79);
       doc.text('NOTAS/ENVÍO:', 20, 86);
-
       doc.setFont('helvetica', 'normal');
       doc.text(
         `${cliente.nombre.toUpperCase()} ${cliente.apellido?.toUpperCase() || ''}`,
@@ -227,9 +233,42 @@ export default function CotizarPage() {
         finalY,
         { align: 'right' },
       );
+      // !!! NUEVO: Información de pago solo si es venta
+      if (tipoOperacion === 'venta_directa') {
+        doc.setFontSize(10);
+        doc.setTextColor(100, 116, 139); // Gris
+        doc.setFont('helvetica', 'normal');
+
+        const deuda = total - montoPagado;
+
+        doc.text(
+          `Monto Abonado: $ ${montoPagado.toLocaleString()}`,
+          196,
+          finalY + 8,
+          { align: 'right' },
+        );
+
+        if (deuda > 0) {
+          doc.setTextColor(200, 0, 0); // Rojo para la deuda
+          doc.text(
+            `Restante por Pagar: $ ${deuda.toLocaleString()}`,
+            196,
+            finalY + 14,
+            { align: 'right' },
+          );
+        } else {
+          doc.setTextColor(0, 150, 0); // Verde si está solvente
+          doc.text('ESTADO: TOTALMENTE PAGADO', 196, finalY + 14, {
+            align: 'right',
+          });
+        }
+      }
+
+      const nombreArchivo =
+        tipoOperacion === 'venta_directa' ? 'Nota_Entrega' : 'Cotizacion';
 
       doc.save(
-        `Cotizacion_${nombreEmp.replace(/\s/g, '_')}_${cliente.nombre}.pdf`,
+        `${nombreArchivo}_${nombreEmp.replace(/\s/g, '_')}_${cliente.nombre}.pdf`,
       );
     } catch (err) {
       console.error(err);
