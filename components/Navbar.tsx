@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { Settings } from 'lucide-react'; // Importamos el icono
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -15,10 +16,7 @@ export default function Navbar() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      const pathname = usePathname();
 
-      // No renderizar Navbar en el login
-      if (pathname === '/login') return null;
       if (user) {
         const { data } = await supabase
           .from('perfiles')
@@ -29,7 +27,7 @@ export default function Navbar() {
       }
     }
     getUserData();
-  }, []);
+  }, [supabase]); // Añadida dependencia de supabase
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -37,7 +35,9 @@ export default function Navbar() {
     router.refresh();
   };
 
-  // Definimos qué links ve cada quién
+  // No renderizar Navbar en el login
+  if (pathname === '/login') return null;
+
   const getLinks = () => {
     if (rol === 'admin') {
       return [{ name: '🏠 Panel Maestro', href: '/admin' }];
@@ -50,8 +50,6 @@ export default function Navbar() {
       { name: '📜 Historial', href: '/historial' },
     ];
 
-    // Si es vendedor, podrías filtrar aquí si no quieres que vea el Inventario
-    // o el Historial global.
     return baseLinks;
   };
 
@@ -88,6 +86,22 @@ export default function Navbar() {
                   {link.name}
                 </Link>
               ))}
+
+              {/* LINK DE CONFIGURACIÓN (Solo si no es admin maestro) */}
+              {rol !== 'admin' && (
+                <Link
+                  href="/configuracion"
+                  className={`px-3 py-2 rounded-xl text-xs md:text-sm font-bold transition-all flex items-center gap-1 ${
+                    pathname === '/configuracion'
+                      ? 'bg-blue-50 text-blue-600'
+                      : 'text-slate-400 hover:bg-slate-50'
+                  }`}
+                  title="Configuración de Empresa"
+                >
+                  <Settings size={16} />
+                  <span className="hidden md:inline">Empresa</span>
+                </Link>
+              )}
             </div>
 
             <div className="h-6 w-[1px] bg-slate-200 mx-2 hidden md:block" />
