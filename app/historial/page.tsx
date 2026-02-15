@@ -65,6 +65,12 @@ export default function HistorialPage() {
     .filter((c) => new Date(c.created_at).getMonth() === new Date().getMonth())
     .reduce((acc, curr) => acc + curr.total, 0);
 
+  // 4. Dinero que aún nos deben (Cuentas por cobrar)
+  const totalCuentasPorCobrar = cotizaciones
+    .filter(
+      (c) => c.tipo_operacion === 'venta_directa' || c.estado === 'aprobado',
+    )
+    .reduce((acc, curr) => acc + (curr.total - (curr.monto_pagado || 0)), 0);
   // --- ACCIONES ---
   const enviarReporteMensual = async () => {
     const mesNombre = new Date()
@@ -213,6 +219,18 @@ export default function HistorialPage() {
                 MES ACTUAL
               </p>
             </div>
+            {/* CAJA CUENTAS POR COBRAR */}
+            <div className="bg-red-50 p-6 rounded-[2.5rem] border border-red-100 shadow-sm flex flex-col justify-center">
+              <span className="text-xs font-black text-red-400 uppercase tracking-widest">
+                Por Cobrar (Deuda Total)
+              </span>
+              <h3 className="text-3xl font-black text-red-600">
+                ${totalCuentasPorCobrar.toLocaleString()}
+              </h3>
+              <p className="text-[10px] font-bold text-red-400 mt-1">
+                CLIENTES PENDIENTES
+              </p>
+            </div>
 
             {/* RENDIMIENTO (HÍBRIDO) */}
             <div className="bg-white p-6 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col justify-center">
@@ -277,6 +295,27 @@ export default function HistorialPage() {
                   <h3 className="font-black text-slate-800 uppercase tracking-tight">
                     {cot.clientes?.nombre}
                   </h3>
+                  {/* BADGE DE TIPO DE OPERACIÓN */}
+                  <span
+                    className={`text-[9px] px-2 py-0.5 rounded-md font-black ${cot.tipo_operacion === 'venta_directa' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'}`}
+                  >
+                    {cot.tipo_operacion === 'venta_directa'
+                      ? 'VENTA'
+                      : 'COTIZACIÓN'}
+                  </span>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">
+                    {new Date(cot.created_at).toLocaleDateString()} •{' '}
+                    {/* Lógica de estado de pago */}
+                    {cot.tipo_operacion === 'venta_directa' && (
+                      <span
+                        className={`ml-2 ${cot.monto_pagado >= cot.total ? 'text-emerald-500' : 'text-red-500 underline'}`}
+                      >
+                        {cot.monto_pagado >= cot.total
+                          ? 'PAGADO'
+                          : `DEBE: $${(cot.total - cot.monto_pagado).toLocaleString()}`}
+                      </span>
+                    )}
+                  </p>
                   <p className="text-[10px] text-slate-400 font-bold uppercase">
                     {new Date(cot.created_at).toLocaleDateString()} •{' '}
                     {cot.estado === 'pendiente' ? (

@@ -47,6 +47,7 @@ export default function Navbar() {
       { name: '📦 Inventario', href: '/' },
       { name: '👥 Clientes', href: '/clientes' },
       { name: '📝 Cotizar', href: '/cotizar' },
+      { name: '💰 Cobranzas', href: '/cobranzas' }, // <--- NUEVO
       { name: '📜 Historial', href: '/historial' },
     ];
 

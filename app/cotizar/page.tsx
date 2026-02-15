@@ -222,6 +222,47 @@ export default function CotizarPage() {
         },
       });
 
+      // --- DIBUJAR SELLO DE ESTADO ---
+      if (tipoOperacion === 'venta_directa') {
+        const deuda = total - montoPagado;
+        const esPagado = deuda <= 0;
+
+        // Posición del sello (lado izquierdo inferior)
+        const selloX = 30;
+        const selloY = (doc as any).lastAutoTable.finalY + 20;
+
+        // Color del sello: Verde si está pagado, Rojo si debe
+        if (esPagado) {
+          doc.setDrawColor(0, 150, 0);
+          doc.setTextColor(0, 150, 0);
+        } else {
+          doc.setDrawColor(200, 0, 0);
+          doc.setTextColor(200, 0, 0);
+        }
+
+        // Dibujar círculo o rectángulo redondeado
+        doc.setLineWidth(1);
+        doc.roundedRect(selloX, selloY, 40, 15, 3, 3, 'S');
+
+        // Texto del sello
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text(esPagado ? 'PAGADO' : 'PENDIENTE', selloX + 20, selloY + 10, {
+          align: 'center',
+        });
+
+        // Si debe, poner el monto pequeño debajo
+        if (!esPagado) {
+          doc.setFontSize(7);
+          doc.text(
+            `DEBE: $${deuda.toLocaleString()}`,
+            selloX + 20,
+            selloY + 13,
+            { align: 'center' },
+          );
+        }
+      }
+
       // --- 4. TOTAL ---
       const finalY = (doc as any).lastAutoTable.finalY + 15;
       doc.setFontSize(16);
