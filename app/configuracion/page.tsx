@@ -1,12 +1,21 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Building2, Save, Upload, Hash, Phone, MapPin } from 'lucide-react';
+import {
+  Building2,
+  Save,
+  Upload,
+  Hash,
+  Phone,
+  MapPin,
+  Loader2,
+} from 'lucide-react';
 
 export default function PerfilEmpresa() {
   const [empresa, setEmpresa] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
 
   useEffect(() => {
     const cargarDatosEmpresa = async () => {
@@ -14,7 +23,6 @@ export default function PerfilEmpresa() {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
-        // Obtenemos el ID de la empresa desde el perfil del usuario
         const { data: perfil } = await supabase
           .from('perfiles')
           .select('empresa_id, empresas(*)')
@@ -30,24 +38,61 @@ export default function PerfilEmpresa() {
     cargarDatosEmpresa();
   }, []);
 
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { error } = await supabase
-      .from('empresas')
-      .update({
-        nombre: empresa.nombre,
-        rif: empresa.rif,
-        telefono: empresa.telefono,
-        direccion: empresa.direccion,
-        logo_url: empresa.logo_url,
-      })
-      .eq('id', empresa.id);
+  // Función para manejar la subida del logo a Storage
+  const subirLogo = async (file: File, empresaId: string) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${empresaId}-${Math.random()}.${fileExt}`;
+    const filePath = `${fileName}`;
 
-    if (error) alert('Error al actualizar');
-    else alert('✅ Datos de empresa actualizados');
+    const { error: uploadError } = await supabase.storage
+      .from('logos')
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from('logos').getPublicUrl(filePath);
+    return data.publicUrl;
   };
 
-  if (loading) return <p>Cargando configuración...</p>;
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubiendo(true);
+
+    try {
+      let finalLogoUrl = empresa.logo_url;
+
+      // Si hay un nuevo archivo seleccionado, lo subimos primero
+      if (file) {
+        finalLogoUrl = await subirLogo(file, empresa.id);
+      }
+
+      const { error } = await supabase
+        .from('empresas')
+        .update({
+          nombre: empresa.nombre,
+          rif: empresa.rif,
+          telefono: empresa.telefono,
+          direccion: empresa.direccion,
+          logo_url: finalLogoUrl,
+        })
+        .eq('id', empresa.id);
+
+      if (error) throw error;
+
+      setEmpresa({ ...empresa, logo_url: finalLogoUrl });
+      setFile(null); // Limpiamos el archivo temporal
+      alert('✅ Datos de empresa actualizados');
+    } catch (error: any) {
+      alert('Error: ' + error.message);
+    } finally {
+      setSubiendo(false);
+    }
+  };
+
+  if (loading)
+    return (
+      <p className="p-10 text-center font-bold">Cargando configuración...</p>
+    );
 
   return (
     <main className="min-h-screen bg-slate-50 p-8">
@@ -63,19 +108,36 @@ export default function PerfilEmpresa() {
           onSubmit={handleUpdate}
           className="bg-white p-8 rounded-[2.5rem] shadow-xl space-y-6"
         >
-          {/* Logo Preview */}
-          <div className="flex justify-center mb-6">
-            <div className="relative w-32 h-32 bg-slate-100 rounded-3xl overflow-hidden border-2 border-dashed border-slate-200 flex items-center justify-center">
-              {empresa.logo_url ? (
+          {/* SECCIÓN LOGO MEJORADA */}
+          <div className="flex flex-col items-center mb-6">
+            <div className="relative w-40 h-40 bg-slate-100 rounded-3xl overflow-hidden border-2 border-dashed border-slate-200 flex items-center justify-center mb-4">
+              {file ? (
+                <img
+                  src={URL.createObjectURL(file)}
+                  alt="Preview"
+                  className="w-full h-full object-contain p-2"
+                />
+              ) : empresa.logo_url ? (
                 <img
                   src={empresa.logo_url}
                   alt="Logo"
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-contain p-2"
                 />
               ) : (
                 <Building2 size={40} className="text-slate-300" />
               )}
             </div>
+
+            <label className="cursor-pointer bg-slate-100 px-6 py-2 rounded-full font-bold text-sm hover:bg-slate-200 transition-all flex items-center gap-2 text-slate-600">
+              <Upload size={16} />
+              {empresa.logo_url || file ? 'Cambiar Logo' : 'Subir Logo'}
+              <input
+                type="file"
+                className="hidden"
+                accept="image/*"
+                onChange={(e) => e.target.files && setFile(e.target.files[0])}
+              />
+            </label>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -136,26 +198,7 @@ export default function PerfilEmpresa() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-black text-slate-400 uppercase ml-2">
-                URL del Logo (Directo)
-              </label>
-              <div className="relative">
-                <Upload
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={20}
-                />
-                <input
-                  placeholder="https://tu-imagen.png"
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold"
-                  value={empresa.logo_url || ''}
-                  onChange={(e) =>
-                    setEmpresa({ ...empresa, logo_url: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-
+            {/* Dirección a ancho completo */}
             <div className="md:col-span-2 space-y-2">
               <label className="text-xs font-black text-slate-400 uppercase ml-2">
                 Dirección Física
@@ -176,8 +219,12 @@ export default function PerfilEmpresa() {
             </div>
           </div>
 
-          <button className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 shadow-xl hover:bg-blue-700 transition-all">
-            <Save /> GUARDAR CAMBIOS
+          <button
+            disabled={subiendo}
+            className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 shadow-xl hover:bg-blue-700 transition-all disabled:opacity-50"
+          >
+            {subiendo ? <Loader2 className="animate-spin" /> : <Save />}
+            {subiendo ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
           </button>
         </form>
       </div>
