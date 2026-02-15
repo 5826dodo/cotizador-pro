@@ -354,9 +354,6 @@ export default function CotizarPage() {
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
         {/* IZQUIERDA: BUSCADOR Y PRODUCTOS */}
         <div className="flex-1 space-y-6">
-          <h1 className="text-4xl font-black text-slate-800 tracking-tighter">
-            Cotizar
-          </h1>
           <div className="flex justify-between items-center mb-4">
             <h1 className="text-4xl font-black text-slate-800 tracking-tighter">
               {tipoOperacion === 'cotizacion' ? 'Cotizar' : 'Venta Directa'}
