@@ -30,6 +30,12 @@ export default function CotizarPage() {
   const [monedaPrincipal, setMonedaPrincipal] = useState<'USD' | 'BS'>('USD');
   const [miEmpresaId, setMiEmpresaId] = useState<string | null>(null);
   const [datosEmpresa, setDatosEmpresa] = useState<any>(null); // Estado para el perfil de empresa
+  // ... tus estados anteriores
+  const [tipoOperacion, setTipoOperacion] = useState<
+    'cotizacion' | 'venta_directa'
+  >('cotizacion');
+  const [estadoPago, setEstadoPago] = useState('pendiente_pago');
+  const [montoPagado, setMontoPagado] = useState(0);
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -265,6 +271,16 @@ export default function CotizarPage() {
     );
   };
 
+  const descontarInventario = async (items: any[]) => {
+    for (const item of items) {
+      const { error } = await supabase
+        .from('productos')
+        .update({ stock: item.stock - item.cantidad })
+        .eq('id', item.id);
+      if (error) console.error('Error actualizando stock de:', item.nombre);
+    }
+  };
+
   const procesarCotizacion = async () => {
     if (!clienteSeleccionado || carrito.length === 0)
       return alert('Faltan datos');
@@ -273,19 +289,31 @@ export default function CotizarPage() {
     setCargando(true);
     try {
       const total = calcularTotal();
+      const esVenta = tipoOperacion === 'venta_directa';
+
       const { error } = await supabase.from('cotizaciones').insert([
         {
           cliente_id: clienteSeleccionado.id,
           productos_seleccionados: carrito,
           total: total,
           empresa_id: miEmpresaId,
-          estado: 'pendiente',
+          // LOGICA DE ESTADOS NUEVA
+          estado: esVenta ? 'aprobada' : 'pendiente',
+          tipo_operacion: tipoOperacion,
+          estado_pago: esVenta ? estadoPago : 'pendiente_pago',
+          monto_pagado: esVenta ? montoPagado : 0,
           moneda: monedaPrincipal,
           tasa_bcv: tasaBCV,
+          observaciones: observaciones, // Asegúrate de que este campo exista en tu tabla
         },
       ]);
 
       if (error) throw error;
+
+      // SI ES VENTA, DESCONTAMOS EL STOCK REAL
+      if (esVenta) {
+        await descontarInventario(carrito);
+      }
 
       descargarPDF(clienteSeleccionado, carrito, total, observaciones);
 
@@ -302,11 +330,17 @@ export default function CotizarPage() {
         }
       }, 500);
 
+      // Limpieza de estados
       setCarrito([]);
       setClienteSeleccionado(null);
       setObservaciones('');
+      setMontoPagado(0);
       setMostrarModalResumen(false);
-      alert('¡Éxito!');
+      alert(
+        esVenta
+          ? '✅ Venta registrada e inventario actualizado'
+          : '📄 Cotización guardada',
+      );
     } catch (e) {
       alert('Error al procesar');
     } finally {
@@ -323,6 +357,27 @@ export default function CotizarPage() {
           <h1 className="text-4xl font-black text-slate-800 tracking-tighter">
             Cotizar
           </h1>
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-4xl font-black text-slate-800 tracking-tighter">
+              {tipoOperacion === 'cotizacion' ? 'Cotizar' : 'Venta Directa'}
+            </h1>
+
+            {/* Switch Elegante */}
+            <div className="flex bg-slate-200 p-1 rounded-2xl shadow-inner">
+              <button
+                onClick={() => setTipoOperacion('cotizacion')}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${tipoOperacion === 'cotizacion' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+              >
+                COTIZACIÓN
+              </button>
+              <button
+                onClick={() => setTipoOperacion('venta_directa')}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${tipoOperacion === 'venta_directa' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500'}`}
+              >
+                VENTA DIRECTA
+              </button>
+            </div>
+          </div>
 
           {/* REEMPLAZO DEL SELECT POR BUSCADOR INTELIGENTE */}
           <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 relative">
@@ -554,6 +609,43 @@ export default function CotizarPage() {
               </div>
             </div>
             <div className="mt-6 pt-6 border-t-4 border-dashed border-slate-100">
+              {/* !!! PEGA EL NUEVO BLOQUE JUSTO AQUÍ !!! */}
+              {tipoOperacion === 'venta_directa' && (
+                <div className="mb-6 space-y-4 p-5 bg-emerald-50 rounded-[2rem] border border-emerald-100">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-emerald-700 uppercase ml-2 tracking-widest">
+                      Estado del Pago
+                    </label>
+                    <select
+                      value={estadoPago}
+                      onChange={(e) => setEstadoPago(e.target.value)}
+                      className="w-full p-4 bg-white rounded-2xl font-bold text-slate-700 shadow-sm outline-none border-none"
+                    >
+                      <option value="pendiente_pago">
+                        ❌ Pendiente (Deuda)
+                      </option>
+                      <option value="pago_parcial">
+                        ⏳ Pago Parcial (Abono)
+                      </option>
+                      <option value="pagado">✅ Pagado Total</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-emerald-700 uppercase ml-2 tracking-widest">
+                      Monto Recibido ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={montoPagado}
+                      onChange={(e) =>
+                        setMontoPagado(parseFloat(e.target.value) || 0)
+                      }
+                      className="w-full p-4 bg-white rounded-2xl font-bold text-slate-700 shadow-sm outline-none border-none"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              )}
               <div className="flex justify-between items-center mb-6">
                 <div className="mb-6">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
@@ -721,6 +813,43 @@ export default function CotizarPage() {
 
             {/* PIE DE PÁGINA FIJO (Resumen de Totales) */}
             <div className="p-6 bg-white border-t border-slate-200 shrink-0 shadow-[0_-10px_20px_rgba(0,0,0,0,05)]">
+              {/* !!! PEGA EL NUEVO BLOQUE JUSTO AQUÍ !!! */}
+              {tipoOperacion === 'venta_directa' && (
+                <div className="mb-6 space-y-4 p-5 bg-emerald-50 rounded-[2rem] border border-emerald-100">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-emerald-700 uppercase ml-2 tracking-widest">
+                      Estado del Pago
+                    </label>
+                    <select
+                      value={estadoPago}
+                      onChange={(e) => setEstadoPago(e.target.value)}
+                      className="w-full p-4 bg-white rounded-2xl font-bold text-slate-700 shadow-sm outline-none border-none"
+                    >
+                      <option value="pendiente_pago">
+                        ❌ Pendiente (Deuda)
+                      </option>
+                      <option value="pago_parcial">
+                        ⏳ Pago Parcial (Abono)
+                      </option>
+                      <option value="pagado">✅ Pagado Total</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-emerald-700 uppercase ml-2 tracking-widest">
+                      Monto Recibido ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={montoPagado}
+                      onChange={(e) =>
+                        setMontoPagado(parseFloat(e.target.value) || 0)
+                      }
+                      className="w-full p-4 bg-white rounded-2xl font-bold text-slate-700 shadow-sm outline-none border-none"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              )}
               <div className="mb-4">
                 <textarea
                   value={observaciones}
