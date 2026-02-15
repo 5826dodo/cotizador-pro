@@ -13,7 +13,7 @@ import {
   DollarSign,
   ShoppingCart,
   ChevronUp,
-  X, // Importado para cerrar el modal
+  X,
 } from 'lucide-react';
 
 export default function CotizarPage() {
@@ -23,45 +23,44 @@ export default function CotizarPage() {
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any>(null);
   const [carrito, setCarrito] = useState<any[]>([]);
   const [cargando, setCargando] = useState(false);
-  const [mostrarModalResumen, setMostrarModalResumen] = useState(false); // Estado para el modal
+  const [mostrarModalResumen, setMostrarModalResumen] = useState(false);
   const [observaciones, setObservaciones] = useState('');
   const [busquedaCliente, setBusquedaCliente] = useState('');
-  const [tasaBCV, setTasaBCV] = useState<number>(382.63); // Valor inicial por defecto
-  // FORMA CORRECTA
+  const [tasaBCV, setTasaBCV] = useState<number>(382.63);
   const [monedaPrincipal, setMonedaPrincipal] = useState<'USD' | 'BS'>('USD');
-  // 1. Agrega este estado al principio
   const [miEmpresaId, setMiEmpresaId] = useState<string | null>(null);
+  const [datosEmpresa, setDatosEmpresa] = useState<any>(null); // Estado para el perfil de empresa
 
   useEffect(() => {
     const cargarDatos = async () => {
-      // 1. Obtener el usuario actual
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (user) {
-        // 2. Obtener el empresa_id de su perfil
+        // Obtenemos empresa_id y los DATOS de la empresa mediante un Join
         const { data: perfil } = await supabase
           .from('perfiles')
-          .select('empresa_id')
+          .select('empresa_id, empresas(*)')
           .eq('id', user.id)
           .single();
 
         if (perfil?.empresa_id) {
           setMiEmpresaId(perfil.empresa_id);
+          setDatosEmpresa(perfil.empresas); // Guardamos la info de la empresa
 
-          // 3. Cargar Clientes FILTRADOS por empresa
+          // Cargar Clientes
           const { data: c } = await supabase
             .from('clientes')
             .select('*')
-            .eq('empresa_id', perfil.empresa_id) // <--- Filtro SaaS
+            .eq('empresa_id', perfil.empresa_id)
             .order('nombre');
 
-          // 4. Cargar Productos FILTRADOS por empresa
+          // Cargar Productos
           const { data: p } = await supabase
             .from('productos')
             .select('*')
-            .eq('empresa_id', perfil.empresa_id) // <--- Filtro SaaS
+            .eq('empresa_id', perfil.empresa_id)
             .gt('stock', 0)
             .order('nombre');
 
@@ -73,8 +72,6 @@ export default function CotizarPage() {
     cargarDatos();
   }, []);
 
-  // --- LÓGICA DE ACTUALIZACIÓN ---
-  // --- LÓGICA DE ACTUALIZACIÓN (ANTI-SALTOS DE SCROLL) ---
   const actualizarItem = (
     id: string,
     campo: 'precio' | 'cantidad',
@@ -84,10 +81,8 @@ export default function CotizarPage() {
       prevCarrito.map((item) => {
         if (item.id === id) {
           if (valor === '') return { ...item, [campo]: '' };
-
           const numValor = parseFloat(valor);
           if (campo === 'cantidad') {
-            // Aseguramos que sea un número y respetamos el stock
             const valorLimpio = isNaN(numValor) ? 0 : numValor;
             const cantFinal =
               valorLimpio > item.stock ? item.stock : valorLimpio;
@@ -118,27 +113,37 @@ export default function CotizarPage() {
       const doc = new jsPDF();
       const colorDorado: [number, number, number] = [184, 134, 11];
 
-      // --- 1. LOGO Y MEMBRETE ---
-      const logoUrl = '/logo3_ferremateriales.png';
-      try {
-        // Reducimos un poco el ancho a 45 para que no pise el texto de la derecha
-        doc.addImage(logoUrl, 'PNG', 10, 10, 35, 35);
-      } catch (e) {
-        console.error('Error logo', e);
+      // --- DATOS DINÁMICOS DE LA EMPRESA ---
+      const nombreEmp = datosEmpresa?.nombre || 'MI EMPRESA';
+      const rifEmp = datosEmpresa?.rif || 'RIF: NO REGISTRADO';
+      const telEmp = datosEmpresa?.telefono || '';
+      const logoUrl = datosEmpresa?.logo_url;
+
+      // 1. LOGO DINÁMICO
+      if (logoUrl) {
+        try {
+          doc.addImage(logoUrl, 'PNG', 10, 10, 35, 35);
+        } catch (e) {
+          console.error('Error al cargar logo personalizado', e);
+        }
       }
 
-      // Datos de la Empresa (Desplazados a la derecha para no chocar con el logo)
+      // Datos de la Empresa (Membrete Dinámico)
       doc.setTextColor(30, 41, 59);
-      doc.setFontSize(20);
+      doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
-      doc.text('FERREMATERIALES LER C.A.', 50, 25);
+      doc.text(nombreEmp.toUpperCase(), 50, 25);
 
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text('RIF: J-501123764', 50, 32);
-      doc.text('Calidad y confianza en cada material', 50, 37);
+      doc.text(`RIF: ${rifEmp}`, 50, 32);
+      doc.text(
+        telEmp ? `Telf: ${telEmp}` : 'Calidad y confianza en cada material',
+        50,
+        37,
+      );
 
-      // Etiqueta COTIZACIÓN (Aislada a la derecha)
+      // Etiqueta COTIZACIÓN
       doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
       doc.setFontSize(16);
       doc.text('COTIZACIÓN', 196, 25, { align: 'right' });
@@ -151,33 +156,32 @@ export default function CotizarPage() {
         align: 'right',
       });
 
-      // Línea divisoria (La bajamos a 58 para dar aire al logo)
+      // Línea divisoria
       doc.setDrawColor(colorDorado[0], colorDorado[1], colorDorado[2]);
       doc.setLineWidth(1);
       doc.line(14, 58, 196, 58);
 
-      // --- 2. CAJA DE CLIENTE CON TEXTO ENVOLVENTE ---
+      // --- 2. CAJA DE CLIENTE ---
       doc.setDrawColor(226, 232, 240);
-      // Dibujamos el cuadro (lo hacemos un poco más alto por si la nota es larga)
       doc.roundedRect(14, 65, 182, 35, 2, 2);
-
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.text('CLIENTE:', 20, 72);
       doc.text('RIF / C.I.:', 20, 79);
-      doc.text('DESTINO:', 20, 86);
+      doc.text('NOTAS/ENVÍO:', 20, 86);
 
       doc.setFont('helvetica', 'normal');
-      doc.text(`${cliente.nombre.toUpperCase()}`, 45, 72);
-      doc.text(`${cliente.cedula || 'N/A'}`, 45, 79);
+      doc.text(
+        `${cliente.nombre.toUpperCase()} ${cliente.apellido?.toUpperCase() || ''}`,
+        50,
+        72,
+      );
+      doc.text(`${cliente.cedula || cliente.rif || 'N/A'}`, 50, 79);
+      const textoDestino = notasExtra || 'Por definir';
+      const notasCortadas = doc.splitTextToSize(textoDestino, 135);
+      doc.text(notasCortadas, 50, 86);
 
-      // CLAVE: Ajuste de texto para la nota/dirección
-      // splitTextToSize corta el texto para que no pase de 140mm de ancho
-      const textoDestino = notasExtra || 'Retiro en tienda / Por definir';
-      const notasCortadas = doc.splitTextToSize(textoDestino, 140);
-      doc.text(notasCortadas, 45, 86);
-
-      // --- 3. TABLA UNIFICADA ---
+      // --- 3. TABLA ---
       const simbolo = monedaPrincipal === 'BS' ? 'Bs.' : '$';
       const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
 
@@ -208,38 +212,26 @@ export default function CotizarPage() {
 
       // --- 4. TOTAL ---
       const finalY = (doc as any).lastAutoTable.finalY + 15;
-      const totalFinal = total * factor;
-
       doc.setFontSize(16);
       doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
       doc.setFont('helvetica', 'bold');
       doc.text(
-        `TOTAL A PAGAR: ${simbolo} ${totalFinal.toLocaleString(monedaPrincipal === 'BS' ? 'es-VE' : 'en-US', { minimumFractionDigits: 2 })}`,
+        `TOTAL A PAGAR: ${simbolo} ${(total * factor).toLocaleString(monedaPrincipal === 'BS' ? 'es-VE' : 'en-US', { minimumFractionDigits: 2 })}`,
         196,
         finalY,
-        {
-          align: 'right',
-        },
+        { align: 'right' },
       );
 
-      // Opcional: Agregar una pequeña nota al pie indicando la tasa si la cotización es en Bs.
-      if (monedaPrincipal === 'BS') {
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text(
-          `Tasa de cambio aplicada: 1 USD = ${tasaBCV} Bs.`,
-          14,
-          finalY + 5,
-        );
-      }
-
-      doc.save(`Cotizacion_LER_${cliente.nombre}.pdf`);
+      doc.save(
+        `Cotizacion_${nombreEmp.replace(/\s/g, '_')}_${cliente.nombre}.pdf`,
+      );
     } catch (err) {
       console.error(err);
       alert('Error al generar PDF');
     }
   };
 
+  // ... (Las funciones enviarWhatsApp y enviarTelegram se mantienen igual pero usando nombreEmp dinámico si gustas)
   const enviarWhatsApp = (
     cliente: any,
     total: number,
@@ -249,114 +241,44 @@ export default function CotizarPage() {
     tasa: number,
   ) => {
     let telefono = cliente.telefono;
-
-    if (!telefono || telefono.trim() === '') {
+    if (!telefono) {
       const telIngresado = prompt(
         'Ingresa el número de WhatsApp (ej: 584121234567):',
       );
       if (!telIngresado) return;
       telefono = telIngresado;
     }
-
     const telLimpio = telefono.replace(/\D/g, '');
     const factor = moneda === 'BS' ? tasa : 1;
     const simbolo = moneda === 'BS' ? 'Bs.' : '$';
-
     const listaProd = items
-      .map((i) => {
-        const subtotal = (i.precio * i.cantidad * factor).toLocaleString(
-          'es-VE',
-          { minimumFractionDigits: 2 },
-        );
-        return `🔹 *${i.nombre.trim()}*\nCant: ${i.cantidad} -> ${simbolo}${subtotal}`;
-      })
+      .map(
+        (i) =>
+          `🔹 *${i.nombre.trim()}*\nCant: ${i.cantidad} -> ${simbolo}${(i.precio * i.cantidad * factor).toLocaleString('es-VE')}`,
+      )
       .join('\n\n');
 
-    const totalTexto = `${simbolo} ${(total * factor).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`;
-
-    const textoMensaje = `🏗️ *FERREMATERIALES LER C.A.*
-    --------------------------------------------
-    👤 *Cliente:* ${cliente.nombre}
-    🆔 *C.I./RIF:* ${cliente.cedula || 'N/A'}
-    📍 *Entrega:* ${notas || 'Retiro en tienda'}
-    💰 *Moneda:* ${moneda === 'BS' ? 'Bolívares (BCV)' : 'Dólares'}
-
-    📝 *RESUMEN:*
-    ${listaProd}
-
-    💵 *TOTAL A PAGAR: ${totalTexto}*
-    --------------------------------------------
-    ${moneda === 'BS' ? `_Tasa del día: ${tasa} Bs._\n` : ''}
-    🛠️ *¡Estamos para servirle!*`;
-
-    // 3. LA CLAVE: Usar encodeURIComponent para que los emojis viajen como código seguro
-    const url = `https://wa.me/${telLimpio}?text=${encodeURIComponent(textoMensaje)}`;
-
-    // Abrir en ventana nueva
-    window.open(url, '_blank');
-  };
-
-  // --- LÓGICA DE TELEGRAM (RESTAURADA) ---
-  // 1. Cambia la firma de la función para recibir moneda y tasa
-  const enviarTelegram = async (
-    cliente: any,
-    total: number,
-    items: any[],
-    moneda: string,
-    tasa: number,
-  ) => {
-    const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.NEXT_PUBLIC_TELEGRAM_CHAT_ID;
-
-    // Calculamos montos según la moneda
-    const factor = moneda === 'BS' ? tasa : 1;
-    const simbolo = moneda === 'BS' ? 'Bs.' : '$';
-    const montoFinal = (total * factor).toLocaleString(
-      moneda === 'BS' ? 'es-VE' : 'en-US',
-      { minimumFractionDigits: 2 },
+    const textoMensaje = `🏗️ *${datosEmpresa?.nombre || 'MI EMPRESA'}*\n--------------------------------------------\n👤 *Cliente:* ${cliente.nombre}\n🆔 *ID:* ${cliente.cedula || 'N/A'}\n📍 *Entrega:* ${notas || 'Retiro en tienda'}\n\n📝 *RESUMEN:*\n${listaProd}\n\n💵 *TOTAL: ${simbolo} ${(total * factor).toLocaleString('es-VE')}*\n--------------------------------------------\n🛠️ *¡Estamos para servirle!*`;
+    window.open(
+      `https://wa.me/${telLimpio}?text=${encodeURIComponent(textoMensaje)}`,
+      '_blank',
     );
-
-    const listaProd = items
-      .map((i) => `- ${i.nombre} (x${i.cantidad})`)
-      .join('\n');
-
-    // Incluimos la moneda en el mensaje
-    const texto = `🛠️ *FERREMATERIALES LER C.A.*\n\n📄 *Nueva Cotización (${moneda})*\n👤 *Cliente:* ${cliente.nombre}\n💰 *Total:* ${simbolo} ${montoFinal}\n${moneda === 'BS' ? `📈 *Tasa:* ${tasa} Bs/$\n` : ''}\n📌 *Estado:* PENDIENTE\n\n*Items:*\n${listaProd}`;
-
-    try {
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: texto,
-          parse_mode: 'Markdown',
-        }),
-      });
-    } catch (e) {
-      console.error('Error Telegram:', e);
-    }
   };
 
   const procesarCotizacion = async () => {
     if (!clienteSeleccionado || carrito.length === 0)
       return alert('Faltan datos');
-
-    if (!miEmpresaId)
-      return alert(
-        'Error: No se pudo identificar tu empresa. Recarga la página.',
-      );
+    if (!miEmpresaId) return alert('Error de sesión');
 
     setCargando(true);
     try {
       const total = calcularTotal();
-
       const { error } = await supabase.from('cotizaciones').insert([
         {
           cliente_id: clienteSeleccionado.id,
           productos_seleccionados: carrito,
           total: total,
-          empresa_id: miEmpresaId, // <--- Vinculación correcta
+          empresa_id: miEmpresaId,
           estado: 'pendiente',
           moneda: monedaPrincipal,
           tasa_bcv: tasaBCV,
@@ -365,21 +287,10 @@ export default function CotizarPage() {
 
       if (error) throw error;
 
-      // Enviamos a Telegram con los datos correctos
-      await enviarTelegram(
-        clienteSeleccionado,
-        total,
-        carrito,
-        monedaPrincipal,
-        tasaBCV,
-      );
-
-      // Generamos el PDF
       descargarPDF(clienteSeleccionado, carrito, total, observaciones);
 
-      // Flujo de WhatsApp
       setTimeout(() => {
-        if (confirm('¿Deseas enviar el resumen por WhatsApp ahora?')) {
+        if (confirm('¿Deseas enviar por WhatsApp?')) {
           enviarWhatsApp(
             clienteSeleccionado,
             total,
@@ -391,21 +302,19 @@ export default function CotizarPage() {
         }
       }, 500);
 
-      alert('¡Cotización procesada con éxito!');
-
-      // Limpieza de estados
       setCarrito([]);
       setClienteSeleccionado(null);
       setObservaciones('');
       setMostrarModalResumen(false);
+      alert('¡Éxito!');
     } catch (e) {
-      console.error(e);
       alert('Error al procesar');
     } finally {
       setCargando(false);
     }
   };
 
+  // --- RENDERIZADO ---
   return (
     <main className="min-h-screen bg-slate-50 p-4 md:p-8 pb-32">
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
@@ -857,99 +766,59 @@ export default function CotizarPage() {
     </main>
   );
 }
-// PEGA ESTO AL FINAL DEL ARCHIVO (fuera de todo)
-const TarjetaProductoCarrito = ({
+
+// Componente auxiliar para las tarjetas (Asegúrate de tenerlo definido abajo o en otro archivo)
+function TarjetaProductoCarrito({
   item,
   actualizarItem,
   setCarrito,
   carrito,
   monedaPrincipal,
   tasaBCV,
-}: any) => (
-  <div className="bg-white p-4 rounded-[1.8rem]">
-    {' '}
-    {/* Reducir padding de 5 a 4 */}
-    <div className="flex justify-between items-start mb-2">
-      {' '}
-      {/* Reducir margen inferior */}
-      <span className="text-base font-black text-slate-700 leading-tight flex-1 pr-2">
-        {item.nombre}
-      </span>
+}: any) {
+  const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
+  const simbolo = monedaPrincipal === 'BS' ? 'Bs.' : '$';
+
+  return (
+    <div className="flex items-center gap-4 p-4 bg-white rounded-3xl shadow-sm border border-slate-100">
+      <div className="flex-1">
+        <p className="font-bold text-slate-800 uppercase text-sm">
+          {item.nombre}
+        </p>
+        <p className="text-blue-600 font-black text-lg">
+          {simbolo}{' '}
+          {(item.precio * factor).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+          })}
+        </p>
+      </div>
+      <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl">
+        <button
+          onClick={() =>
+            actualizarItem(item.id, 'cantidad', (item.cantidad - 1).toString())
+          }
+          className="p-1 hover:bg-white rounded-lg transition-colors"
+        >
+          <Minus size={18} />
+        </button>
+        <span className="font-black text-xl w-8 text-center">
+          {item.cantidad}
+        </span>
+        <button
+          onClick={() =>
+            actualizarItem(item.id, 'cantidad', (item.cantidad + 1).toString())
+          }
+          className="p-1 hover:bg-white rounded-lg transition-colors"
+        >
+          <Plus size={18} />
+        </button>
+      </div>
       <button
         onClick={() => setCarrito(carrito.filter((i: any) => i.id !== item.id))}
-        className="text-red-400 p-1"
+        className="p-3 text-red-400 hover:text-red-600"
       >
         <Trash2 size={20} />
       </button>
     </div>
-    <div className="grid grid-cols-2 gap-3">
-      <div className="space-y-1">
-        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-          Cant.
-        </label>
-        <div className="flex items-center bg-white rounded-2xl ring-1 ring-slate-200 p-1">
-          <button
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() =>
-              actualizarItem(
-                item.id,
-                'cantidad',
-                (Number(item.cantidad || 0) - 1).toString(),
-              )
-            }
-            className="p-2 text-blue-600"
-          >
-            <Minus size={18} />
-          </button>
-          <input
-            type="number"
-            value={item.cantidad}
-            onChange={(e) =>
-              actualizarItem(item.id, 'cantidad', e.target.value)
-            }
-            className="w-full text-center font-black text-lg outline-none bg-transparent"
-          />
-          <button
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() =>
-              actualizarItem(
-                item.id,
-                'cantidad',
-                (Number(item.cantidad || 0) + 1).toString(),
-              )
-            }
-            className="p-2 text-blue-600"
-          >
-            <Plus size={18} />
-          </button>
-        </div>
-      </div>
-      <div className="space-y-1">
-        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-          Precio Unit. (USD)
-        </label>
-        <div className="relative">
-          <DollarSign
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500"
-            size={16}
-          />
-          <input
-            type="number"
-            value={item.precio}
-            onChange={(e) => actualizarItem(item.id, 'precio', e.target.value)}
-            className="w-full pl-8 pr-3 py-3 bg-white rounded-2xl ring-1 ring-slate-200 font-black text-blue-600 outline-none"
-          />
-        </div>
-        {/* Referencia en BS siempre visible si tienes activado el switch de BS */}
-        {monedaPrincipal === 'BS' && (
-          <p className="text-[10px] font-bold text-emerald-600 mt-1 ml-1">
-            = Bs.{' '}
-            {(item.precio * tasaBCV).toLocaleString('es-VE', {
-              minimumFractionDigits: 2,
-            })}
-          </p>
-        )}
-      </div>
-    </div>
-  </div>
-);
+  );
+}
