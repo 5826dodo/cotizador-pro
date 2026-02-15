@@ -317,7 +317,7 @@ export default function HistorialPage() {
                     )}
                   </p>
                   <p className="text-[10px] text-slate-400 font-bold uppercase">
-                    {new Date(cot.created_at).toLocaleDateString()} •{' '}
+                    {/* {new Date(cot.created_at).toLocaleDateString()} •{' '} */}
                     {cot.estado === 'pendiente' ? (
                       <span className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200 shadow-sm animate-pulse">
                         <AlertCircle size={14} />
