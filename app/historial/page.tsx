@@ -279,25 +279,32 @@ export default function HistorialPage() {
               </div>
 
               <div className="p-6 space-y-6">
+                {/* Resumen Financiero dentro del Modal */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                     <p className="text-[9px] font-black text-slate-400 uppercase mb-1">
-                      Tasa de Referencia
+                      Monto de la Venta
                     </p>
-                    <p className="text-sm font-black text-blue-600">
-                      {cotizacionSeleccionada.ultima_tasa_pago ||
-                        cotizacionSeleccionada.tasa_bcv}{' '}
-                      Bs/$
+                    <p className="text-sm font-black text-slate-700">
+                      {cotizacionSeleccionada.moneda === 'BS'
+                        ? `Bs. ${(cotizacionSeleccionada.total * cotizacionSeleccionada.tasa_bcv).toLocaleString('es-VE')}`
+                        : `$${cotizacionSeleccionada.total.toLocaleString()}`}
                     </p>
-                    <p className="text-[8px] text-slate-400 font-bold uppercase mt-1">
-                      Origen: {cotizacionSeleccionada.moneda}
-                    </p>
+                    <div className="flex flex-col mt-1">
+                      <span className="text-[8px] text-blue-500 font-bold uppercase tracking-widest">
+                        Tasa: {cotizacionSeleccionada.tasa_bcv} Bs/$
+                      </span>
+                      <span className="text-[7px] text-slate-400 font-bold uppercase">
+                        Origen: {cotizacionSeleccionada.moneda}
+                      </span>
+                    </div>
                   </div>
+
                   <div
                     className={`p-4 rounded-2xl border ${cotizacionSeleccionada.total - (cotizacionSeleccionada.monto_pagado || 0) <= 0.05 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}
                   >
                     <p className="text-[9px] font-black text-slate-400 uppercase mb-1">
-                      Pendiente ($)
+                      Pendiente por Cobrar
                     </p>
                     <p
                       className={`text-xl font-black ${cotizacionSeleccionada.total - (cotizacionSeleccionada.monto_pagado || 0) <= 0.05 ? 'text-emerald-600' : 'text-red-600'}`}
@@ -307,6 +314,9 @@ export default function HistorialPage() {
                         cotizacionSeleccionada.total -
                         (cotizacionSeleccionada.monto_pagado || 0)
                       ).toFixed(2)}
+                    </p>
+                    <p className="text-[8px] text-slate-400 font-bold uppercase mt-1">
+                      En divisas ($)
                     </p>
                   </div>
                 </div>
