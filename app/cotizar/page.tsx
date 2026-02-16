@@ -830,142 +830,107 @@ export default function CotizarPage() {
         </div>
       )}
 
+      {/* --- MODAL RESUMEN MÓVIL OPTIMIZADO --- */}
       {mostrarModalResumen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-end justify-center">
-          {/* Contenedor Principal del Modal */}
-          <div className="bg-slate-100 w-full max-w-2xl h-[92vh] rounded-t-[3rem] flex flex-col overflow-hidden shadow-2xl animate-in slide-in-from-bottom-full duration-300">
-            {/* Indicador visual de "arrastre" (estilo iPhone) */}
-            <div className="w-full flex justify-center pt-3 pb-1 shrink-0 bg-white">
-              <div className="w-12 h-1.5 bg-slate-200 rounded-full" />
+        <div className="fixed inset-0 z-[100] bg-white flex flex-col animate-in slide-in-from-bottom duration-300">
+          {/* Cabecera Fija */}
+          <div className="p-6 border-b flex justify-between items-center bg-slate-50">
+            <div>
+              <h2 className="text-xl font-black text-slate-800">
+                Revisar Orden
+              </h2>
+              <p className="text-xs font-bold text-blue-600 uppercase">
+                {clienteSeleccionado
+                  ? `${clienteSeleccionado.nombre} ${clienteSeleccionado.apellido || ''}`
+                  : 'Sin cliente'}
+              </p>
             </div>
-
-            {/* CABECERA FIJA */}
-            <div className="px-6 py-4 border-b bg-white flex justify-between items-center shrink-0">
-              <div>
-                <h2 className="text-2xl font-black text-slate-800 leading-none">
-                  Mi Carrito
-                </h2>
-                <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mt-1">
-                  {carrito.length} productos seleccionados
-                </p>
-              </div>
-              <button
-                onClick={() => setMostrarModalResumen(false)}
-                className="p-3 bg-slate-100 text-slate-500 rounded-full active:scale-90 transition-all"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            {/* CUERPO CON SCROLL - Aquí cambiamos el fondo a slate-100 para que las tarjetas blancas resalten */}
-            <div
-              className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-100"
-              style={{ overscrollBehavior: 'contain' }} // <--- CLAVE: Evita recargar la página al llegar al tope
+            <button
+              onClick={() => setMostrarModalResumen(false)}
+              className="p-3 bg-slate-200 rounded-full text-slate-600"
             >
-              <div className="space-y-3">
-                {carrito.map((item) => (
-                  <div
-                    key={`mobile-${item.id}`}
-                    className="bg-white rounded-[2rem] p-1 shadow-md border border-white"
+              <X size={24} />
+            </button>
+          </div>
+
+          {/* LISTA DE PRODUCTOS: Scroll independiente */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
+            {carrito.map((item) => (
+              <TarjetaProductoCarrito
+                key={`mob-${item.id}`}
+                item={item}
+                actualizarItem={actualizarItem}
+                setCarrito={setCarrito}
+                carrito={carrito}
+                monedaPrincipal={monedaPrincipal}
+                tasaBCV={tasaBCV}
+              />
+            ))}
+          </div>
+
+          {/* SECCIÓN DE PAGO Y ACCIÓN: Fija abajo */}
+          <div className="p-6 bg-white border-t shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pb-10">
+            {tipoOperacion === 'venta_directa' && (
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">
+                    Estado
+                  </label>
+                  <select
+                    value={estadoPago}
+                    onChange={(e) => setEstadoPago(e.target.value)}
+                    className="w-full p-3 bg-slate-100 rounded-xl font-bold text-xs outline-none border-2 border-transparent focus:border-emerald-500"
                   >
-                    <TarjetaProductoCarrito
-                      item={item}
-                      actualizarItem={actualizarItem}
-                      setCarrito={setCarrito}
-                      carrito={carrito}
-                      monedaPrincipal={monedaPrincipal}
-                      tasaBCV={tasaBCV}
-                    />
-                  </div>
-                ))}
+                    <option value="pendiente_pago">Deuda</option>
+                    <option value="pago_parcial">Abono</option>
+                    <option value="pagado">Pagado</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1">
+                    Monto Recibido ($)
+                  </label>
+                  <input
+                    type="number"
+                    value={montoPagado}
+                    onChange={(e) =>
+                      setMontoPagado(parseFloat(e.target.value) || 0)
+                    }
+                    className="w-full p-3 bg-slate-100 rounded-xl font-bold text-xs outline-none border-2 border-transparent focus:border-emerald-500"
+                    placeholder="0.00"
+                  />
+                </div>
               </div>
+            )}
 
-              <button
-                onClick={() => setMostrarModalResumen(false)}
-                className="w-full py-6 mt-4 border-2 border-dashed border-slate-300 rounded-[2rem] text-slate-400 font-black text-xs uppercase tracking-widest active:bg-white transition-all"
-              >
-                + Agregar más productos
-              </button>
+            <div className="flex justify-between items-center mb-6 px-2">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black text-slate-400 uppercase">
+                  Total Final
+                </span>
+                <span className="text-2xl font-black text-blue-700">
+                  ${calcularTotal().toLocaleString()}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-black text-emerald-600 uppercase block">
+                  En Bolívares
+                </span>
+                <span className="text-lg font-bold text-emerald-700">
+                  Bs. {(calcularTotal() * tasaBCV).toLocaleString('es-VE')}
+                </span>
+              </div>
             </div>
 
-            {/* PIE DE PÁGINA FIJO (Resumen de Totales) */}
-            <div className="p-6 bg-white border-t border-slate-200 shrink-0 shadow-[0_-10px_20px_rgba(0,0,0,0,05)]">
-              {/* !!! PEGA EL NUEVO BLOQUE JUSTO AQUÍ !!! */}
-              {tipoOperacion === 'venta_directa' && (
-                <div className="mb-6 space-y-4 p-5 bg-emerald-50 rounded-[2rem] border border-emerald-100">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-emerald-700 uppercase ml-2 tracking-widest">
-                      Estado del Pago
-                    </label>
-                    <select
-                      value={estadoPago}
-                      onChange={(e) => setEstadoPago(e.target.value)}
-                      className="w-full p-4 bg-white rounded-2xl font-bold text-slate-700 shadow-sm outline-none border-none"
-                    >
-                      <option value="pendiente_pago">
-                        ❌ Pendiente (Deuda)
-                      </option>
-                      <option value="pago_parcial">
-                        ⏳ Pago Parcial (Abono)
-                      </option>
-                      <option value="pagado">✅ Pagado Total</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-emerald-700 uppercase ml-2 tracking-widest">
-                      Monto Recibido ($)
-                    </label>
-                    <input
-                      type="number"
-                      value={montoPagado}
-                      onChange={(e) =>
-                        setMontoPagado(parseFloat(e.target.value) || 0)
-                      }
-                      className="w-full p-4 bg-white rounded-2xl font-bold text-slate-700 shadow-sm outline-none border-none"
-                      placeholder="0.00"
-                    />
-                  </div>
-                </div>
-              )}
-              <div className="mb-4">
-                <textarea
-                  value={observaciones}
-                  onChange={(e) => setObservaciones(e.target.value)}
-                  placeholder="Notas de entrega o dirección..."
-                  className="w-full p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 text-sm outline-none focus:border-blue-500 transition-all resize-none"
-                  rows={2}
-                />
-              </div>
-
-              <div className="flex justify-between items-center mb-6 px-2">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    Total Estimado
-                  </span>
-                  <span className="text-3xl font-black text-blue-600">
-                    ${calcularTotal().toLocaleString()}
-                  </span>
-                </div>
-                {monedaPrincipal === 'BS' && (
-                  <div className="text-right">
-                    <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">
-                      En Bolívares
-                    </span>
-                    <p className="text-xl font-black text-emerald-600 leading-none">
-                      Bs. {(calcularTotal() * tasaBCV).toLocaleString('es-VE')}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <button
-                onClick={procesarCotizacion}
-                disabled={cargando}
-                className="w-full py-5 rounded-[2rem] bg-blue-600 text-white text-xl font-black shadow-xl shadow-blue-200 active:scale-95 transition-all"
-              >
-                {cargando ? 'PROCESANDO...' : 'GENERAR COTIZACIÓN'}
-              </button>
-            </div>
+            <button
+              onClick={procesarCotizacion}
+              disabled={cargando || !clienteSeleccionado}
+              className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black text-lg shadow-lg active:scale-95 transition-transform"
+            >
+              {cargando
+                ? 'PROCESANDO...'
+                : `CONFIRMAR ${tipoOperacion.toUpperCase().replace('_', ' ')}`}
+            </button>
           </div>
         </div>
       )}
@@ -982,48 +947,50 @@ function TarjetaProductoCarrito({
   monedaPrincipal,
   tasaBCV,
 }: any) {
-  const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
-  const simbolo = monedaPrincipal === 'BS' ? 'Bs.' : '$';
-
   return (
-    <div className="flex items-center gap-4 p-4 bg-white rounded-3xl shadow-sm border border-slate-100">
+    <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
       <div className="flex-1">
-        <p className="font-bold text-slate-800 uppercase text-sm">
+        <h4 className="font-bold text-slate-800 text-sm uppercase leading-tight">
           {item.nombre}
-        </p>
-        <p className="text-blue-600 font-black text-lg">
-          {simbolo}{' '}
-          {(item.precio * factor).toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-          })}
+        </h4>
+        <p className="text-blue-600 font-black text-xs mt-1">
+          ${item.precio} <span className="text-slate-300 mx-1">|</span>
+          <span className="text-emerald-600">
+            Bs. {(item.precio * tasaBCV).toLocaleString('es-VE')}
+          </span>
         </p>
       </div>
-      <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl">
+
+      <div className="flex items-center bg-slate-100 rounded-2xl p-1">
         <button
           onClick={() =>
             actualizarItem(item.id, 'cantidad', (item.cantidad - 1).toString())
           }
-          className="p-1 hover:bg-white rounded-lg transition-colors"
+          className="p-2 hover:bg-white rounded-xl transition-colors"
         >
-          <Minus size={18} />
+          <Minus size={16} />
         </button>
-        <span className="font-black text-xl w-8 text-center">
-          {item.cantidad}
-        </span>
+        <input
+          type="number"
+          value={item.cantidad}
+          onChange={(e) => actualizarItem(item.id, 'cantidad', e.target.value)}
+          className="w-10 text-center bg-transparent font-black text-sm outline-none"
+        />
         <button
           onClick={() =>
             actualizarItem(item.id, 'cantidad', (item.cantidad + 1).toString())
           }
-          className="p-1 hover:bg-white rounded-lg transition-colors"
+          className="p-2 hover:bg-white rounded-xl transition-colors"
         >
-          <Plus size={18} />
+          <Plus size={16} />
         </button>
       </div>
+
       <button
-        onClick={() => setCarrito(carrito.filter((i: any) => i.id !== item.id))}
-        className="p-3 text-red-400 hover:text-red-600"
+        onClick={() => setCarrito(carrito.filter((c: any) => c.id !== item.id))}
+        className="p-3 text-red-100 bg-red-500 rounded-2xl"
       >
-        <Trash2 size={20} />
+        <Trash2 size={18} />
       </button>
     </div>
   );
