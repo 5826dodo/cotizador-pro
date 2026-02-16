@@ -42,24 +42,24 @@ export default function HistorialPage() {
     cargarHistorial();
   }, []);
 
-  // --- LÓGICA DE CAJAS (CÁLCULO DINÁMICO) ---
+  // --- LÓGICA DE CAJAS (CORREGIDA POR MONEDA DE ORIGEN) ---
   const hoy = new Date().toISOString().split('T')[0];
-
-  // Filtramos todas las operaciones de hoy que tengan algún pago
   const operacionesDeHoy = cotizaciones.filter((c) =>
     c.created_at.startsWith(hoy),
   );
 
-  // Como no tenemos columnas separadas de BS y USD en DB, calculamos basado en el monto_pagado
-  // NOTA: Esta caja será exacta si los pagos se registran el mismo día de la creación.
-  const cajaUsdDia = operacionesDeHoy.reduce(
-    (acc, curr) => acc + (curr.monto_pagado || 0),
-    0,
-  );
-  const cajaBsDia = operacionesDeHoy.reduce(
-    (acc, curr) => acc + (curr.monto_pagado || 0) * (curr.tasa_bcv || 1),
-    0,
-  );
+  // Solo suma a la caja de Bs si la moneda de la venta fue 'BS'
+  const cajaBsDia = operacionesDeHoy
+    .filter((c) => c.moneda === 'BS')
+    .reduce(
+      (acc, curr) => acc + (curr.monto_pagado || 0) * (curr.tasa_bcv || 1),
+      0,
+    );
+
+  // Solo suma a la caja de USD si la moneda de la venta fue 'USD' (o distinta a BS)
+  const cajaUsdDia = operacionesDeHoy
+    .filter((c) => c.moneda !== 'BS')
+    .reduce((acc, curr) => acc + (curr.monto_pagado || 0), 0);
 
   // --- ACCIÓN: REGISTRAR PAGO ---
   const registrarPago = async (
@@ -69,7 +69,6 @@ export default function HistorialPage() {
   ) => {
     const deudaReal = cot.total - (cot.monto_pagado || 0);
 
-    // Evitar deudas negativas
     if (usdADescontar > deudaReal + 0.01) {
       alert(
         `No puedes descontar $${usdADescontar.toFixed(2)} porque la deuda es de $${deudaReal.toFixed(2)}`,
@@ -80,13 +79,17 @@ export default function HistorialPage() {
     setProcesandoAccion(true);
     const nuevoTotalPagado = (cot.monto_pagado || 0) + usdADescontar;
 
+    // Actualizamos el monto pagado y guardamos la tasa del abono como "tasa_referencial" si quieres trackearla
     const { error } = await supabase
       .from('cotizaciones')
-      .update({ monto_pagado: nuevoTotalPagado })
+      .update({
+        monto_pagado: nuevoTotalPagado,
+        ultima_tasa_pago: tasaDia > 0 ? tasaDia : cot.tasa_bcv, // Guardamos la tasa usada en este abono
+      })
       .eq('id', cot.id);
 
     if (!error) {
-      const mensaje = `💰 *${tipo.toUpperCase()}*\n👤 *Cliente:* ${cot.clientes?.nombre}\n📉 *Descontado:* $${usdADescontar.toFixed(2)}\n🚩 *Nuevo Saldo:* $${(cot.total - nuevoTotalPagado).toFixed(2)}\n📝 *Nota:* ${observacion || 'Sin nota'}`;
+      const mensaje = `💰 *${tipo.toUpperCase()}*\n👤 *Cliente:* ${cot.clientes?.nombre}\n📉 *Descontado:* $${usdADescontar.toFixed(2)}\n💵 *Tasa Usada:* ${tasaDia || cot.tasa_bcv} Bs/$\n🚩 *Nuevo Saldo:* $${(cot.total - nuevoTotalPagado).toFixed(2)}\n📝 *Nota:* ${observacion || 'Sin nota'}`;
       await enviarNotificacionTelegram(mensaje);
 
       setCotizacionSeleccionada(null);
@@ -94,6 +97,7 @@ export default function HistorialPage() {
       setObservacion('');
       setMontoBsRecibido(0);
       setMontoUsdRecibido(0);
+      setTasaDia(0);
       cargarHistorial();
     }
     setProcesandoAccion(false);
@@ -138,6 +142,9 @@ export default function HistorialPage() {
             <h3 className="text-3xl font-black">
               Bs. {cajaBsDia.toLocaleString('es-VE')}
             </h3>
+            <p className="text-[8px] opacity-50 font-bold uppercase mt-1">
+              Solo ventas originadas en Bs
+            </p>
           </div>
           <div className="bg-blue-600 p-6 rounded-[2rem] text-white shadow-lg">
             <p className="text-[10px] font-black uppercase opacity-70 flex items-center gap-1">
@@ -146,6 +153,9 @@ export default function HistorialPage() {
             <h3 className="text-3xl font-black">
               ${cajaUsdDia.toLocaleString()}
             </h3>
+            <p className="text-[8px] opacity-50 font-bold uppercase mt-1">
+              Solo ventas originadas en $
+            </p>
           </div>
           <div className="bg-white p-6 rounded-[2rem] border border-slate-200">
             <p className="text-[10px] font-black text-slate-400 uppercase">
@@ -196,13 +206,18 @@ export default function HistorialPage() {
                     <h4 className="font-black text-slate-800 uppercase text-xs">
                       {cot.clientes?.nombre}
                     </h4>
-                    <span
-                      className={`text-[8px] font-black px-2 py-0.5 rounded mt-1 inline-block ${cot.tipo_operacion === 'venta_directa' ? 'bg-purple-100 text-purple-600' : 'bg-orange-100 text-orange-600'}`}
-                    >
-                      {cot.tipo_operacion === 'venta_directa'
-                        ? 'VENTA'
-                        : 'COTIZACIÓN'}
-                    </span>
+                    <div className="flex gap-2 items-center">
+                      <span
+                        className={`text-[8px] font-black px-2 py-0.5 rounded mt-1 inline-block ${cot.tipo_operacion === 'venta_directa' ? 'bg-purple-100 text-purple-600' : 'bg-orange-100 text-orange-600'}`}
+                      >
+                        {cot.tipo_operacion === 'venta_directa'
+                          ? 'VENTA'
+                          : 'COTIZACIÓN'}
+                      </span>
+                      <span className="text-[9px] font-bold text-blue-500 mt-1 uppercase">
+                        Tasa: {cot.ultima_tasa_pago || cot.tasa_bcv}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -267,12 +282,15 @@ export default function HistorialPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                     <p className="text-[9px] font-black text-slate-400 uppercase mb-1">
-                      Total de Venta
+                      Tasa de Referencia
                     </p>
-                    <p className="text-xs font-black text-slate-700">
-                      {cotizacionSeleccionada.moneda === 'BS'
-                        ? `Bs. ${(cotizacionSeleccionada.total * cotizacionSeleccionada.tasa_bcv).toLocaleString('es-VE')}`
-                        : `$${cotizacionSeleccionada.total}`}
+                    <p className="text-sm font-black text-blue-600">
+                      {cotizacionSeleccionada.ultima_tasa_pago ||
+                        cotizacionSeleccionada.tasa_bcv}{' '}
+                      Bs/$
+                    </p>
+                    <p className="text-[8px] text-slate-400 font-bold uppercase mt-1">
+                      Origen: {cotizacionSeleccionada.moneda}
                     </p>
                   </div>
                   <div
@@ -309,7 +327,6 @@ export default function HistorialPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {/* SI YA ESTÁ PAGADO */}
                     {cotizacionSeleccionada.total -
                       (cotizacionSeleccionada.monto_pagado || 0) <=
                     0.05 ? (
@@ -356,37 +373,50 @@ export default function HistorialPage() {
                         </button>
 
                         {mostrarAbonar && (
-                          <div className="space-y-4 p-4 bg-slate-50 rounded-3xl border border-slate-200 animate-in slide-in-from-top-2">
+                          <div className="space-y-4 p-4 bg-slate-50 rounded-3xl border border-slate-200">
                             <div className="grid grid-cols-1 gap-3">
+                              <label className="text-[9px] font-black text-slate-400 ml-2 uppercase">
+                                Tasa del Pago (Hoy)
+                              </label>
                               <input
                                 type="number"
-                                placeholder="Tasa Hoy (Ej: 54.20)"
+                                placeholder="Ej: 54.20"
                                 className="p-3 rounded-xl border-none ring-1 ring-slate-200 font-black"
                                 onChange={(e) =>
                                   setTasaDia(parseFloat(e.target.value) || 0)
                                 }
                               />
                               <div className="grid grid-cols-2 gap-2">
-                                <input
-                                  type="number"
-                                  placeholder="Monto Bs."
-                                  className="p-3 rounded-xl border-none ring-1 ring-emerald-100 font-black text-emerald-600"
-                                  onChange={(e) =>
-                                    setMontoBsRecibido(
-                                      parseFloat(e.target.value) || 0,
-                                    )
-                                  }
-                                />
-                                <input
-                                  type="number"
-                                  placeholder="Monto $"
-                                  className="p-3 rounded-xl border-none ring-1 ring-blue-100 font-black text-blue-600"
-                                  onChange={(e) =>
-                                    setMontoUsdRecibido(
-                                      parseFloat(e.target.value) || 0,
-                                    )
-                                  }
-                                />
+                                <div>
+                                  <label className="text-[9px] font-black text-emerald-600 ml-2 uppercase">
+                                    Monto en Bs
+                                  </label>
+                                  <input
+                                    type="number"
+                                    placeholder="0.00"
+                                    className="p-3 rounded-xl border-none ring-1 ring-emerald-100 font-black text-emerald-600"
+                                    onChange={(e) =>
+                                      setMontoBsRecibido(
+                                        parseFloat(e.target.value) || 0,
+                                      )
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[9px] font-black text-blue-600 ml-2 uppercase">
+                                    Monto en $
+                                  </label>
+                                  <input
+                                    type="number"
+                                    placeholder="0.00"
+                                    className="p-3 rounded-xl border-none ring-1 ring-blue-100 font-black text-blue-600"
+                                    onChange={(e) =>
+                                      setMontoUsdRecibido(
+                                        parseFloat(e.target.value) || 0,
+                                      )
+                                    }
+                                  />
+                                </div>
                               </div>
                             </div>
 
