@@ -3,32 +3,32 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { enviarNotificacionTelegram } from '../../lib/telegram';
 import {
+  FileText,
   X,
   Eye,
+  Search,
   CheckCircle2,
   AlertCircle,
   Loader2,
   DollarSign,
   Wallet,
+  Clock,
   RefreshCcw,
-  MessageSquare,
-  ChevronDown,
+  ArrowRight,
 } from 'lucide-react';
 
 export default function HistorialPage() {
   const [cotizaciones, setCotizaciones] = useState<any[]>([]);
   const [busqueda, setBusqueda] = useState('');
+  const [filtroFecha, setFiltroFecha] = useState('');
   const [cargando, setCargando] = useState(true);
   const [procesandoAccion, setProcesandoAccion] = useState(false);
   const [cotizacionSeleccionada, setCotizacionSeleccionada] =
     useState<any>(null);
 
-  // Estados de control de interfaz
-  const [mostrarAbonar, setMostrarAbonar] = useState(false);
+  // Estado para la calculadora de abono
   const [tasaDia, setTasaDia] = useState<number>(0);
   const [montoBsRecibido, setMontoBsRecibido] = useState<number>(0);
-  const [montoUsdRecibido, setMontoUsdRecibido] = useState<number>(0);
-  const [observacion, setObservacion] = useState('');
 
   const cargarHistorial = async () => {
     const { data } = await supabase
@@ -43,6 +43,43 @@ export default function HistorialPage() {
     cargarHistorial();
   }, []);
 
+  // --- LÓGICA DE CAJAS DEL DÍA ---
+  const hoy = new Date().toISOString().split('T')[0];
+  const ventasValidas = cotizaciones.filter(
+    (c) => c.estado === 'aprobado' || c.tipo_operacion === 'venta_directa',
+  );
+
+  const cajaBsDia = ventasValidas
+    .filter((c) => c.created_at.startsWith(hoy) && c.moneda === 'BS')
+    .reduce(
+      (acc, curr) => acc + (curr.monto_pagado || 0) * (curr.tasa_bcv || 1),
+      0,
+    );
+
+  const cajaUsdDia = ventasValidas
+    .filter((c) => c.created_at.startsWith(hoy) && c.moneda !== 'BS')
+    .reduce((acc, curr) => acc + (curr.monto_pagado || 0), 0);
+
+  // --- ACCIÓN: REGISTRAR ABONO ---
+  const registrarAbono = async (cot: any, usdAmortizados: number) => {
+    setProcesandoAccion(true);
+    const nuevoTotalPagado = (cot.monto_pagado || 0) + usdAmortizados;
+
+    const { error } = await supabase
+      .from('cotizaciones')
+      .update({ monto_pagado: nuevoTotalPagado })
+      .eq('id', cot.id);
+
+    if (!error) {
+      const mensaje = `💰 *ABONO RECIBIDO*\n👤 *Cliente:* ${cot.clientes?.nombre}\n💵 *Equivale a:* $${usdAmortizados.toFixed(2)}\n📈 *Tasa Aplicada:* ${tasaDia} Bs\n📉 *Nueva Deuda:* $${(cot.total - nuevoTotalPagado).toFixed(2)}`;
+      await enviarNotificacionTelegram(mensaje);
+      alert('Abono registrado con éxito');
+      setCotizacionSeleccionada(null);
+      cargarHistorial();
+    }
+    setProcesandoAccion(false);
+  };
+
   // --- ACCIÓN: APROBAR COTIZACIÓN ---
   const aprobarCotizacion = async (cot: any) => {
     setProcesandoAccion(true);
@@ -50,89 +87,138 @@ export default function HistorialPage() {
       .from('cotizaciones')
       .update({ estado: 'aprobado' })
       .eq('id', cot.id);
+
     if (!error) {
-      alert('Cotización aprobada correctamente');
+      alert('Cotización aprobada. Ya puedes registrar pagos.');
       cargarHistorial();
       setCotizacionSeleccionada({ ...cot, estado: 'aprobado' });
     }
     setProcesandoAccion(false);
   };
 
-  // --- ACCIÓN: REGISTRAR PAGO ---
-  const registrarPago = async (
-    cot: any,
-    usdAmortizados: number,
-    tipo: string,
-  ) => {
-    setProcesandoAccion(true);
-    const nuevoTotalPagado = (cot.monto_pagado || 0) + usdAmortizados;
-    const { error } = await supabase
-      .from('cotizaciones')
-      .update({ monto_pagado: nuevoTotalPagado })
-      .eq('id', cot.id);
-
-    if (!error) {
-      await enviarNotificacionTelegram(
-        `💰 *${tipo}*\n👤 *Cliente:* ${cot.clientes?.nombre}\n💵 *Amortizado:* $${usdAmortizados.toFixed(2)}\n📉 *Saldo:* $${(cot.total - nuevoTotalPagado).toFixed(2)}\n📝 *Nota:* ${observacion}`,
-      );
-      setCotizacionSeleccionada(null);
-      setMostrarAbonar(false);
-      cargarHistorial();
-    }
-    setProcesandoAccion(false);
-  };
+  const historialFiltrado = cotizaciones.filter((cot) => {
+    const term = busqueda.toLowerCase();
+    const coincideNombre = cot.clientes?.nombre?.toLowerCase().includes(term);
+    const fechaCot = cot.created_at.split('T')[0];
+    return coincideNombre && (filtroFecha === '' || fechaCot === filtroFecha);
+  });
 
   return (
-    <main className="min-h-screen bg-slate-50 p-3 md:p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* LISTADO DE TARJETAS */}
+    <main className="min-h-screen bg-slate-50 p-4 md:p-8">
+      <div className="max-w-6xl mx-auto">
+        {/* RESUMEN SUPERIOR */}
+        <section className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-emerald-600 p-6 rounded-[2rem] text-white shadow-lg">
+            <p className="text-[10px] font-black uppercase opacity-70 flex items-center gap-1">
+              <Clock size={12} /> Caja Bs (Hoy)
+            </p>
+            <h3 className="text-3xl font-black">
+              Bs. {cajaBsDia.toLocaleString('es-VE')}
+            </h3>
+          </div>
+          <div className="bg-blue-600 p-6 rounded-[2rem] text-white shadow-lg">
+            <p className="text-[10px] font-black uppercase opacity-70 flex items-center gap-1">
+              <Clock size={12} /> Caja USD (Hoy)
+            </p>
+            <h3 className="text-3xl font-black">
+              ${cajaUsdDia.toLocaleString()}
+            </h3>
+          </div>
+          <div className="bg-white p-6 rounded-[2rem] border border-slate-200">
+            <p className="text-[10px] font-black text-slate-400 uppercase">
+              Por Cobrar Total
+            </p>
+            <h3 className="text-3xl font-black text-red-600">
+              $
+              {ventasValidas
+                .reduce(
+                  (acc, curr) => acc + (curr.total - (curr.monto_pagado || 0)),
+                  0,
+                )
+                .toLocaleString()}
+            </h3>
+          </div>
+        </section>
+
+        {/* BUSCADOR */}
+        <div className="flex gap-2 mb-6">
+          <input
+            type="text"
+            placeholder="Buscar cliente..."
+            className="flex-1 p-4 rounded-2xl border-none ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+        </div>
+
+        {/* LISTADO DE OPERACIONES */}
         <div className="space-y-3">
-          {cotizaciones.map((cot) => {
+          {historialFiltrado.map((cot) => {
+            const esBS = cot.moneda === 'BS';
+            const montoMostrar = esBS ? cot.total * cot.tasa_bcv : cot.total;
             const deudaUsd = cot.total - (cot.monto_pagado || 0);
             const estaPagado = deudaUsd <= 0.01;
+
             return (
               <div
                 key={cot.id}
-                className="bg-white p-4 rounded-3xl border border-slate-100 flex items-center justify-between shadow-sm"
+                className="bg-white p-5 rounded-[2rem] border border-slate-100 flex flex-col md:flex-row items-center justify-between shadow-sm gap-4"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4 flex-1">
                   <div
-                    className={`p-3 rounded-2xl ${estaPagado ? 'bg-emerald-100 text-emerald-600' : 'bg-red-50 text-red-400'}`}
+                    className={`p-4 rounded-2xl ${cot.estado === 'pendiente' ? 'bg-slate-100 text-slate-400' : 'bg-blue-100 text-blue-600'}`}
                   >
-                    <DollarSign size={20} />
+                    {esBS ? <Wallet size={20} /> : <DollarSign size={20} />}
                   </div>
                   <div>
-                    <h4 className="font-black text-slate-800 uppercase text-[11px] leading-tight">
+                    <h4 className="font-black text-slate-800 uppercase text-sm">
                       {cot.clientes?.nombre}
                     </h4>
-                    <span
-                      className={`text-[8px] font-black px-2 py-0.5 rounded mt-1 inline-block ${cot.tipo_operacion === 'venta_directa' ? 'bg-purple-100 text-purple-600' : 'bg-orange-100 text-orange-600'}`}
-                    >
-                      {cot.tipo_operacion === 'venta_directa'
-                        ? 'VENTA DIRECTA'
-                        : 'COTIZACIÓN'}
-                    </span>
+                    <div className="flex gap-2 mt-1">
+                      <span
+                        className={`text-[8px] font-black px-2 py-0.5 rounded ${cot.tipo_operacion === 'venta_directa' ? 'bg-purple-100 text-purple-600' : 'bg-orange-100 text-orange-600'}`}
+                      >
+                        {cot.tipo_operacion === 'venta_directa'
+                          ? 'VENTA'
+                          : 'COTIZACIÓN'}
+                      </span>
+                      <span className="text-[8px] font-bold text-slate-400">
+                        Tasa: {cot.tasa_bcv} Bs
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
+
+                <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
                   <div className="text-right">
                     <p className="text-[9px] font-black text-slate-400 uppercase">
-                      Saldo
+                      Monto en {cot.moneda}
                     </p>
-                    <p
-                      className={`font-black text-xs ${estaPagado ? 'text-emerald-500' : 'text-red-600'}`}
-                    >
-                      ${deudaUsd.toFixed(2)}
+                    <p className="font-black text-slate-800 text-lg">
+                      {esBS ? 'Bs.' : '$'}{' '}
+                      {montoMostrar.toLocaleString('es-VE')}
                     </p>
                   </div>
+
+                  <div className="text-right border-l pl-6">
+                    <p className="text-[9px] font-black text-slate-400 uppercase">
+                      Estado Pago
+                    </p>
+                    <p
+                      className={`font-black text-sm ${estaPagado ? 'text-emerald-500' : 'text-red-500'}`}
+                    >
+                      {estaPagado ? 'PAGADO' : `DEBE $${deudaUsd.toFixed(2)}`}
+                    </p>
+                  </div>
+
                   <button
                     onClick={() => {
                       setCotizacionSeleccionada(cot);
-                      setMostrarAbonar(false);
+                      setTasaDia(0);
+                      setMontoBsRecibido(0);
                     }}
-                    className="p-3 bg-slate-900 text-white rounded-xl"
+                    className="p-4 bg-slate-900 text-white rounded-2xl hover:scale-105 transition-all"
                   >
-                    <Eye size={18} />
+                    <Eye size={20} />
                   </button>
                 </div>
               </div>
