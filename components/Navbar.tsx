@@ -60,7 +60,7 @@ export default function Navbar() {
   return (
     <>
       {/* --- DISEÑO DESKTOP --- */}
-      <nav className="hidden md:block bg-white/70 backdrop-blur-xl border-b border-slate-200 sticky top-0 z-50">
+      <nav className="hidden md:block bg-[#6cd6d6]/70 backdrop-blur-xl border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex justify-between items-center h-20">
             <Link href="/" className="flex items-center gap-2 group">
