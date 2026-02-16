@@ -280,83 +280,113 @@ export default function HistorialPage() {
 
         {/* LISTADO */}
         <div className="grid gap-3">
-          {historialFiltrado.map((cot) => (
-            <div
-              key={cot.id}
-              className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4"
-            >
-              <div className="flex items-center gap-4 w-full md:w-auto">
-                <div
-                  className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black ${cot.moneda === 'BS' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}
-                >
-                  {cot.moneda === 'BS' ? 'Bs' : '$'}
-                </div>
-                <div>
-                  <h3 className="font-black text-slate-800 uppercase tracking-tight">
-                    {cot.clientes?.nombre}
-                  </h3>
-                  {/* BADGE DE TIPO DE OPERACIÓN */}
-                  <span
-                    className={`text-[9px] px-2 py-0.5 rounded-md font-black ${cot.tipo_operacion === 'venta_directa' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'}`}
-                  >
-                    {cot.tipo_operacion === 'venta_directa'
-                      ? 'VENTA'
-                      : 'COTIZACIÓN'}
-                  </span>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">
-                    {new Date(cot.created_at).toLocaleDateString()} •{' '}
-                    {/* Lógica de estado de pago */}
-                    {cot.tipo_operacion === 'venta_directa' && (
-                      <span
-                        className={`ml-2 ${cot.monto_pagado >= cot.total ? 'text-emerald-500' : 'text-red-500 underline'}`}
-                      >
-                        {cot.monto_pagado >= cot.total
-                          ? 'PAGADO'
-                          : `DEBE: $${(cot.total - cot.monto_pagado).toLocaleString()}`}
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">
-                    {/* {new Date(cot.created_at).toLocaleDateString()} •{' '} */}
-                    {cot.estado === 'pendiente' ? (
-                      <span className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200 shadow-sm animate-pulse">
-                        <AlertCircle size={14} />
-                        Pendiente
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-emerald-500 text-white border border-emerald-600 shadow-md">
-                        <CheckCircle2 size={14} />
-                        Aprobado
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
+          {historialFiltrado.map((cot) => {
+            const esBS = cot.moneda === 'BS';
+            const tasa = cot.tasa_bcv || 1;
 
-              <div className="flex items-center justify-between w-full md:w-auto gap-6">
-                <div className="text-right">
-                  {cot.moneda === 'BS' ? (
-                    <p className="text-2xl font-black text-emerald-600">
-                      Bs.{' '}
-                      {(cot.total * (cot.tasa_bcv || 1)).toLocaleString(
-                        'es-VE',
+            // Cálculo de deuda según la moneda original
+            const totalOriginal = esBS ? cot.total * tasa : cot.total;
+            const pagadoOriginal = cot.monto_pagado || 0; // Asumiendo que guardas lo pagado en la moneda base ($)
+
+            // Si la deuda es en BS, convertimos el pago (que suele estar en $) a BS para restar
+            const deudaRestante = esBS
+              ? cot.total * tasa - pagadoOriginal * tasa
+              : cot.total - pagadoOriginal;
+
+            return (
+              <div
+                key={cot.id}
+                className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 hover:shadow-md transition-all"
+              >
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                  <div
+                    className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center font-black ${esBS ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}
+                  >
+                    <span className="text-xs opacity-50">
+                      {esBS ? 'Bs' : 'USD'}
+                    </span>
+                    <Wallet size={20} />
+                  </div>
+
+                  <div>
+                    <h3 className="font-black text-slate-800 uppercase tracking-tight leading-none mb-1">
+                      {cot.clientes?.nombre}
+                    </h3>
+                    <div className="flex gap-2 items-center mb-1">
+                      <span
+                        className={`text-[9px] px-2 py-0.5 rounded-md font-black ${cot.tipo_operacion === 'venta_directa' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'}`}
+                      >
+                        {cot.tipo_operacion === 'venta_directa'
+                          ? 'VENTA'
+                          : 'COTIZACIÓN'}
+                      </span>
+                      {cot.estado === 'aprobado' && (
+                        <span className="text-[9px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-md font-black">
+                          APROBADA
+                        </span>
                       )}
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">
+                      {new Date(cot.created_at).toLocaleDateString()} • Tasa:{' '}
+                      {tasa} Bs
                     </p>
-                  ) : (
-                    <p className="text-2xl font-black text-blue-600">
-                      ${cot.total.toLocaleString()}
-                    </p>
-                  )}
+                  </div>
                 </div>
-                <button
-                  onClick={() => setCotizacionSeleccionada(cot)}
-                  className="p-4 bg-slate-50 rounded-2xl text-slate-400 hover:bg-slate-900 hover:text-white transition-all"
-                >
-                  <Eye size={20} />
-                </button>
+
+                {/* BLOQUE DE DEUDA VS TOTAL */}
+                <div className="flex flex-1 flex-col md:flex-row items-center justify-end gap-6 w-full md:w-auto">
+                  {/* Visualización de Deuda (El VS) */}
+                  <div className="text-center md:text-right">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                      Estado de Cuenta
+                    </p>
+                    {deudaRestante > 0 ? (
+                      <div className="flex flex-col">
+                        <span className="text-xl font-black text-red-500">
+                          DEBE: {esBS ? 'Bs.' : '$'}{' '}
+                          {deudaRestante.toLocaleString('es-VE', {
+                            minimumFractionDigits: 2,
+                          })}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400">
+                          Equivale a: {esBS ? '$' : 'Bs.'}{' '}
+                          {esBS
+                            ? (deudaRestante / tasa).toFixed(2)
+                            : (deudaRestante * tasa).toLocaleString('es-VE')}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-emerald-500 font-black flex items-center gap-1 justify-end">
+                        <CheckCircle2 size={16} /> TOTAL PAGADO
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Total de la Operación */}
+                  <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100 text-right min-w-[140px]">
+                    <p className="text-[9px] font-black text-slate-400 uppercase">
+                      Monto Total
+                    </p>
+                    <p
+                      className={`text-xl font-black ${esBS ? 'text-emerald-600' : 'text-blue-600'}`}
+                    >
+                      {esBS ? 'Bs.' : '$'}{' '}
+                      {totalOriginal.toLocaleString('es-VE', {
+                        minimumFractionDigits: 2,
+                      })}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => setCotizacionSeleccionada(cot)}
+                    className="p-4 bg-slate-900 rounded-2xl text-white hover:scale-105 transition-all shadow-lg shadow-slate-200"
+                  >
+                    <Eye size={20} />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* MODAL DETALLE */}
