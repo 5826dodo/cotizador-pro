@@ -33,7 +33,7 @@ export default function RootLayout({
         {<Navbar />}
 
         {/* EL CONTENIDO DE LAS PÁGINAS SE RENDERIZA AQUÍ ABAJO */}
-        {children}
+        <main className="pb-24 md:pb-8">{children}</main>
       </body>
     </html>
   );

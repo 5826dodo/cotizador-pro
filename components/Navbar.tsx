@@ -67,7 +67,7 @@ export default function Navbar() {
                 <LayoutGrid className="text-white" size={22} />
               </div>
               <span className="text-2xl font-black tracking-tighter text-slate-800">
-                COTI<span className="text-blue-600 italic">PRO</span>
+                SISCO<span className="text-blue-600 italic">PRO</span>
               </span>
             </Link>
 
@@ -109,8 +109,8 @@ export default function Navbar() {
       </nav>
 
       {/* --- DISEÑO MOBILE (TAB BAR ESTILO APP) --- */}
-      <nav className="md:hidden fixed bottom-6 left-4 right-4 bg-slate-900/95 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] z-[100] border border-white/10 overflow-hidden">
-        <div className="flex justify-between items-center h-20 px-4">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-white/10 z-[100] pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.3)] z-[100] border border-white/10 overflow-hidden">
+        <div className="flex justify-between items-center h-16 px-2">
           {links.map((link) => {
             const isActive = pathname === link.href;
             return (
@@ -120,7 +120,7 @@ export default function Navbar() {
                 className="relative flex flex-col items-center justify-center w-full"
               >
                 {isActive && (
-                  <div className="absolute -top-4 w-8 h-1 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,1)]" />
+                  <div className="absolute absolute top-0 w-8 h-1 bg-blue-500 rounded-b-full w-8 h-1 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,1)]" />
                 )}
                 <link.icon
                   size={24}
