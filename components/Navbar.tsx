@@ -54,6 +54,7 @@ export default function Navbar() {
     { name: 'Cotizar', href: '/cotizar', icon: FileEdit },
     { name: 'Cobros', href: '/cobranzas', icon: BadgeDollarSign },
     { name: 'Historial', href: '/historial', icon: History },
+    { name: 'Empresa', href: '/configuracion', icon: Settings },
   ];
 
   return (
@@ -110,14 +111,15 @@ export default function Navbar() {
 
       {/* --- DISEÑO MOBILE (TAB BAR ESTILO APP) --- */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-white/10 z-[100] pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.3)] z-[100] border border-white/10 overflow-hidden">
-        <div className="flex justify-between items-center h-16 px-2">
+        <div className="flex items-center h-16 px-4 overflow-x-auto scrollbar-hide gap-8">
+          F
           {links.map((link) => {
             const isActive = pathname === link.href;
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className="relative flex flex-col items-center justify-center w-full"
+                className="relative flex flex-col items-center justify-center min-w-[60px] h-full active:scale-90 transition-transform"
               >
                 {isActive && (
                   <div className="absolute absolute top-0 w-8 h-1 bg-blue-500 rounded-b-full w-8 h-1 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,1)]" />
@@ -135,7 +137,6 @@ export default function Navbar() {
               </Link>
             );
           })}
-
           {/* BOTÓN SALIR MÓVIL (Con icono diferenciado) */}
           <button
             onClick={handleLogout}
