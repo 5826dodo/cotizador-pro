@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { enviarNotificacionTelegram } from '../../lib/telegram';
 import {
-  FileText,
   X,
   Eye,
   CheckCircle2,
@@ -12,8 +11,8 @@ import {
   DollarSign,
   Wallet,
   RefreshCcw,
-  ArrowRight,
   MessageSquare,
+  ChevronDown,
 } from 'lucide-react';
 
 export default function HistorialPage() {
@@ -24,7 +23,8 @@ export default function HistorialPage() {
   const [cotizacionSeleccionada, setCotizacionSeleccionada] =
     useState<any>(null);
 
-  // Estados para el cobro
+  // Estados de control de interfaz
+  const [mostrarAbonar, setMostrarAbonar] = useState(false);
   const [tasaDia, setTasaDia] = useState<number>(0);
   const [montoBsRecibido, setMontoBsRecibido] = useState<number>(0);
   const [montoUsdRecibido, setMontoUsdRecibido] = useState<number>(0);
@@ -43,22 +43,20 @@ export default function HistorialPage() {
     cargarHistorial();
   }, []);
 
-  // --- LÓGICA DE CAJAS ---
-  const hoy = new Date().toISOString().split('T')[0];
-  const ventasValidas = cotizaciones.filter(
-    (c) => c.estado === 'aprobado' || c.tipo_operacion === 'venta_directa',
-  );
-
-  const cajaBsDia = ventasValidas
-    .filter((c) => c.created_at.startsWith(hoy) && c.moneda === 'BS')
-    .reduce(
-      (acc, curr) => acc + (curr.monto_pagado || 0) * (curr.tasa_bcv || 1),
-      0,
-    );
-
-  const cajaUsdDia = ventasValidas
-    .filter((c) => c.created_at.startsWith(hoy) && c.moneda !== 'BS')
-    .reduce((acc, curr) => acc + (curr.monto_pagado || 0), 0);
+  // --- ACCIÓN: APROBAR COTIZACIÓN ---
+  const aprobarCotizacion = async (cot: any) => {
+    setProcesandoAccion(true);
+    const { error } = await supabase
+      .from('cotizaciones')
+      .update({ estado: 'aprobado' })
+      .eq('id', cot.id);
+    if (!error) {
+      alert('Cotización aprobada correctamente');
+      cargarHistorial();
+      setCotizacionSeleccionada({ ...cot, estado: 'aprobado' });
+    }
+    setProcesandoAccion(false);
+  };
 
   // --- ACCIÓN: REGISTRAR PAGO ---
   const registrarPago = async (
@@ -68,125 +66,73 @@ export default function HistorialPage() {
   ) => {
     setProcesandoAccion(true);
     const nuevoTotalPagado = (cot.monto_pagado || 0) + usdAmortizados;
-
     const { error } = await supabase
       .from('cotizaciones')
-      .update({
-        monto_pagado: nuevoTotalPagado,
-        observaciones_pago: observacion, // Asegúrate de tener esta columna o guardarla en un log
-      })
+      .update({ monto_pagado: nuevoTotalPagado })
       .eq('id', cot.id);
 
     if (!error) {
-      const mensaje = `💰 *${tipo.toUpperCase()}*\n👤 *Cliente:* ${cot.clientes?.nombre}\n💵 *Abono:* $${usdAmortizados.toFixed(2)}\n📝 *Nota:* ${observacion || 'Sin nota'}\n📉 *Saldo Restante:* $${(cot.total - nuevoTotalPagado).toFixed(2)}`;
-      await enviarNotificacionTelegram(mensaje);
-      alert('Pago procesado exitosamente');
+      await enviarNotificacionTelegram(
+        `💰 *${tipo}*\n👤 *Cliente:* ${cot.clientes?.nombre}\n💵 *Amortizado:* $${usdAmortizados.toFixed(2)}\n📉 *Saldo:* $${(cot.total - nuevoTotalPagado).toFixed(2)}\n📝 *Nota:* ${observacion}`,
+      );
       setCotizacionSeleccionada(null);
-      limpiarCampos();
+      setMostrarAbonar(false);
       cargarHistorial();
     }
     setProcesandoAccion(false);
   };
 
-  const limpiarCampos = () => {
-    setTasaDia(0);
-    setMontoBsRecibido(0);
-    setMontoUsdRecibido(0);
-    setObservacion('');
-  };
-
   return (
-    <main className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
-      <div className="max-w-6xl mx-auto">
-        {/* RESUMEN DE CAJA */}
-        <section className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-emerald-600 p-6 rounded-[2rem] text-white shadow-lg">
-            <p className="text-[10px] font-black uppercase opacity-70">
-              Efectivo/Transferencia Bs (Hoy)
-            </p>
-            <h3 className="text-3xl font-black">
-              Bs. {cajaBsDia.toLocaleString('es-VE')}
-            </h3>
-          </div>
-          <div className="bg-blue-600 p-6 rounded-[2rem] text-white shadow-lg">
-            <p className="text-[10px] font-black uppercase opacity-70">
-              Divisas en Caja (Hoy)
-            </p>
-            <h3 className="text-3xl font-black">
-              ${cajaUsdDia.toLocaleString()}
-            </h3>
-          </div>
-          <div className="bg-white p-6 rounded-[2rem] border border-slate-200">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
-              Cuentas por Cobrar (USD)
-            </p>
-            <h3 className="text-3xl font-black text-red-600">
-              $
-              {ventasValidas
-                .reduce(
-                  (acc, curr) => acc + (curr.total - (curr.monto_pagado || 0)),
-                  0,
-                )
-                .toLocaleString()}
-            </h3>
-          </div>
-        </section>
-
-        {/* LISTADO */}
+    <main className="min-h-screen bg-slate-50 p-3 md:p-8">
+      <div className="max-w-4xl mx-auto">
+        {/* LISTADO DE TARJETAS */}
         <div className="space-y-3">
           {cotizaciones.map((cot) => {
-            const esBS = cot.moneda === 'BS';
-            const totalEnBs = cot.total * cot.tasa_bcv;
             const deudaUsd = cot.total - (cot.monto_pagado || 0);
             const estaPagado = deudaUsd <= 0.01;
-
             return (
               <div
                 key={cot.id}
-                className="bg-white p-5 rounded-[2rem] border border-slate-100 flex items-center justify-between hover:shadow-md transition-all"
+                className="bg-white p-4 rounded-3xl border border-slate-100 flex items-center justify-between shadow-sm"
               >
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <div
-                    className={`p-4 rounded-2xl ${estaPagado ? 'bg-emerald-100 text-emerald-600' : 'bg-red-50 text-red-400'}`}
+                    className={`p-3 rounded-2xl ${estaPagado ? 'bg-emerald-100 text-emerald-600' : 'bg-red-50 text-red-400'}`}
                   >
-                    {esBS ? <Wallet size={20} /> : <DollarSign size={20} />}
+                    <DollarSign size={20} />
                   </div>
                   <div>
-                    <h4 className="font-black text-slate-800 uppercase text-xs">
+                    <h4 className="font-black text-slate-800 uppercase text-[11px] leading-tight">
                       {cot.clientes?.nombre}
                     </h4>
-                    <p className="text-[10px] text-slate-400 font-bold">
-                      Ref Venta: {cot.tasa_bcv} Bs/$
-                    </p>
+                    <span
+                      className={`text-[8px] font-black px-2 py-0.5 rounded mt-1 inline-block ${cot.tipo_operacion === 'venta_directa' ? 'bg-purple-100 text-purple-600' : 'bg-orange-100 text-orange-600'}`}
+                    >
+                      {cot.tipo_operacion === 'venta_directa'
+                        ? 'VENTA DIRECTA'
+                        : 'COTIZACIÓN'}
+                    </span>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-8">
+                <div className="flex items-center gap-4">
                   <div className="text-right">
                     <p className="text-[9px] font-black text-slate-400 uppercase">
-                      Monto Venta
-                    </p>
-                    <p className="font-black text-slate-800">
-                      {esBS
-                        ? `Bs. ${totalEnBs.toLocaleString('es-VE')}`
-                        : `$${cot.total.toLocaleString()}`}
-                    </p>
-                  </div>
-                  <div className="text-right border-l pl-8">
-                    <p className="text-[9px] font-black text-slate-400 uppercase italic">
-                      Pendiente
+                      Saldo
                     </p>
                     <p
-                      className={`font-black ${estaPagado ? 'text-emerald-500' : 'text-red-600'}`}
+                      className={`font-black text-xs ${estaPagado ? 'text-emerald-500' : 'text-red-600'}`}
                     >
                       ${deudaUsd.toFixed(2)}
                     </p>
                   </div>
                   <button
-                    onClick={() => setCotizacionSeleccionada(cot)}
-                    className="p-3 bg-slate-900 text-white rounded-2xl"
+                    onClick={() => {
+                      setCotizacionSeleccionada(cot);
+                      setMostrarAbonar(false);
+                    }}
+                    className="p-3 bg-slate-900 text-white rounded-xl"
                   >
-                    <Eye size={20} />
+                    <Eye size={18} />
                   </button>
                 </div>
               </div>
@@ -194,53 +140,55 @@ export default function HistorialPage() {
           })}
         </div>
 
-        {/* MODAL DE COBRO PROFESIONAL */}
+        {/* MODAL RESPONSIVO */}
         {cotizacionSeleccionada && (
-          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-2xl rounded-[3.5rem] overflow-hidden shadow-2xl">
-              <div className="p-8 bg-slate-50 border-b flex justify-between items-center">
+          <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[100] flex items-end md:items-center justify-center">
+            <div className="bg-white w-full max-w-lg rounded-t-[2.5rem] md:rounded-[2.5rem] max-h-[95vh] overflow-y-auto shadow-2xl">
+              {/* Header Modal */}
+              <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white z-10">
                 <div>
-                  <h3 className="text-2xl font-black uppercase text-slate-800 leading-none">
-                    Gestionar Cobro
+                  <h3 className="text-lg font-black uppercase text-slate-800">
+                    Detalle de Cobro
                   </h3>
-                  <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">
+                  <p className="text-[10px] font-bold text-slate-400">
                     {cotizacionSeleccionada.clientes?.nombre}
                   </p>
                 </div>
                 <button
-                  onClick={() => {
-                    setCotizacionSeleccionada(null);
-                    limpiarCampos();
-                  }}
-                  className="p-3 hover:bg-slate-200 rounded-full"
+                  onClick={() => setCotizacionSeleccionada(null)}
+                  className="p-2 bg-slate-100 rounded-full"
                 >
-                  <X />
+                  <X size={20} />
                 </button>
               </div>
 
-              <div className="p-10 space-y-8">
-                {/* Banner de Deuda Original en Bs y $ */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-6 bg-slate-100 rounded-3xl">
-                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">
-                      Venta Original (Bs)
+              <div className="p-6 space-y-4">
+                {/* Resumen de Venta */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">
+                      Total Venta (Bs)
                     </p>
-                    <p className="text-2xl font-black text-slate-700">
+                    <p className="text-sm font-black text-slate-700">
                       Bs.{' '}
                       {(
                         cotizacionSeleccionada.total *
                         cotizacionSeleccionada.tasa_bcv
                       ).toLocaleString('es-VE')}
                     </p>
-                    <p className="text-[10px] font-bold text-slate-400 mt-1">
-                      Tasa Ref: {cotizacionSeleccionada.tasa_bcv}
+                    <p className="text-[9px] text-blue-500 font-bold">
+                      @ {cotizacionSeleccionada.tasa_bcv} Bs/$
                     </p>
                   </div>
-                  <div className="p-6 bg-blue-600 rounded-3xl text-white">
-                    <p className="text-[10px] font-black uppercase opacity-80 mb-1">
+                  <div
+                    className={`p-4 rounded-2xl border ${cotizacionSeleccionada.total - (cotizacionSeleccionada.monto_pagado || 0) <= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}
+                  >
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">
                       Resta por Cobrar ($)
                     </p>
-                    <p className="text-3xl font-black">
+                    <p
+                      className={`text-xl font-black ${cotizacionSeleccionada.total - (cotizacionSeleccionada.monto_pagado || 0) <= 0 ? 'text-emerald-600' : 'text-red-600'}`}
+                    >
                       $
                       {(
                         cotizacionSeleccionada.total -
@@ -250,113 +198,147 @@ export default function HistorialPage() {
                   </div>
                 </div>
 
-                {/* ACCIONES DE COBRO */}
-                <div className="space-y-4">
-                  <div className="flex gap-2">
+                {/* LOGICA DE ACCIONES */}
+                {cotizacionSeleccionada.estado === 'pendiente' ? (
+                  <div className="p-6 bg-amber-50 rounded-3xl border border-amber-200 text-center">
+                    <AlertCircle className="mx-auto mb-2 text-amber-500" />
+                    <p className="text-xs font-bold text-amber-800 mb-4">
+                      Esta cotización debe ser aprobada para procesar pagos.
+                    </p>
                     <button
-                      onClick={() =>
-                        registrarPago(
-                          cotizacionSeleccionada,
-                          cotizacionSeleccionada.total -
-                            (cotizacionSeleccionada.monto_pagado || 0),
-                          'Pago Total',
-                        )
-                      }
-                      className="flex-1 bg-emerald-500 text-white py-4 rounded-2xl font-black uppercase text-sm hover:bg-emerald-600 shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
+                      onClick={() => aprobarCotizacion(cotizacionSeleccionada)}
+                      className="w-full bg-amber-500 text-white p-4 rounded-2xl font-black uppercase text-xs"
                     >
-                      <CheckCircle2 size={18} /> Liquidar Deuda Completa
+                      Aprobar Ahora
                     </button>
                   </div>
-
-                  <div className="relative py-4">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t border-slate-200"></span>
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-white px-4 font-black text-slate-400 tracking-widest">
-                        O Registrar Abono
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Abono en Bs */}
-                    <div className="space-y-3 p-6 bg-slate-50 rounded-[2.5rem] border border-slate-200">
-                      <p className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1">
-                        <RefreshCcw size={12} /> Abono en Bolívares
-                      </p>
-                      <input
-                        type="number"
-                        placeholder="Tasa Hoy"
-                        className="w-full p-3 rounded-xl border-none ring-1 ring-slate-200 font-bold mb-2"
-                        onChange={(e) =>
-                          setTasaDia(parseFloat(e.target.value) || 0)
+                ) : (
+                  <div className="space-y-3">
+                    {/* Botones principales */}
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() =>
+                          registrarPago(
+                            cotizacionSeleccionada,
+                            cotizacionSeleccionada.total -
+                              (cotizacionSeleccionada.monto_pagado || 0),
+                            'Pago Completo',
+                          )
                         }
-                      />
-                      <input
-                        type="number"
-                        placeholder="Monto Bs."
-                        className="w-full p-4 rounded-xl border-none ring-2 ring-emerald-500 font-black text-xl"
-                        onChange={(e) =>
-                          setMontoBsRecibido(parseFloat(e.target.value) || 0)
-                        }
-                      />
+                        className="w-full bg-emerald-500 text-white p-4 rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle2 size={16} /> Liquidar Deuda Completa
+                      </button>
+                      <button
+                        onClick={() => setMostrarAbonar(!mostrarAbonar)}
+                        className="w-full bg-slate-100 text-slate-600 p-4 rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-2"
+                      >
+                        {mostrarAbonar
+                          ? 'Cancelar Abono'
+                          : 'Registrar Abono Parcial'}{' '}
+                        <ChevronDown
+                          size={16}
+                          className={mostrarAbonar ? 'rotate-180' : ''}
+                        />
+                      </button>
                     </div>
 
-                    {/* Abono en USD */}
-                    <div className="space-y-3 p-6 bg-blue-50 rounded-[2.5rem] border border-blue-100">
-                      <p className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1">
-                        <DollarSign size={12} /> Abono en Divisas
-                      </p>
-                      <div className="h-[48px]"></div>{' '}
-                      {/* Espaciador para alinear */}
-                      <input
-                        type="number"
-                        placeholder="Monto $"
-                        className="w-full p-4 rounded-xl border-none ring-2 ring-blue-500 font-black text-xl text-blue-700"
-                        onChange={(e) =>
-                          setMontoUsdRecibido(parseFloat(e.target.value) || 0)
-                        }
-                      />
-                    </div>
-                  </div>
+                    {/* Sección de Abono Expandible */}
+                    {mostrarAbonar && (
+                      <div className="space-y-4 p-4 bg-slate-50 rounded-3xl border border-slate-200 animate-in slide-in-from-top-2">
+                        <div className="grid grid-cols-1 gap-4">
+                          <div className="bg-white p-3 rounded-xl shadow-sm">
+                            <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">
+                              Tasa de Hoy (BCV)
+                            </label>
+                            <input
+                              type="number"
+                              placeholder="Ej: 54.20"
+                              className="w-full font-black text-lg outline-none"
+                              onChange={(e) =>
+                                setTasaDia(parseFloat(e.target.value) || 0)
+                              }
+                            />
+                          </div>
+                          <div className="bg-white p-3 rounded-xl shadow-sm">
+                            <label className="text-[9px] font-black text-emerald-500 uppercase block mb-1">
+                              Recibido en Bs
+                            </label>
+                            <input
+                              type="number"
+                              placeholder="Monto Bs."
+                              className="w-full font-black text-lg outline-none"
+                              onChange={(e) =>
+                                setMontoBsRecibido(
+                                  parseFloat(e.target.value) || 0,
+                                )
+                              }
+                            />
+                          </div>
+                          <div className="bg-white p-3 rounded-xl shadow-sm">
+                            <label className="text-[9px] font-black text-blue-500 uppercase block mb-1">
+                              Recibido en $ (Efectivo)
+                            </label>
+                            <input
+                              type="number"
+                              placeholder="Monto $"
+                              className="w-full font-black text-lg outline-none"
+                              onChange={(e) =>
+                                setMontoUsdRecibido(
+                                  parseFloat(e.target.value) || 0,
+                                )
+                              }
+                            />
+                          </div>
+                        </div>
 
-                  {/* Observaciones */}
-                  <div className="flex items-center gap-2 p-4 bg-slate-100 rounded-2xl">
-                    <MessageSquare size={18} className="text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Ej: Pago Móvil Banesco / Efectivo Divisas..."
-                      className="bg-transparent border-none outline-none w-full font-bold text-sm"
-                      value={observacion}
-                      onChange={(e) => setObservacion(e.target.value)}
-                    />
-                  </div>
+                        {/* Resultado Amortización */}
+                        {((tasaDia > 0 && montoBsRecibido > 0) ||
+                          montoUsdRecibido > 0) && (
+                          <div className="p-3 bg-slate-900 rounded-xl text-white flex justify-between items-center">
+                            <span className="text-[10px] font-bold uppercase">
+                              Resta de la deuda:
+                            </span>
+                            <span className="text-lg font-black text-emerald-400">
+                              -$
+                              {(
+                                montoBsRecibido / (tasaDia || 1) +
+                                montoUsdRecibido
+                              ).toFixed(2)}
+                            </span>
+                          </div>
+                        )}
 
-                  <button
-                    onClick={() => {
-                      const amortizacionBs =
-                        tasaDia > 0 ? montoBsRecibido / tasaDia : 0;
-                      const totalAmortizado = amortizacionBs + montoUsdRecibido;
-                      registrarPago(
-                        cotizacionSeleccionada,
-                        totalAmortizado,
-                        'Abono Parcial',
-                      );
-                    }}
-                    disabled={
-                      (!montoBsRecibido && !montoUsdRecibido) ||
-                      (montoBsRecibido > 0 && !tasaDia)
-                    }
-                    className="w-full bg-slate-900 text-white p-6 rounded-3xl font-black uppercase tracking-widest hover:bg-black transition-all flex items-center justify-center gap-3 disabled:opacity-20"
-                  >
-                    {procesandoAccion ? (
-                      <Loader2 className="animate-spin" />
-                    ) : (
-                      'Procesar y Actualizar'
+                        <div className="bg-white p-3 rounded-xl flex items-center gap-2">
+                          <MessageSquare size={16} className="text-slate-300" />
+                          <input
+                            type="text"
+                            placeholder="Nota (Ej: Pago móvil Banesco)"
+                            className="text-xs font-bold w-full outline-none"
+                            onChange={(e) => setObservacion(e.target.value)}
+                          />
+                        </div>
+
+                        <button
+                          onClick={() =>
+                            registrarPago(
+                              cotizacionSeleccionada,
+                              montoBsRecibido / tasaDia + montoUsdRecibido,
+                              'Abono Parcial',
+                            )
+                          }
+                          disabled={
+                            (!montoBsRecibido && !montoUsdRecibido) ||
+                            (montoBsRecibido > 0 && !tasaDia)
+                          }
+                          className="w-full bg-blue-600 text-white p-4 rounded-2xl font-black uppercase text-xs shadow-lg shadow-blue-100"
+                        >
+                          Confirmar Abono
+                        </button>
+                      </div>
                     )}
-                  </button>
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
