@@ -33,7 +33,6 @@ export default function CotizarPage() {
   const [miEmpresaId, setMiEmpresaId] = useState<string | null>(null);
   const [datosEmpresa, setDatosEmpresa] = useState<any>(null); // Estado para el perfil de empresa
   const [mostrarListaClientes, setMostrarListaClientes] = useState(false);
-
   // ... tus estados anteriores
   const [tipoOperacion, setTipoOperacion] = useState<
     'cotizacion' | 'venta_directa'
@@ -405,12 +404,12 @@ export default function CotizarPage() {
 
   // --- RENDERIZADO ---
   return (
-    <main className="min-h-screen bg-[#0f172a] p-4 md:p-8 pb-32">
+    <main className="min-h-screen bg-slate-50 p-4 md:p-8 pb-32">
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
         {/* IZQUIERDA: BUSCADOR Y PRODUCTOS */}
         <div className="flex-1 space-y-6">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-4xl font-black text-white tracking-tighter">
+            <h1 className="text-4xl font-black text-slate-800 tracking-tighter">
               {tipoOperacion === 'cotizacion' ? 'Cotizar' : 'Venta Directa'}
             </h1>
 
@@ -418,13 +417,13 @@ export default function CotizarPage() {
             <div className="flex bg-slate-200 p-1 rounded-2xl shadow-inner">
               <button
                 onClick={() => setTipoOperacion('cotizacion')}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${tipoOperacion === 'cotizacion' ? 'bg-[#1e293b] text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${tipoOperacion === 'cotizacion' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
               >
                 COTIZACIÓN
               </button>
               <button
                 onClick={() => setTipoOperacion('venta_directa')}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${tipoOperacion === 'venta_directa' ? 'bg-[#1e293b] text-green-600 shadow-sm' : 'text-slate-500'}`}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${tipoOperacion === 'venta_directa' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500'}`}
               >
                 VENTA DIRECTA
               </button>
@@ -432,7 +431,7 @@ export default function CotizarPage() {
           </div>
 
           {/* REEMPLAZO DEL SELECT POR BUSCADOR INTELIGENTE */}
-          <section className="bg-[#1e293b] p-6 rounded-[2rem] shadow-sm border border-slate-100 relative">
+          <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 relative">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block ml-2">
               Cliente (Selecciona o busca)
             </label>
@@ -444,7 +443,7 @@ export default function CotizarPage() {
               >
                 <span
                   className={
-                    clienteSeleccionado ? 'text-white' : 'text-slate-400'
+                    clienteSeleccionado ? 'text-slate-800' : 'text-slate-400'
                   }
                 >
                   {clienteSeleccionado
@@ -456,12 +455,12 @@ export default function CotizarPage() {
 
               {/* Dropdown de Clientes */}
               {mostrarListaClientes && (
-                <div className="absolute z-[100] left-0 right-0 mt-2 bg-[#1e293b] rounded-[1.5rem] shadow-2xl border border-slate-200 overflow-hidden">
+                <div className="absolute z-[100] left-0 right-0 mt-2 bg-white rounded-[1.5rem] shadow-2xl border border-slate-200 overflow-hidden">
                   <div className="p-4 border-b border-slate-100 bg-slate-50">
                     <input
                       type="text"
                       placeholder="Escribe para filtrar..."
-                      className="w-full p-3 bg-[#1e293b] border border-slate-200 rounded-xl outline-none"
+                      className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none"
                       onChange={(e) => setBusquedaCliente(e.target.value)}
                     />
                   </div>
@@ -481,7 +480,7 @@ export default function CotizarPage() {
                           }}
                           className="p-4 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-none"
                         >
-                          <p className="font-bold text-white uppercase">
+                          <p className="font-bold text-slate-800 uppercase">
                             {c.nombre} {c.apellido}
                           </p>
                           <p className="text-xs text-slate-400">
@@ -495,7 +494,7 @@ export default function CotizarPage() {
             </div>
           </section>
           {/* --- PANEL DE TASA Y CAMBIO DE MONEDA --- */}
-          <section className="bg-[#1e293b] p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-6">
+          <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-6">
             <div className="flex items-center gap-4">
               <div className="bg-amber-50 p-4 rounded-[1.5rem] border border-amber-100">
                 <DollarSign className="text-amber-600" size={28} />
@@ -508,7 +507,7 @@ export default function CotizarPage() {
                   type="number"
                   value={tasaBCV}
                   onChange={(e) => setTasaBCV(parseFloat(e.target.value) || 0)}
-                  className="text-3xl font-black text-white bg-transparent outline-none w-32 focus:text-blue-600 transition-colors"
+                  className="text-3xl font-black text-slate-800 bg-transparent outline-none w-32 focus:text-blue-600 transition-colors"
                 />
               </div>
             </div>
@@ -518,7 +517,7 @@ export default function CotizarPage() {
                 onClick={() => setMonedaPrincipal('USD')}
                 className={`px-8 py-3 rounded-[1.4rem] font-black text-sm transition-all flex items-center gap-2 ${
                   monedaPrincipal === 'USD'
-                    ? 'bg-[#1e293b] text-blue-600 shadow-md scale-105'
+                    ? 'bg-white text-blue-600 shadow-md scale-105'
                     : 'text-slate-400'
                 }`}
               >
@@ -528,7 +527,7 @@ export default function CotizarPage() {
                 onClick={() => setMonedaPrincipal('BS')}
                 className={`px-8 py-3 rounded-[1.4rem] font-black text-sm transition-all flex items-center gap-2 ${
                   monedaPrincipal === 'BS'
-                    ? 'bg-[#1e293b] text-emerald-600 shadow-md scale-105'
+                    ? 'bg-white text-emerald-600 shadow-md scale-105'
                     : 'text-slate-400'
                 }`}
               >
@@ -537,7 +536,7 @@ export default function CotizarPage() {
             </div>
           </section>
 
-          <section className="bg-[#1e293b] p-6 rounded-[2rem] shadow-sm border border-slate-100">
+          <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
             <div className="relative mb-6">
               <Search
                 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
@@ -564,7 +563,7 @@ export default function CotizarPage() {
                     className={`p-6 rounded-[2rem] border-2 text-left transition-all relative ${
                       carrito.find((i) => i.id === p.id)
                         ? 'border-blue-500 bg-blue-50'
-                        : 'border-slate-100 bg-[#1e293b]'
+                        : 'border-slate-100 bg-white'
                     }`}
                   >
                     {/* ESTE ES EL CONTADOR RESTAURADO */}
@@ -573,7 +572,7 @@ export default function CotizarPage() {
                         {carrito.find((i) => i.id === p.id).cantidad}
                       </div>
                     )}
-                    <p className="font-black text-xl text-white mb-2">
+                    <p className="font-black text-xl text-slate-800 mb-2">
                       {p.nombre}
                     </p>
                     <div className="flex justify-between items-end">
@@ -606,8 +605,8 @@ export default function CotizarPage() {
 
         {/* DERECHA: RESUMEN (VISIBLE EN ESCRITORIO) */}
         <div className="hidden lg:block w-[450px]">
-          <div className="bg-[#1e293b] p-8 rounded-[3rem] shadow-2xl border border-blue-50 sticky top-8">
-            <h2 className="text-2xl font-black mb-6 text-white flex justify-between">
+          <div className="bg-white p-8 rounded-[3rem] shadow-2xl border border-blue-50 sticky top-8">
+            <h2 className="text-2xl font-black mb-6 text-slate-800 flex justify-between">
               Resumen <ShoppingCart className="text-blue-500" />
             </h2>
             {/* AQUÍ DEFINIMOS EL SCROLL PARA PC */}
@@ -645,7 +644,7 @@ export default function CotizarPage() {
                           setMontoPagado(calcularTotal());
                         }
                       }}
-                      className="w-full p-4 bg-[#1e293b] rounded-2xl font-bold text-slate-700 shadow-sm outline-none border-none"
+                      className="w-full p-4 bg-white rounded-2xl font-bold text-slate-700 shadow-sm outline-none border-none"
                     >
                       <option value="pendiente_pago">
                         ❌ Pendiente (Deuda)
@@ -666,7 +665,7 @@ export default function CotizarPage() {
                       onChange={(e) =>
                         setMontoPagado(parseFloat(e.target.value) || 0)
                       }
-                      className="w-full p-4 bg-[#1e293b] rounded-2xl font-bold text-slate-700 shadow-sm outline-none border-none"
+                      className="w-full p-4 bg-white rounded-2xl font-bold text-slate-700 shadow-sm outline-none border-none"
                       placeholder="0.00"
                     />
                   </div>
@@ -800,11 +799,13 @@ export default function CotizarPage() {
 
       {/* --- MODAL RESUMEN MÓVIL OPTIMIZADO --- */}
       {mostrarModalResumen && (
-        <div className="fixed inset-0 z-[100] bg-[#1e293b] flex flex-col animate-in slide-in-from-bottom duration-300">
+        <div className="fixed inset-0 z-[100] bg-white flex flex-col animate-in slide-in-from-bottom duration-300">
           {/* Cabecera Fija */}
           <div className="p-6 border-b flex justify-between items-center bg-slate-50">
             <div>
-              <h2 className="text-xl font-black text-white">Revisar Orden</h2>
+              <h2 className="text-xl font-black text-slate-800">
+                Revisar Orden
+              </h2>
               <p className="text-xs font-bold text-blue-600 uppercase">
                 {clienteSeleccionado
                   ? `${clienteSeleccionado.nombre} ${clienteSeleccionado.apellido || ''}`
@@ -835,7 +836,7 @@ export default function CotizarPage() {
           </div>
 
           {/* SECCIÓN DE PAGO Y ACCIÓN: Fija abajo */}
-          <div className="p-6 bg-[#1e293b] border-t shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pb-10">
+          <div className="p-6 bg-white border-t shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pb-10">
             {tipoOperacion === 'venta_directa' && (
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="space-y-1">
@@ -914,9 +915,9 @@ function TarjetaProductoCarrito({
   tasaBCV,
 }: any) {
   return (
-    <div className="bg-[#1e293b] p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+    <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
       <div className="flex-1">
-        <h4 className="font-bold text-white text-sm uppercase leading-tight">
+        <h4 className="font-bold text-slate-800 text-sm uppercase leading-tight">
           {item.nombre}
         </h4>
         <p className="text-blue-600 font-black text-xs mt-1">
@@ -932,7 +933,7 @@ function TarjetaProductoCarrito({
           onClick={() =>
             actualizarItem(item.id, 'cantidad', (item.cantidad - 1).toString())
           }
-          className="p-2 hover:bg-[#1e293b] rounded-xl transition-colors"
+          className="p-2 hover:bg-white rounded-xl transition-colors"
         >
           <Minus size={16} />
         </button>
@@ -946,7 +947,7 @@ function TarjetaProductoCarrito({
           onClick={() =>
             actualizarItem(item.id, 'cantidad', (item.cantidad + 1).toString())
           }
-          className="p-2 hover:bg-[#1e293b] rounded-xl transition-colors"
+          className="p-2 hover:bg-white rounded-xl transition-colors"
         >
           <Plus size={16} />
         </button>
