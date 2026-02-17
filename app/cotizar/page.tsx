@@ -125,41 +125,29 @@ export default function CotizarPage() {
       const telEmp = datosEmpresa?.telefono || '';
       const logoUrl = datosEmpresa?.logo_url;
 
-      // 1. LOGO DINÁMICO
       if (logoUrl) {
         try {
           doc.addImage(logoUrl, 'PNG', 10, 10, 35, 35);
         } catch (e) {
-          console.error('Error al cargar logo personalizado', e);
+          console.error(e);
         }
       }
 
-      // Datos de la Empresa (Membrete Dinámico)
       doc.setTextColor(30, 41, 59);
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
       doc.text(nombreEmp.toUpperCase(), 50, 25);
-
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text(`RIF: ${rifEmp}`, 50, 32);
-      doc.text(
-        telEmp ? `Telf: ${telEmp}` : 'Calidad y confianza en cada material',
-        50,
-        37,
-      );
+      doc.text(telEmp ? `Telf: ${telEmp}` : 'Calidad y confianza', 50, 37);
 
-      // Etiqueta COTIZACIÓN
-      doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
-      doc.setFontSize(16);
-      // Definimos el título según el tipo de operación
       const tituloDocumento =
         tipoOperacion === 'venta_directa' ? 'NOTA DE ENTREGA' : 'COTIZACIÓN';
-
-      // Etiqueta Dinámica
       doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
       doc.setFontSize(16);
-      doc.text(tituloDocumento, 196, 25, { align: 'right' }); // <--- Aquí usamos la variable
+      doc.text(tituloDocumento, 196, 25, { align: 'right' });
+
       doc.setFontSize(9);
       doc.setTextColor(100, 116, 139);
       doc.text(`N°: ${Math.floor(Date.now() / 10000)}`, 196, 32, {
@@ -169,12 +157,11 @@ export default function CotizarPage() {
         align: 'right',
       });
 
-      // Línea divisoria
       doc.setDrawColor(colorDorado[0], colorDorado[1], colorDorado[2]);
       doc.setLineWidth(1);
       doc.line(14, 58, 196, 58);
 
-      // --- 2. CAJA DE CLIENTE ---
+      // --- CAJA DE CLIENTE ---
       doc.setDrawColor(226, 232, 240);
       doc.roundedRect(14, 65, 182, 35, 2, 2);
       doc.setFontSize(10);
@@ -189,11 +176,9 @@ export default function CotizarPage() {
         72,
       );
       doc.text(`${cliente.cedula || cliente.rif || 'N/A'}`, 50, 79);
-      const textoDestino = notasExtra || 'Por definir';
-      const notasCortadas = doc.splitTextToSize(textoDestino, 135);
-      doc.text(notasCortadas, 50, 86);
+      doc.text(doc.splitTextToSize(notasExtra || 'Por definir', 135), 50, 86);
 
-      // --- 3. TABLA ---
+      // --- TABLA ---
       const simbolo = monedaPrincipal === 'BS' ? 'Bs.' : '$';
       const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
 
@@ -210,8 +195,8 @@ export default function CotizarPage() {
         body: items.map((i) => [
           i.nombre.toUpperCase(),
           i.cantidad,
-          `${simbolo} ${(i.precio * factor).toLocaleString(monedaPrincipal === 'BS' ? 'es-VE' : 'en-US', { minimumFractionDigits: 2 })}`,
-          `${simbolo} ${(i.precio * i.cantidad * factor).toLocaleString(monedaPrincipal === 'BS' ? 'es-VE' : 'en-US', { minimumFractionDigits: 2 })}`,
+          `${simbolo} ${(i.precio * factor).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
+          `${simbolo} ${(i.precio * i.cantidad * factor).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
         ]),
         headStyles: { fillColor: [30, 41, 59], halign: 'center' },
         styles: { fontSize: 8 },
@@ -222,95 +207,76 @@ export default function CotizarPage() {
         },
       });
 
-      // --- DIBUJAR SELLO DE ESTADO ---
+      const finalY = (doc as any).lastAutoTable.finalY + 15;
+
+      // --- LÓGICA DE PAGOS Y SELLO ---
       if (tipoOperacion === 'venta_directa') {
-        const deuda = total - montoPagado;
-        const esPagado = deuda <= 0;
+        const deudaUsd = total - montoPagado;
+        const estaSolvente = deudaUsd <= 0.01; // Margen de error decimal
 
-        // Posición del sello (lado izquierdo inferior)
-        const selloX = 30;
-        const selloY = (doc as any).lastAutoTable.finalY + 20;
-
-        // Color del sello: Verde si está pagado, Rojo si debe
-        if (esPagado) {
-          doc.setDrawColor(0, 150, 0);
-          doc.setTextColor(0, 150, 0);
+        // Dibujar Sello Visual
+        const selloX = 14;
+        const selloY = finalY;
+        if (estaSolvente) {
+          doc.setDrawColor(0, 128, 0); // Verde
+          doc.setTextColor(0, 128, 0);
         } else {
-          doc.setDrawColor(200, 0, 0);
+          doc.setDrawColor(200, 0, 0); // Rojo
           doc.setTextColor(200, 0, 0);
         }
 
-        // Dibujar círculo o rectángulo redondeado
-        doc.setLineWidth(1);
-        doc.roundedRect(selloX, selloY, 40, 15, 3, 3, 'S');
-
-        // Texto del sello
-        doc.setFontSize(10);
+        doc.setLineWidth(1.5);
+        doc.roundedRect(selloX, selloY, 50, 18, 3, 3);
+        doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text(esPagado ? 'PAGADO' : 'PENDIENTE', selloX + 20, selloY + 10, {
-          align: 'center',
+        doc.text(
+          estaSolvente ? 'PAGADO' : 'PENDIENTE',
+          selloX + 25,
+          selloY + 11,
+          { align: 'center' },
+        );
+
+        // Detalle de saldos a la derecha
+        doc.setFontSize(12);
+        doc.setTextColor(30, 41, 59);
+        doc.text(`TOTAL: $${total.toLocaleString()}`, 196, finalY + 5, {
+          align: 'right',
         });
 
-        // Si debe, poner el monto pequeño debajo
-        if (!esPagado) {
-          doc.setFontSize(7);
-          doc.text(
-            `DEBE: $${deuda.toLocaleString()}`,
-            selloX + 20,
-            selloY + 13,
-            { align: 'center' },
-          );
-        }
-      }
-
-      // --- 4. TOTAL ---
-      const finalY = (doc as any).lastAutoTable.finalY + 15;
-      doc.setFontSize(16);
-      doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
-      doc.setFont('helvetica', 'bold');
-      doc.text(
-        `TOTAL A PAGAR: ${simbolo} ${(total * factor).toLocaleString(monedaPrincipal === 'BS' ? 'es-VE' : 'en-US', { minimumFractionDigits: 2 })}`,
-        196,
-        finalY,
-        { align: 'right' },
-      );
-      // !!! NUEVO: Información de pago solo si es venta
-      if (tipoOperacion === 'venta_directa') {
         doc.setFontSize(10);
-        doc.setTextColor(100, 116, 139); // Gris
-        doc.setFont('helvetica', 'normal');
-
-        const deuda = total - montoPagado;
-
+        doc.setTextColor(100, 116, 139);
         doc.text(
-          `Monto Abonado: $ ${montoPagado.toLocaleString()}`,
+          `Monto Recibido: $${montoPagado.toLocaleString()}`,
           196,
-          finalY + 8,
+          finalY + 12,
           { align: 'right' },
         );
 
-        if (deuda > 0) {
-          doc.setTextColor(200, 0, 0); // Rojo para la deuda
+        if (!estaSolvente) {
+          doc.setTextColor(200, 0, 0);
+          doc.setFont('helvetica', 'bold');
           doc.text(
-            `Restante por Pagar: $ ${deuda.toLocaleString()}`,
+            `RESTANTE: $${deudaUsd.toLocaleString()}`,
             196,
-            finalY + 14,
+            finalY + 19,
             { align: 'right' },
           );
-        } else {
-          doc.setTextColor(0, 150, 0); // Verde si está solvente
-          doc.text('ESTADO: TOTALMENTE PAGADO', 196, finalY + 14, {
-            align: 'right',
-          });
         }
+      } else {
+        // Si es solo cotización, solo muestra el total
+        doc.setFontSize(14);
+        doc.setTextColor(colorDorado[0], colorDorado[1], colorDorado[2]);
+        doc.text(
+          `TOTAL PRESUPUESTO: ${simbolo} ${(total * factor).toLocaleString('es-VE')}`,
+          196,
+          finalY + 5,
+          { align: 'right' },
+        );
       }
 
       const nombreArchivo =
         tipoOperacion === 'venta_directa' ? 'Nota_Entrega' : 'Cotizacion';
-
-      doc.save(
-        `${nombreArchivo}_${nombreEmp.replace(/\s/g, '_')}_${cliente.nombre}.pdf`,
-      );
+      doc.save(`${nombreArchivo}_${cliente.nombre}.pdf`);
     } catch (err) {
       console.error(err);
       alert('Error al generar PDF');
