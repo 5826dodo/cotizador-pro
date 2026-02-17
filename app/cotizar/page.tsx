@@ -213,58 +213,63 @@ export default function CotizarPage() {
       const finalY = (doc as any).lastAutoTable.finalY + 15;
 
       // --- LÓGICA DE PAGOS Y SELLO ---
-      // --- LÓGICA DE PAGOS Y SELLO ---
+      // --- LÓGICA DE PAGOS Y SELLO (CORREGIDA) ---
       if (tipoOperacion === 'venta_directa') {
         const finalY = (doc as any).lastAutoTable.finalY + 15;
         const simbolo = monedaPrincipal === 'BS' ? 'Bs.' : '$';
         const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
 
-        // 1. Definir color y texto según estado
-        let colorSello = [239, 68, 68]; // Rojo (Pendiente)
+        // El TOTAL siempre se multiplica por el factor para mostrarlo en la moneda elegida
+        const totalEnMoneda = total * factor;
+
+        // EL CAMBIO CLAVE: El montoPagado ya viene en la moneda elegida desde el input de la pantalla
+        // por lo tanto, NO se debe multiplicar por el factor nuevamente.
+        const abonadoEnMoneda = montoPagado;
+        const deudaEnMoneda = totalEnMoneda - abonadoEnMoneda;
+
+        let colorSello = [239, 68, 68]; // Rojo
         let textoSello = 'PENDIENTE';
 
         if (estadoPago === 'pagado') {
-          colorSello = [34, 197, 94]; // Verde (Pagado)
+          colorSello = [34, 197, 94]; // Verde
           textoSello = 'PAGADO';
         } else if (estadoPago === 'pago_parcial') {
-          colorSello = [234, 179, 8]; // Amarillo (Abono)
+          colorSello = [234, 179, 8]; // Amarillo
           textoSello = 'ABONO';
         }
 
-        // 2. Dibujar el Sello
+        // Dibujar Sello
         doc.setDrawColor(colorSello[0], colorSello[1], colorSello[2]);
         doc.setTextColor(colorSello[0], colorSello[1], colorSello[2]);
         doc.setLineWidth(1.5);
         doc.roundedRect(14, finalY, 50, 18, 3, 3);
         doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
         doc.text(textoSello, 39, finalY + 11, { align: 'center' });
 
-        // 3. Totales a la derecha (Con soporte para BS)
+        // Mostrar Totales
         doc.setTextColor(30, 41, 59);
         doc.setFontSize(12);
         doc.text(
-          `TOTAL: ${simbolo} ${(total * factor).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
+          `TOTAL: ${simbolo} ${totalEnMoneda.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
           196,
           finalY + 5,
           { align: 'right' },
         );
 
-        // Si es ABONO, mostrar detalles de deuda
         if (estadoPago === 'pago_parcial') {
           doc.setFontSize(10);
           doc.setTextColor(100, 116, 139);
           doc.text(
-            `Recibido: ${simbolo} ${(montoPagado * factor).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
+            `Recibido: ${simbolo} ${abonadoEnMoneda.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
             196,
             finalY + 12,
             { align: 'right' },
           );
 
-          doc.setTextColor(200, 0, 0); // Rojo para la deuda
+          doc.setTextColor(200, 0, 0);
           doc.setFont('helvetica', 'bold');
           doc.text(
-            `RESTA: ${simbolo} ${((total - montoPagado) * factor).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
+            `RESTA: ${simbolo} ${deudaEnMoneda.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
             196,
             finalY + 19,
             { align: 'right' },
@@ -507,9 +512,11 @@ export default function CotizarPage() {
                 </p>
                 <input
                   type="number"
+                  step="any" // <--- Esto permite cualquier cantidad de decimales sin errores de validación
                   value={tasaBCV}
                   onChange={(e) => setTasaBCV(parseFloat(e.target.value) || 0)}
-                  className="text-3xl font-black text-black bg-slate-50 border-b-4 border-blue-500 outline-none w-32 px-2 py-1"
+                  // Aumentamos el ancho a w-40 y quitamos el padding lateral excesivo
+                  className="text-3xl font-black text-black bg-slate-50 border-b-4 border-blue-500 outline-none w-48 px-2 py-1"
                 />
               </div>
             </div>
