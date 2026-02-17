@@ -349,16 +349,17 @@ export default function CotizarPage() {
         {
           cliente_id: clienteSeleccionado.id,
           productos_seleccionados: carrito,
-          total: total,
+          total: total, // Este total suele ser en $ en base de datos
           empresa_id: miEmpresaId,
-          // LOGICA DE ESTADOS NUEVA
           estado: esVenta ? 'aprobada' : 'pendiente',
           tipo_operacion: tipoOperacion,
           estado_pago: esVenta ? estadoPago : 'pendiente_pago',
-          monto_pagado: esVenta ? montoPagado : 0,
+          // Si el monto fue en BS, lo convertimos a $ para la DB (opcional, depende de tu preferencia)
+          monto_pagado:
+            monedaPrincipal === 'BS' ? montoPagado / tasaBCV : montoPagado,
           moneda: monedaPrincipal,
           tasa_bcv: tasaBCV,
-          observaciones: observaciones, // Asegúrate de que este campo exista en tu tabla
+          observaciones: observaciones,
         },
       ]);
 
@@ -455,12 +456,12 @@ export default function CotizarPage() {
 
               {/* Dropdown de Clientes */}
               {mostrarListaClientes && (
-                <div className="absolute z-[100] left-0 right-0 mt-2 bg-white rounded-[1.5rem] shadow-2xl border border-slate-200 overflow-hidden">
+                <div className="absolute z-[100] left-0 right-0 mt-2 bg-white rounded-[1.5rem] shadow-2xl border border-slate-300 overflow-hidden">
                   <div className="p-4 border-b border-slate-100 bg-slate-50">
                     <input
                       type="text"
                       placeholder="Escribe para filtrar..."
-                      className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none"
+                      className="w-full p-3 bg-white border border-slate-300 rounded-xl outline-none"
                       onChange={(e) => setBusquedaCliente(e.target.value)}
                     />
                   </div>
@@ -494,48 +495,50 @@ export default function CotizarPage() {
             </div>
           </section>
           {/* --- PANEL DE TASA Y CAMBIO DE MONEDA --- */}
-          <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-6">
+          {/* --- PANEL DE TASA Y CAMBIO DE MONEDA --- */}
+          <section className="bg-white p-6 rounded-[2rem] shadow-md border border-slate-300 flex flex-wrap items-center justify-between gap-6">
             <div className="flex items-center gap-4">
-              <div className="bg-amber-50 p-4 rounded-[1.5rem] border border-amber-100">
-                <DollarSign className="text-amber-600" size={28} />
+              <div className="bg-blue-600 p-4 rounded-[1.5rem] shadow-lg shadow-blue-200">
+                <DollarSign className="text-white" size={28} />
               </div>
               <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">
                   Tasa BCV (Bs/$)
                 </p>
                 <input
                   type="number"
                   value={tasaBCV}
                   onChange={(e) => setTasaBCV(parseFloat(e.target.value) || 0)}
-                  className="text-3xl font-black text-slate-800 bg-transparent outline-none w-32 focus:text-blue-600 transition-colors"
+                  className="text-3xl font-black text-black bg-slate-50 border-b-4 border-blue-500 outline-none w-32 px-2 py-1"
                 />
               </div>
             </div>
-
-            <div className="flex bg-slate-100 p-2 rounded-[1.8rem] shadow-inner">
+            {/* Botones de moneda con más contraste */}
+            <div className="flex bg-slate-200 p-2 rounded-[1.8rem]">
               <button
                 onClick={() => setMonedaPrincipal('USD')}
-                className={`px-8 py-3 rounded-[1.4rem] font-black text-sm transition-all flex items-center gap-2 ${
+                className={`px-8 py-3 rounded-[1.4rem] font-black text-sm transition-all ${
                   monedaPrincipal === 'USD'
-                    ? 'bg-white text-blue-600 shadow-md scale-105'
-                    : 'text-slate-400'
+                    ? 'bg-blue-600 text-white shadow-lg'
+                    : 'text-slate-600'
                 }`}
               >
-                $ USD
+                {' '}
+                $ USD{' '}
               </button>
               <button
                 onClick={() => setMonedaPrincipal('BS')}
-                className={`px-8 py-3 rounded-[1.4rem] font-black text-sm transition-all flex items-center gap-2 ${
+                className={`px-8 py-3 rounded-[1.4rem] font-black text-sm transition-all ${
                   monedaPrincipal === 'BS'
-                    ? 'bg-white text-emerald-600 shadow-md scale-105'
-                    : 'text-slate-400'
+                    ? 'bg-emerald-600 text-white shadow-lg'
+                    : 'text-slate-600'
                 }`}
               >
-                Bs BS
+                {' '}
+                Bs BS{' '}
               </button>
             </div>
           </section>
-
           <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
             <div className="relative mb-6">
               <Search
@@ -629,9 +632,9 @@ export default function CotizarPage() {
             <div className="mt-6 pt-6 border-t-4 border-dashed border-slate-100">
               {/* !!! PEGA EL NUEVO BLOQUE JUSTO AQUÍ !!! */}
               {tipoOperacion === 'venta_directa' && (
-                <div className="mb-6 space-y-4 p-5 bg-emerald-50 rounded-[2rem] border border-emerald-100">
+                <div className="mb-6 space-y-4 p-5 bg-slate-50 rounded-[2rem] border-2 border-slate-200">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-emerald-700 uppercase ml-2 tracking-widest">
+                    <label className="text-[10px] font-black text-slate-600 uppercase ml-2 tracking-widest">
                       Estado del Pago
                     </label>
                     <select
@@ -639,12 +642,12 @@ export default function CotizarPage() {
                       onChange={(e) => {
                         const nuevoEstado = e.target.value;
                         setEstadoPago(nuevoEstado);
-                        // Si selecciona pagado, autocompletar el monto
                         if (nuevoEstado === 'pagado') {
+                          // Si paga todo, calculamos el total según la moneda actual
                           setMontoPagado(calcularTotal());
                         }
                       }}
-                      className="w-full p-4 bg-white rounded-2xl font-bold text-slate-700 shadow-sm outline-none border-none"
+                      className="w-full p-4 bg-white rounded-2xl font-bold text-black border-2 border-slate-200 outline-none focus:border-blue-500"
                     >
                       <option value="pendiente_pago">
                         ❌ Pendiente (Deuda)
@@ -655,20 +658,33 @@ export default function CotizarPage() {
                       <option value="pagado">✅ Pagado Total</option>
                     </select>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-emerald-700 uppercase ml-2 tracking-widest">
-                      Monto Recibido ($)
-                    </label>
-                    <input
-                      type="number"
-                      value={montoPagado}
-                      onChange={(e) =>
-                        setMontoPagado(parseFloat(e.target.value) || 0)
-                      }
-                      className="w-full p-4 bg-white rounded-2xl font-bold text-slate-700 shadow-sm outline-none border-none"
-                      placeholder="0.00"
-                    />
-                  </div>
+
+                  {estadoPago !== 'pendiente_pago' && (
+                    <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
+                      <label className="text-[10px] font-black text-blue-700 uppercase ml-2 tracking-widest">
+                        Monto Recibido en {monedaPrincipal}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={montoPagado}
+                          onChange={(e) =>
+                            setMontoPagado(parseFloat(e.target.value) || 0)
+                          }
+                          className="w-full p-5 bg-white rounded-2xl font-black text-2xl text-black border-2 border-blue-500 shadow-inner outline-none"
+                          placeholder="0.00"
+                        />
+                        <div className="mt-2 ml-2 flex justify-between items-center">
+                          <span className="text-[10px] font-bold text-slate-400">
+                            Equivale a:
+                            {monedaPrincipal === 'USD'
+                              ? ` Bs. ${(montoPagado * tasaBCV).toLocaleString('es-VE')}`
+                              : ` $ ${(montoPagado / tasaBCV).toFixed(2)}`}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               <div className="flex justify-between items-center mb-6">
