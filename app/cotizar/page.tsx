@@ -211,18 +211,22 @@ export default function CotizarPage() {
 
       // --- LÓGICA DE PAGOS Y SELLO ---
       if (tipoOperacion === 'venta_directa') {
-        const deudaUsd = total - montoPagado;
-        const estaSolvente = deudaUsd <= 0.01; // Margen de error decimal
+        const totalVenta = total;
+        // Comparamos el estado seleccionado O si el monto cubre el total
+        const estaSolvente =
+          estadoPago === 'pagado' || montoPagado >= totalVenta - 0.01;
+        const deudaUsd = Math.max(0, totalVenta - montoPagado);
 
         // Dibujar Sello Visual
         const selloX = 14;
         const selloY = finalY;
+
         if (estaSolvente) {
-          doc.setDrawColor(0, 128, 0); // Verde
-          doc.setTextColor(0, 128, 0);
+          doc.setDrawColor(34, 197, 94); // Verde Esmeralda (Tailwind 500)
+          doc.setTextColor(34, 197, 94);
         } else {
-          doc.setDrawColor(200, 0, 0); // Rojo
-          doc.setTextColor(200, 0, 0);
+          doc.setDrawColor(239, 68, 68); // Rojo (Tailwind 500)
+          doc.setTextColor(239, 68, 68);
         }
 
         doc.setLineWidth(1.5);
@@ -661,7 +665,14 @@ export default function CotizarPage() {
                     </label>
                     <select
                       value={estadoPago}
-                      onChange={(e) => setEstadoPago(e.target.value)}
+                      onChange={(e) => {
+                        const nuevoEstado = e.target.value;
+                        setEstadoPago(nuevoEstado);
+                        // Si selecciona pagado, autocompletar el monto
+                        if (nuevoEstado === 'pagado') {
+                          setMontoPagado(calcularTotal());
+                        }
+                      }}
                       className="w-full p-4 bg-white rounded-2xl font-bold text-slate-700 shadow-sm outline-none border-none"
                     >
                       <option value="pendiente_pago">
