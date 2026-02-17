@@ -89,15 +89,13 @@ export default function CotizarPage() {
     setCarrito((prevCarrito) =>
       prevCarrito.map((item) => {
         if (item.id === id) {
-          if (valor === '') return { ...item, [campo]: '' };
-          const numValor = parseFloat(valor);
+          const num = parseFloat(valor) || 0;
           if (campo === 'cantidad') {
-            const valorLimpio = isNaN(numValor) ? 0 : numValor;
-            const cantFinal =
-              valorLimpio > item.stock ? item.stock : valorLimpio;
-            return { ...item, cantidad: cantFinal };
+            // Validar stock
+            const cant = num > item.stock ? item.stock : num;
+            return { ...item, cantidad: cant };
           }
-          return { ...item, [campo]: isNaN(numValor) ? 0 : numValor };
+          return { ...item, [campo]: num };
         }
         return item;
       }),
@@ -512,10 +510,11 @@ export default function CotizarPage() {
                 </p>
                 <input
                   type="number"
-                  step="any" // <--- Esto permite cualquier cantidad de decimales sin errores de validación
-                  value={tasaBCV}
+                  step="any"
+                  // Si el valor es 0, lo ponemos como string vacío para que no estorbe al escribir
+                  value={tasaBCV === 0 ? '' : tasaBCV}
                   onChange={(e) => setTasaBCV(parseFloat(e.target.value) || 0)}
-                  // Aumentamos el ancho a w-40 y quitamos el padding lateral excesivo
+                  onFocus={(e) => e.target.select()} // Esto selecciona todo el texto al tocarlo (muy útil en móvil)
                   className="text-3xl font-black text-black bg-slate-50 border-b-4 border-blue-500 outline-none w-48 px-2 py-1"
                 />
               </div>
@@ -938,50 +937,104 @@ function TarjetaProductoCarrito({
   tasaBCV,
 }: any) {
   return (
-    <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
-      <div className="flex-1">
-        <h4 className="font-bold text-slate-800 text-sm uppercase leading-tight">
-          {item.nombre}
-        </h4>
-        <p className="text-blue-600 font-black text-xs mt-1">
-          ${item.precio} <span className="text-slate-300 mx-1">|</span>
-          <span className="text-emerald-600">
-            Bs. {(item.precio * tasaBCV).toLocaleString('es-VE')}
-          </span>
-        </p>
-      </div>
+    <div className="bg-slate-50 p-4 rounded-[2rem] border-2 border-slate-100 mb-3">
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex-1">
+          <p className="font-black text-slate-800 leading-tight uppercase text-sm mb-2">
+            {item.nombre}
+          </p>
 
-      <div className="flex items-center bg-slate-100 rounded-2xl p-1">
+          {/* --- BLOQUE DE PRECIO EDITABLE --- */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+              Precio Unit. ($)
+            </label>
+            <div className="flex items-center gap-1">
+              <span className="font-black text-blue-600">$</span>
+              <input
+                type="number"
+                step="any"
+                // Si el precio es 0, muestra vacío para escribir limpio
+                value={item.precio === 0 ? '' : item.precio}
+                onChange={(e) =>
+                  actualizarItem(item.id, 'precio', e.target.value)
+                }
+                onFocus={(e) => e.target.select()}
+                className="w-24 bg-white border-b-2 border-blue-200 font-black text-lg text-blue-700 outline-none px-1 rounded-sm"
+              />
+            </div>
+            {/* Referencia en Bs. justo debajo */}
+            {monedaPrincipal === 'BS' && (
+              <p className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full w-fit">
+                ≈ Bs.{' '}
+                {(item.precio * tasaBCV).toLocaleString('es-VE', {
+                  minimumFractionDigits: 2,
+                })}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Botón de eliminar */}
         <button
           onClick={() =>
-            actualizarItem(item.id, 'cantidad', (item.cantidad - 1).toString())
+            setCarrito(carrito.filter((i: any) => i.id !== item.id))
           }
-          className="p-2 hover:bg-white rounded-xl transition-colors"
+          className="p-2 text-red-400 hover:text-red-600 transition-colors"
         >
-          <Minus size={16} />
-        </button>
-        <input
-          type="number"
-          value={item.cantidad}
-          onChange={(e) => actualizarItem(item.id, 'cantidad', e.target.value)}
-          className="w-10 text-center bg-transparent font-black text-sm outline-none"
-        />
-        <button
-          onClick={() =>
-            actualizarItem(item.id, 'cantidad', (item.cantidad + 1).toString())
-          }
-          className="p-2 hover:bg-white rounded-xl transition-colors"
-        >
-          <Plus size={16} />
+          <Trash2 size={20} />
         </button>
       </div>
 
-      <button
-        onClick={() => setCarrito(carrito.filter((c: any) => c.id !== item.id))}
-        className="p-3 text-red-100 bg-red-500 rounded-2xl"
-      >
-        <Trash2 size={18} />
-      </button>
+      <div className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() =>
+              actualizarItem(
+                item.id,
+                'cantidad',
+                (item.cantidad - 1).toString(),
+              )
+            }
+            className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600 active:bg-slate-200"
+          >
+            <Minus size={18} />
+          </button>
+
+          <input
+            type="number"
+            value={item.cantidad === 0 ? '' : item.cantidad}
+            onChange={(e) =>
+              actualizarItem(item.id, 'cantidad', e.target.value)
+            }
+            onFocus={(e) => e.target.select()}
+            className="w-12 text-center font-black text-xl text-slate-800 outline-none bg-transparent"
+          />
+
+          <button
+            onClick={() =>
+              actualizarItem(
+                item.id,
+                'cantidad',
+                (item.cantidad + 1).toString(),
+              )
+            }
+            className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white active:bg-blue-700 shadow-lg shadow-blue-200"
+          >
+            <Plus size={18} />
+          </button>
+        </div>
+
+        {/* Subtotal del item */}
+        <div className="text-right">
+          <p className="text-[9px] font-black text-slate-400 uppercase">
+            Subtotal
+          </p>
+          <p className="font-black text-slate-800">
+            ${(item.precio * item.cantidad).toLocaleString()}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
