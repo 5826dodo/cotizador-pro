@@ -89,7 +89,7 @@ export default function LoginPage() {
             {' '}
             {/* Aumentamos ancho, quitamos h fija */}
             <img
-              src="/logo_ventiq.png"
+              src="/logo_ferremateriales.jpeg"
               alt="Logo Ventiq"
               className="w-full h-auto object-contain"
               // Si la imagen sigue sin aparecer, intenta con una ruta absoluta temporal
