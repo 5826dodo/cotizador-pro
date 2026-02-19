@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { Loader2, Package } from 'lucide-react';
 
 export default function InventarioPage() {
   const supabase = createClient();
@@ -105,8 +106,34 @@ export default function InventarioPage() {
 
   if (cargando)
     return (
-      <div className="p-10 text-center font-bold text-ventiq-orange">
-        Cargando almacén...
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <div className="relative flex items-center justify-center">
+          {/* Círculo de fondo animado */}
+          <div className="absolute w-16 h-16 border-4 border-ventiq-orange/20 rounded-full"></div>
+          {/* Spinner principal */}
+          <Loader2 className="w-16 h-16 text-ventiq-orange animate-spin stroke-[1.5]" />
+          {/* Icono central estático opcional */}
+          <Package className="absolute w-6 h-6 text-ventiq-black" />
+        </div>
+
+        <div className="mt-6 text-center">
+          <h3 className="text-ventiq-black font-black uppercase tracking-tighter text-lg">
+            Ventiq <span className="text-ventiq-orange">Almacén</span>
+          </h3>
+          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em] animate-pulse">
+            Sincronizando inventario...
+          </p>
+        </div>
+
+        {/* Decoración de fondo: Esqueletos de tabla falsos para dar sensación de carga */}
+        <div className="mt-12 w-full max-w-2xl opacity-20 hidden md:block">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-12 bg-slate-200 rounded-2xl mb-3 w-full animate-pulse"
+            ></div>
+          ))}
+        </div>
       </div>
     );
 
