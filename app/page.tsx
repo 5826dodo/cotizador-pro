@@ -55,7 +55,7 @@ export default function InventarioPage() {
 
   const guardarProducto = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!empresaId) return alert('Error de autenticación.');
+    if (!empresaId) return alert('No se encontró la empresa.');
 
     const payload = {
       nombre,
@@ -108,44 +108,46 @@ export default function InventarioPage() {
 
   if (cargando)
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50">
-        <Loader2 className="animate-spin text-[#FF9800]" size={40} />
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <Loader2 className="animate-spin text-ventiq-orange" size={40} />
       </div>
     );
 
   return (
-    <main className="min-h-screen bg-[#F8FAFC] text-[#1A1D23] pb-20">
+    <main className="min-h-screen bg-slate-50 pb-20">
       <div className="max-w-6xl mx-auto p-4 md:p-8 space-y-8">
-        {/* HEADER PERSONALIZADO */}
-        <div className="flex flex-col gap-1 border-l-4 border-[#FF9800] pl-4">
-          <h1 className="text-3xl font-black tracking-tighter uppercase">
-            Inventario <span className="text-[#FF9800]">Ventiq</span>
-          </h1>
-          <p className="text-slate-400 text-[10px] font-bold tracking-widest uppercase">
-            Control de activos / ID: {empresaId?.split('-')[0]}
-          </p>
+        {/* HEADER CON IDENTIDAD VENTIQ */}
+        <div className="flex justify-between items-end border-b-2 border-slate-200 pb-5">
+          <div>
+            <h1 className="text-3xl font-black tracking-tighter uppercase text-ventiq-black">
+              Gestión de <span className="text-ventiq-orange">Stock</span>
+            </h1>
+            <p className="text-slate-400 text-[10px] font-bold tracking-widest uppercase">
+              Panel Administrativo Ventiq
+            </p>
+          </div>
         </div>
 
-        {/* FORMULARIO - SIN AZUL */}
-        <section className="bg-white p-6 rounded-[2.5rem] shadow-2xl shadow-slate-200/60 border border-slate-100">
+        {/* FORMULARIO BASADO EN VARIABLES GLOBALES */}
+        <section className="bg-white p-6 rounded-[2rem] shadow-xl border border-white">
           <form
             onSubmit={guardarProducto}
-            className="grid grid-cols-1 md:grid-cols-4 gap-6"
+            className="grid grid-cols-1 md:grid-cols-4 gap-4"
           >
             <div className="md:col-span-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase ml-1">
-                Producto
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                Nombre Ítem
               </label>
               <input
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
-                className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl focus:ring-0 focus:border-[#FF9800] transition-all outline-none font-bold"
-                placeholder="Nombre"
+                className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl outline-none focus:border-ventiq-orange focus:bg-white transition-all font-bold"
+                placeholder="Ej. Cámara"
                 required
               />
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase ml-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
                 Precio ($)
               </label>
               <input
@@ -153,20 +155,20 @@ export default function InventarioPage() {
                 step="0.01"
                 value={precio}
                 onChange={(e) => setPrecio(e.target.value)}
-                className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl focus:ring-0 focus:border-[#FF9800] transition-all outline-none font-bold"
+                className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl outline-none focus:border-ventiq-orange focus:bg-white transition-all font-bold"
                 placeholder="0.00"
                 required
               />
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase ml-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
                 Stock
               </label>
               <input
                 type="number"
                 value={stock}
                 onChange={(e) => setStock(e.target.value)}
-                className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl focus:ring-0 focus:border-[#FF9800] transition-all outline-none font-bold"
+                className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl outline-none focus:border-ventiq-orange focus:bg-white transition-all font-bold"
                 placeholder="0"
                 required
               />
@@ -174,7 +176,7 @@ export default function InventarioPage() {
             <div className="flex items-end gap-2">
               <button
                 type="submit"
-                className="flex-1 bg-[#1A1D23] text-white h-[60px] rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-[#FF9800] transition-all shadow-lg active:scale-95"
+                className="flex-1 bg-ventiq-black text-white h-[60px] rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-ventiq-orange transition-all shadow-lg active:scale-95"
               >
                 {editando ? 'Actualizar' : 'Guardar'}
               </button>
@@ -182,61 +184,68 @@ export default function InventarioPage() {
                 <button
                   type="button"
                   onClick={cancelarEdicion}
-                  className="bg-slate-100 text-slate-400 h-[60px] w-[60px] rounded-2xl flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-colors"
+                  className="bg-slate-100 text-slate-400 h-[60px] w-[60px] rounded-2xl flex items-center justify-center hover:text-red-500 transition-colors"
                 >
                   <X />
                 </button>
               )}
             </div>
           </form>
-
           {mensaje && (
-            <div className="mt-4 flex items-center justify-center gap-2 text-[#FF9800] font-black text-[10px] uppercase tracking-tighter">
-              <CheckCircle2 size={14} /> {mensaje}
+            <div className="mt-4 text-center text-ventiq-orange font-black text-[10px] uppercase tracking-widest animate-pulse">
+              {mensaje}
             </div>
           )}
         </section>
 
-        {/* TABLA - ESTILO PREMIUM */}
-        <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-slate-50/50">
-              <tr className="text-left text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                <th className="p-6">Detalle</th>
-                <th className="p-6">Inversión</th>
-                <th className="p-6">Disponibilidad</th>
-                <th className="p-6 text-right">Gestión</th>
+        {/* TABLA DE PRODUCTOS */}
+        <div className="bg-white rounded-[2rem] shadow-lg border border-slate-100 overflow-hidden">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Producto
+                </th>
+                <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Precio
+                </th>
+                <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Stock
+                </th>
+                <th className="p-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">
+                  Acciones
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-50 text-ventiq-black">
               {productos.map((prod) => (
                 <tr
                   key={prod.id}
-                  className="group hover:bg-slate-50/30 transition-all"
+                  className="hover:bg-slate-50/50 transition-colors group"
                 >
-                  <td className="p-6 font-black uppercase text-sm tracking-tight text-[#1A1D23]">
+                  <td className="p-5 font-bold uppercase text-sm tracking-tight">
                     {prod.nombre}
                   </td>
-                  <td className="p-6 font-black text-[#FF9800]">
+                  <td className="p-5 font-black text-ventiq-orange">
                     ${prod.precio.toFixed(2)}
                   </td>
-                  <td className="p-6">
+                  <td className="p-5">
                     <span
-                      className={`text-[10px] font-black px-3 py-1.5 rounded-lg ${prod.stock < 5 ? 'bg-red-50 text-red-500' : 'bg-slate-100 text-slate-500'}`}
+                      className={`px-3 py-1 rounded-lg font-black text-[10px] ${prod.stock < 5 ? 'bg-red-50 text-red-500' : 'bg-slate-100 text-slate-500'}`}
                     >
-                      {prod.stock} UND
+                      {prod.stock} UNIDADES
                     </span>
                   </td>
-                  <td className="p-6 text-right space-x-2">
+                  <td className="p-5 text-right flex justify-end gap-2">
                     <button
                       onClick={() => prepararEdicion(prod)}
-                      className="inline-flex p-2 text-slate-300 hover:text-[#FF9800] transition-colors"
+                      className="p-2 text-slate-300 hover:text-ventiq-orange transition-colors"
                     >
                       <Pencil size={18} />
                     </button>
                     <button
                       onClick={() => eliminarProducto(prod.id)}
-                      className="inline-flex p-2 text-slate-300 hover:text-red-500 transition-colors"
+                      className="p-2 text-slate-300 hover:text-red-500 transition-colors"
                     >
                       <Trash2 size={18} />
                     </button>
@@ -245,6 +254,11 @@ export default function InventarioPage() {
               ))}
             </tbody>
           </table>
+          {productos.length === 0 && (
+            <div className="p-20 text-center text-slate-300 uppercase font-black text-xs tracking-widest">
+              No hay stock registrado
+            </div>
+          )}
         </div>
       </div>
     </main>
