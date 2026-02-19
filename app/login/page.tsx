@@ -85,19 +85,16 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md space-y-8 rounded-[2.5rem] bg-white p-10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] border border-gray-100">
         {/* Logo y Header */}
         <div className="flex flex-col items-center text-center">
-          <div className="relative w-32 mb-4">
-            {' '}
-            {/* Aumentamos ancho, quitamos h fija */}
+          {/* Aumentamos a w-48 o incluso w-56 si lo quieres gigante */}
+          <div className="relative w-48 mb-2">
             <img
               src="/logo_ventiq.png"
               alt="Logo Ventiq"
-              className="w-full h-auto object-contain"
-              // Si la imagen sigue sin aparecer, intenta con una ruta absoluta temporal
-              // para descartar: src="https://tu-dominio.com/logo_ventiq.png"
+              className="w-full h-auto object-contain drop-shadow-sm"
             />
           </div>
 
-          <h2 className="text-4xl font-black text-[#1A1D23] tracking-tighter">
+          <h2 className="text-4xl font-black text-[#1A1D23] tracking-tighter -mt-2">
             Venti<span className="text-[#FF9800]">q</span>
           </h2>
 
