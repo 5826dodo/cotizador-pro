@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Cotizador Pro',
+  title: 'VentiQ',
   description: 'Sistema de gestión de inventario y clientes',
 };
 
