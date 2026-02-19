@@ -417,19 +417,19 @@ export default function CotizarPage() {
               {tipoOperacion === 'cotizacion' ? 'Cotizar' : 'Venta Directa'}
             </h1>
 
-            {/* Switch Estilo Ventiq-Orange */}
-            <div className="flex bg-slate-200 p-1.5 rounded-2xl shadow-inner">
+            {/* Switch Elegante */}
+            <div className="flex bg-slate-200 p-1 rounded-2xl shadow-inner">
               <button
                 onClick={() => setTipoOperacion('cotizacion')}
-                className={`px-6 py-2.5 rounded-xl text-[10px] font-black transition-all italic uppercase ${tipoOperacion === 'cotizacion' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500'}`}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${tipoOperacion === 'cotizacion' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
               >
-                Cotización
+                COTIZACIÓN
               </button>
               <button
                 onClick={() => setTipoOperacion('venta_directa')}
-                className={`px-6 py-2.5 rounded-xl text-[10px] font-black transition-all italic uppercase ${tipoOperacion === 'venta_directa' ? 'bg-orange-600 text-white shadow-lg shadow-orange-200' : 'text-slate-500'}`}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${tipoOperacion === 'venta_directa' ? 'bg-white text-green-600 shadow-sm' : 'text-slate-500'}`}
               >
-                Venta Directa
+                VENTA DIRECTA
               </button>
             </div>
           </div>
@@ -498,38 +498,50 @@ export default function CotizarPage() {
             </div>
           </section>
           {/* --- PANEL DE TASA Y CAMBIO DE MONEDA --- */}
-          <section className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-6">
+          {/* --- PANEL DE TASA Y CAMBIO DE MONEDA --- */}
+          <section className="bg-white p-6 rounded-[2rem] shadow-md border border-slate-300 flex flex-wrap items-center justify-between gap-6">
             <div className="flex items-center gap-4">
-              <div className="bg-orange-600 p-4 rounded-2xl shadow-lg shadow-orange-200">
+              <div className="bg-blue-600 p-4 rounded-[1.5rem] shadow-lg shadow-blue-200">
                 <DollarSign className="text-white" size={28} />
               </div>
               <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">
                   Tasa BCV (Bs/$)
                 </p>
                 <input
                   type="number"
                   step="any"
+                  // Si el valor es 0, lo ponemos como string vacío para que no estorbe al escribir
                   value={tasaBCV === 0 ? '' : tasaBCV}
                   onChange={(e) => setTasaBCV(parseFloat(e.target.value) || 0)}
-                  className="text-3xl font-black text-slate-800 bg-transparent border-b-4 border-orange-500 outline-none w-40 px-2"
+                  onFocus={(e) => e.target.select()} // Esto selecciona todo el texto al tocarlo (muy útil en móvil)
+                  className="text-3xl font-black text-black bg-slate-50 border-b-4 border-blue-500 outline-none w-48 px-2 py-1"
                 />
               </div>
             </div>
-
-            {/* Switch Moneda Ventiq */}
-            <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+            {/* Botones de moneda con más contraste */}
+            <div className="flex bg-slate-200 p-2 rounded-[1.8rem]">
               <button
                 onClick={() => setMonedaPrincipal('USD')}
-                className={`px-8 py-3 rounded-xl font-black text-[10px] transition-all uppercase ${monedaPrincipal === 'USD' ? 'bg-[#1A1C1E] text-white shadow-lg' : 'text-slate-400'}`}
+                className={`px-8 py-3 rounded-[1.4rem] font-black text-sm transition-all ${
+                  monedaPrincipal === 'USD'
+                    ? 'bg-blue-600 text-white shadow-lg'
+                    : 'text-slate-600'
+                }`}
               >
-                USD $
+                {' '}
+                $ USD{' '}
               </button>
               <button
                 onClick={() => setMonedaPrincipal('BS')}
-                className={`px-8 py-3 rounded-xl font-black text-[10px] transition-all uppercase ${monedaPrincipal === 'BS' ? 'bg-orange-600 text-white shadow-lg' : 'text-slate-400'}`}
+                className={`px-8 py-3 rounded-[1.4rem] font-black text-sm transition-all ${
+                  monedaPrincipal === 'BS'
+                    ? 'bg-emerald-600 text-white shadow-lg'
+                    : 'text-slate-600'
+                }`}
               >
-                BS.
+                {' '}
+                Bs BS{' '}
               </button>
             </div>
           </section>
@@ -557,19 +569,19 @@ export default function CotizarPage() {
                   <button
                     key={p.id}
                     onClick={() => agregarAlCarrito(p)}
-                    className={`p-6 rounded-[2.5rem] border-2 text-left transition-all relative group ${
+                    className={`p-6 rounded-[2rem] border-2 text-left transition-all relative ${
                       carrito.find((i) => i.id === p.id)
-                        ? 'border-orange-500 bg-orange-50/30 shadow-lg shadow-orange-100'
-                        : 'border-white bg-white hover:border-slate-200'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-slate-100 bg-white'
                     }`}
                   >
-                    {/* Contador Naranja */}
+                    {/* ESTE ES EL CONTADOR RESTAURADO */}
                     {carrito.find((i) => i.id === p.id) && (
-                      <div className="absolute -top-3 -right-3 bg-orange-600 text-white font-black w-11 h-11 rounded-full flex items-center justify-center shadow-xl text-lg ring-4 ring-white animate-in zoom-in">
+                      <div className="absolute -top-3 -right-3 bg-blue-600 text-white font-black w-10 h-10 rounded-full flex items-center justify-center shadow-lg text-lg ring-4 ring-white">
                         {carrito.find((i) => i.id === p.id).cantidad}
                       </div>
                     )}
-                    <p className="font-black text-xl text-slate-800 mb-2 italic uppercase tracking-tighter group-hover:text-orange-600 transition-colors">
+                    <p className="font-black text-xl text-slate-800 mb-2">
                       {p.nombre}
                     </p>
                     <div className="flex justify-between items-end">
@@ -602,55 +614,153 @@ export default function CotizarPage() {
 
         {/* DERECHA: RESUMEN (VISIBLE EN ESCRITORIO) */}
         <div className="hidden lg:block w-[450px]">
-          <div className="bg-[#1A1C1E] p-8 rounded-[3rem] shadow-2xl border-t-8 border-orange-600 sticky top-8 text-white">
-            <h2 className="text-2xl font-black mb-10 italic uppercase tracking-tighter flex justify-between items-center">
-              Resumen <ShoppingCart className="text-orange-500" />
+          <div className="bg-white p-8 rounded-[3rem] shadow-2xl border border-blue-50 sticky top-8">
+            <h2 className="text-2xl font-black mb-6 text-slate-800 flex justify-between">
+              Resumen <ShoppingCart className="text-blue-500" />
             </h2>
-
-            {/* El listado de productos aquí debe tener estilos de texto blanco */}
-            <div className="max-h-[400px] overflow-y-auto pr-2 custom-scroll-dark">
-              {/* El listado de productos aquí */}
-              <div className="max-h-[400px] overflow-y-auto pr-2 custom-scroll-dark space-y-4">
+            {/* AQUÍ DEFINIMOS EL SCROLL PARA PC */}
+            <div className="max-h-[500px] overflow-y-auto pr-2 custom-scroll">
+              {/* Busca donde estaba <ListadoResumen /> en la parte de PC y cámbialo por esto: */}
+              <div className="space-y-4">
                 {carrito.map((item) => (
                   <TarjetaProductoCarrito
-                    key={`esc-${item.id}`}
+                    key={`pc-${item.id}`}
                     item={item}
                     actualizarItem={actualizarItem}
                     setCarrito={setCarrito}
                     carrito={carrito}
                     monedaPrincipal={monedaPrincipal}
                     tasaBCV={tasaBCV}
-                    isDark={true} // Una prop opcional si quieres que el texto sea blanco en el fondo oscuro
                   />
                 ))}
               </div>
             </div>
+            <div className="mt-6 pt-6 border-t-4 border-dashed border-slate-100">
+              {/* !!! PEGA EL NUEVO BLOQUE JUSTO AQUÍ !!! */}
+              {tipoOperacion === 'venta_directa' && (
+                <div className="mb-6 space-y-4 p-5 bg-slate-50 rounded-[2rem] border-2 border-slate-200">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-600 uppercase ml-2 tracking-widest">
+                      Estado del Pago
+                    </label>
+                    <select
+                      value={estadoPago}
+                      onChange={(e) => {
+                        const nuevoEstado = e.target.value;
+                        setEstadoPago(nuevoEstado);
+                        if (nuevoEstado === 'pagado') {
+                          // Si paga todo, calculamos el total según la moneda actual
+                          setMontoPagado(calcularTotal());
+                        }
+                      }}
+                      className="w-full p-4 bg-white rounded-2xl font-bold text-black border-2 border-slate-200 outline-none focus:border-blue-500"
+                    >
+                      <option value="pendiente_pago">
+                        ❌ Pendiente (Deuda)
+                      </option>
+                      <option value="pago_parcial">
+                        ⏳ Pago Parcial (Abono)
+                      </option>
+                      <option value="pagado">✅ Pagado Total</option>
+                    </select>
+                  </div>
 
-            <div className="mt-10 pt-8 border-t border-white/10">
-              <div className="flex flex-col items-end mb-8">
-                <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] mb-2">
-                  Total a Cobrar
-                </span>
-                <span className="text-5xl font-black text-white tracking-tighter italic">
-                  ${calcularTotal().toLocaleString()}
-                </span>
-                <div className="mt-2 bg-orange-600 px-4 py-1 rounded-full shadow-lg shadow-orange-900/40">
-                  <span className="text-lg font-black text-white italic">
-                    Bs. {(calcularTotal() * tasaBCV).toLocaleString('es-VE')}
-                  </span>
+                  {estadoPago !== 'pendiente_pago' && (
+                    <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
+                      <label className="text-[10px] font-black text-blue-700 uppercase ml-2 tracking-widest">
+                        Monto Recibido en {monedaPrincipal}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={montoPagado}
+                          onChange={(e) =>
+                            setMontoPagado(parseFloat(e.target.value) || 0)
+                          }
+                          className="w-full p-5 bg-white rounded-2xl font-black text-2xl text-black border-2 border-blue-500 shadow-inner outline-none"
+                          placeholder="0.00"
+                        />
+                        <div className="mt-2 ml-2 flex justify-between items-center">
+                          <span className="text-[10px] font-bold text-slate-400">
+                            Equivale a:
+                            {monedaPrincipal === 'USD'
+                              ? ` Bs. ${(montoPagado * tasaBCV).toLocaleString('es-VE')}`
+                              : ` $ ${(montoPagado / tasaBCV).toFixed(2)}`}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
+              <div className="flex justify-between items-center mb-6">
+                <div className="mb-6">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
+                    Notas / Dirección de Envío
+                  </label>
+                  <textarea
+                    value={observaciones}
+                    onChange={(e) => setObservaciones(e.target.value)}
+                    placeholder="Ej: Entrega en Obra - Av. Bolívar / Contactar a Ing. Pérez..."
+                    className="w-full p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 text-sm outline-none focus:border-blue-500 transition-all resize-none"
+                    rows={3}
+                  />
+                </div>
+                <span className="text-sm font-black text-slate-400 uppercase">
+                  Total
+                </span>
+                <span className="text-4xl font-black text-blue-700">
+                  <div className="flex flex-col items-end mb-6">
+                    <span className="text-sm font-black text-slate-400 uppercase tracking-widest">
+                      Total a Pagar
+                    </span>
 
+                    {/* Monto en Dólares siempre destacado */}
+                    <span className="text-4xl font-black text-blue-700 leading-tight">
+                      ${calcularTotal().toLocaleString()}
+                    </span>
+
+                    {/* Monto en Bolívares justo debajo como referencia principal */}
+                    <div className="flex items-center gap-2 bg-emerald-50 px-4 py-1 rounded-full border border-emerald-100 mt-1">
+                      <span className="text-xs font-black text-emerald-700 uppercase">
+                        Bs.
+                      </span>
+                      <span className="text-lg font-black text-emerald-600">
+                        {(calcularTotal() * tasaBCV).toLocaleString('es-VE', {
+                          minimumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                </span>
+              </div>
               <button
-                onClick={() => procesarCotizacion()}
+                onClick={() => {
+                  // Validación de seguridad
+                  if (!clienteSeleccionado) {
+                    alert(
+                      '⚠️ Error: Debes seleccionar un cliente antes de continuar.',
+                    );
+                    return;
+                  }
+                  if (carrito.length === 0) {
+                    alert('⚠️ Error: El carrito está vacío.');
+                    return;
+                  }
+                  procesarCotizacion();
+                }}
                 disabled={cargando}
-                className="w-full py-6 rounded-[2rem] font-black text-xl text-white bg-orange-600 hover:bg-orange-500 shadow-xl shadow-orange-900/40 transition-all active:scale-95 uppercase italic tracking-tighter"
+                className={`w-full py-5 rounded-[2rem] font-black text-xl text-white shadow-xl transition-all active:scale-95 ${
+                  tipoOperacion === 'cotizacion'
+                    ? 'bg-blue-600 shadow-blue-900/40'
+                    : 'bg-emerald-600 shadow-emerald-900/40'
+                }`}
               >
                 {cargando
                   ? 'PROCESANDO...'
                   : tipoOperacion === 'cotizacion'
-                    ? 'Confirmar Presupuesto'
-                    : 'Registrar Venta'}
+                    ? 'GENERAR COTIZACIÓN'
+                    : 'REGISTRAR VENTA'}
               </button>
             </div>
           </div>
@@ -813,18 +923,6 @@ export default function CotizarPage() {
           </div>
         </div>
       )}
-      <style jsx global>{`
-        .custom-scroll-dark::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scroll-dark::-webkit-scrollbar-thumb {
-          background: #ff6b00;
-          border-radius: 10px;
-        }
-        .custom-scroll-dark::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.05);
-        }
-      `}</style>
     </main>
   );
 }
