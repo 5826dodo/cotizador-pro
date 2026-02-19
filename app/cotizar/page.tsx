@@ -482,7 +482,7 @@ export default function CotizarPage() {
                             setClienteSeleccionado(c);
                             setMostrarListaClientes(false);
                           }}
-                          className="p-4 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-none"
+                          className="p-4 hover:bg-orange-50 cursor-pointer border-b border-slate-50 last:border-none"
                         >
                           <p className="font-bold text-slate-800 uppercase">
                             {c.nombre} {c.apellido}
@@ -665,7 +665,7 @@ export default function CotizarPage() {
             className="w-full bg-slate-900 text-white p-5 rounded-[2.5rem] shadow-2xl flex items-center justify-between border border-white/10"
           >
             <div className="flex items-center gap-4">
-              <div className="relative bg-blue-600 p-3 rounded-2xl">
+              <div className="relative bg-orange-600 p-3 rounded-2xl">
                 <ShoppingCart size={24} />
                 <span className="absolute -top-2 -right-2 bg-red-500 text-xs font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-slate-900">
                   {carrito.length} {/* Contador de TIPOS de productos */}
@@ -682,7 +682,7 @@ export default function CotizarPage() {
                     </span>
 
                     {/* Monto en Dólares siempre destacado */}
-                    <span className="text-4xl font-black text-blue-700 leading-tight">
+                    <span className="text-4xl font-black text-orange-700 leading-tight">
                       ${calcularTotal().toLocaleString()}
                     </span>
 
@@ -701,7 +701,7 @@ export default function CotizarPage() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 font-black text-blue-400">
+            <div className="flex items-center gap-2 font-black text-orange-400">
               {' '}
               REVISAR <ChevronUp size={20} />
             </div>
@@ -761,7 +761,7 @@ export default function CotizarPage() {
 
                 {estadoPago !== 'pendiente_pago' && (
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-blue-700 uppercase tracking-widest block ml-2">
+                    <label className="text-[10px] font-black text-orange-700 uppercase tracking-widest block ml-2">
                       Monto Recibido ({monedaPrincipal})
                     </label>
                     <input
@@ -789,7 +789,7 @@ export default function CotizarPage() {
 
               <div className="flex justify-between items-center px-2">
                 <span className="font-black text-slate-400">TOTAL</span>
-                <span className="text-3xl font-black text-blue-700">
+                <span className="text-3xl font-black text-orange-700">
                   ${calcularTotal().toLocaleString()}
                 </span>
               </div>
@@ -803,7 +803,7 @@ export default function CotizarPage() {
                 disabled={cargando}
                 className={`w-full py-5 rounded-[2rem] font-black text-xl text-white shadow-xl ${
                   tipoOperacion === 'cotizacion'
-                    ? 'bg-blue-600'
+                    ? 'bg-orange-600'
                     : 'bg-emerald-600'
                 }`}
               >
@@ -862,7 +862,7 @@ function TarjetaProductoCarrito({
                   actualizarItem(item.id, 'precio', e.target.value)
                 }
                 onFocus={(e) => e.target.select()}
-                className="w-24 bg-white border-b-2 border-blue-200 font-black text-lg text-blue-700 outline-none px-1 rounded-sm"
+                className="w-24 bg-white border-b-2 border-blue-200 font-black text-lg text-orange-700 outline-none px-1 rounded-sm"
               />
             </div>
             {/* Referencia en Bs. justo debajo */}
@@ -921,7 +921,7 @@ function TarjetaProductoCarrito({
                 (item.cantidad + 1).toString(),
               )
             }
-            className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white active:bg-blue-700 shadow-lg shadow-blue-200"
+            className="w-10 h-10 bg-orange-600 rounded-xl flex items-center justify-center text-white active:bg-orange-700 shadow-lg shadow-blue-200"
           >
             <Plus size={18} />
           </button>
