@@ -126,7 +126,7 @@ export default function HistorialPage() {
   if (cargando)
     return (
       <div className="flex justify-center p-20">
-        <Loader2 className="animate-spin text-blue-600" size={40} />
+        <Loader2 className="animate-spin text-orange-600" size={40} />
       </div>
     );
 
@@ -146,7 +146,7 @@ export default function HistorialPage() {
               Solo ventas originadas en Bs
             </p>
           </div>
-          <div className="bg-blue-600 p-6 rounded-[2rem] text-white shadow-lg">
+          <div className="bg-orange-600 p-6 rounded-[2rem] text-white shadow-lg">
             <p className="text-[10px] font-black uppercase opacity-70 flex items-center gap-1">
               <Clock size={12} /> Caja USD (Hoy)
             </p>
@@ -157,7 +157,7 @@ export default function HistorialPage() {
               Solo ventas originadas en $
             </p>
           </div>
-          <div className="bg-white p-6 rounded-[2rem] border border-slate-200">
+          <div className="bg-white p-6 rounded-[2rem] border border-orange-100">
             <p className="text-[10px] font-black text-slate-400 uppercase">
               Cuentas por Cobrar
             </p>
@@ -214,7 +214,7 @@ export default function HistorialPage() {
                           ? 'VENTA'
                           : 'COTIZACIÓN'}
                       </span>
-                      <span className="text-[9px] font-bold text-blue-500 mt-1 uppercase">
+                      <span className="text-[9px] font-bold text-orange-500 mt-1 uppercase">
                         Tasa: {cot.ultima_tasa_pago || cot.tasa_bcv}
                       </span>
                     </div>
@@ -291,7 +291,7 @@ export default function HistorialPage() {
                         : `$${cotizacionSeleccionada.total.toLocaleString()}`}
                     </p>
                     <div className="flex flex-col mt-1">
-                      <span className="text-[8px] text-blue-500 font-bold uppercase tracking-widest">
+                      <span className="text-[8px] text-orange-500 font-bold uppercase tracking-widest">
                         Tasa: {cotizacionSeleccionada.tasa_bcv} Bs/$
                       </span>
                       <span className="text-[7px] text-slate-400 font-bold uppercase">
@@ -413,13 +413,13 @@ export default function HistorialPage() {
                                   />
                                 </div>
                                 <div>
-                                  <label className="text-[9px] font-black text-blue-600 ml-2 uppercase">
+                                  <label className="text-[9px] font-black text-orange-600 ml-2 uppercase">
                                     Monto en $
                                   </label>
                                   <input
                                     type="number"
                                     placeholder="0.00"
-                                    className="p-3 rounded-xl border-none ring-1 ring-blue-100 font-black text-blue-600"
+                                    className="p-3 rounded-xl border-none ring-1 ring-blue-100 font-black text-orange-600"
                                     onChange={(e) =>
                                       setMontoUsdRecibido(
                                         parseFloat(e.target.value) || 0,
@@ -466,7 +466,7 @@ export default function HistorialPage() {
                                 (!montoBsRecibido && !montoUsdRecibido) ||
                                 (montoBsRecibido > 0 && tasaDia <= 0)
                               }
-                              className="w-full bg-blue-600 text-white p-4 rounded-2xl font-black uppercase text-xs disabled:opacity-30 shadow-lg shadow-blue-200"
+                              className="w-full bg-orange-600 text-white p-4 rounded-2xl font-black uppercase text-xs disabled:opacity-30 shadow-lg shadow-blue-200"
                             >
                               {procesandoAccion
                                 ? 'Guardando...'
