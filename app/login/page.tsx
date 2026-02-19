@@ -87,12 +87,10 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center">
           <div className="relative w-24 h-16 mb-2">
             {/* Next.js busca automáticamente en la carpeta /public */}
-            <Image
+            <img
               src="/logo_ventiq.png"
               alt="Logo Ventiq"
-              fill
               className="object-contain"
-              priority
             />
           </div>
 
