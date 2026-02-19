@@ -89,9 +89,11 @@ export default function LoginPage() {
             {' '}
             {/* Aumentamos ancho, quitamos h fija */}
             <img
-              src="https://cotizador.rjdodo.com/logo_ventiq.png"
+              src="/logo_ventiq.png"
               alt="Logo Ventiq"
-              className="w-32 h-auto object-contain"
+              className="w-full h-auto object-contain"
+              // Si la imagen sigue sin aparecer, intenta con una ruta absoluta temporal
+              // para descartar: src="https://tu-dominio.com/logo_ventiq.png"
             />
           </div>
 
