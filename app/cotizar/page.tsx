@@ -575,7 +575,7 @@ export default function CotizarPage() {
                     <div className="flex justify-between items-end">
                       <div className="flex flex-col">
                         {/* El precio principal siempre en Dólares */}
-                        <span className="text-2xl font-black text-blue-600 leading-none">
+                        <span className="text-2xl font-black text-orange-500 leading-none">
                           ${p.precio.toLocaleString()}
                         </span>
 
@@ -852,7 +852,7 @@ function TarjetaProductoCarrito({
               Precio Unit. ($)
             </label>
             <div className="flex items-center gap-1">
-              <span className="font-black text-blue-600">$</span>
+              <span className="font-black text-orange-500">$</span>
               <input
                 type="number"
                 step="any"
