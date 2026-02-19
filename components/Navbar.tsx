@@ -11,7 +11,6 @@ import {
   History,
   BadgeDollarSign,
   LogOut,
-  LayoutGrid,
   Power,
 } from 'lucide-react';
 
@@ -52,59 +51,67 @@ export default function Navbar() {
     { name: 'Stock', href: '/', icon: Package },
     { name: 'Clientes', href: '/clientes', icon: Users },
     { name: 'Cotizar', href: '/cotizar', icon: FileEdit },
-    { name: 'Historial', href: '/historial', icon: History },
     { name: 'Cobros', href: '/cobranzas', icon: BadgeDollarSign },
-    { name: 'Empresa', href: '/configuracion', icon: Settings },
+    { name: 'Historial', href: '/historial', icon: History },
   ];
 
   return (
     <>
       {/* --- DISEÑO DESKTOP --- */}
-      <nav className="hidden md:block bg-white/80 backdrop-blur-xl border-b border-slate-200 sticky top-0 z-50">
+      <nav className="hidden md:block bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex justify-between items-center h-20">
-            {/* --- LOGO VENTIQ ACTUALIZADO --- */}
+            {/* Logo Ventiq */}
             <Link href="/" className="flex items-center gap-3 group">
-              <div className="relative w-12 h-12 flex items-center justify-center transition-transform group-hover:scale-105">
+              <div className="relative w-10 h-10 transition-transform group-hover:scale-110">
                 <img
                   src="/logo_ventiq.png"
                   alt="Logo"
-                  className="w-full h-full object-contain drop-shadow-sm"
+                  className="w-full h-full object-contain"
                 />
               </div>
-              <span className="text-2xl font-black tracking-tighter text-slate-800">
+              <span className="text-2xl font-black tracking-tighter text-[#1A1D23]">
                 Venti<span className="text-[#FF9800]">q</span>
               </span>
             </Link>
 
-            <div className="flex items-center gap-1 bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200">
-              {links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
-                    pathname === link.href
-                      ? 'bg-white text-blue-600 shadow-md translate-y-[-1px]'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-white/50'
-                  }`}
-                >
-                  <link.icon size={16} strokeWidth={2.5} />
-                  {link.name.toUpperCase()}
-                </Link>
-              ))}
+            {/* Links Centrados - Ahora en Naranja */}
+            <div className="flex items-center gap-1 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+              {links.map((link) => {
+                const isActive = pathname === link.href;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                      isActive
+                        ? 'bg-[#1A1D23] text-[#FF9800] shadow-lg shadow-orange-100'
+                        : 'text-slate-500 hover:text-[#1A1D23] hover:bg-white'
+                    }`}
+                  >
+                    <link.icon size={16} strokeWidth={2.5} />
+                    {link.name.toUpperCase()}
+                  </Link>
+                );
+              })}
             </div>
 
+            {/* Acciones Finales */}
             <div className="flex items-center gap-2">
               <Link
                 href="/configuracion"
-                className={`p-3 rounded-2xl transition-all ${pathname === '/configuracion' ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'text-slate-400 hover:bg-slate-100'}`}
+                className={`p-3 rounded-2xl transition-all ${
+                  pathname === '/configuracion'
+                    ? 'bg-[#FF9800] text-white shadow-lg shadow-orange-200'
+                    : 'text-slate-400 hover:bg-slate-100'
+                }`}
               >
                 <Settings size={22} />
               </Link>
               <div className="h-8 w-[1px] bg-slate-200 mx-2" />
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-3 rounded-2xl text-red-500 font-black text-xs hover:bg-red-50 transition-all border border-transparent hover:border-red-100"
+                className="flex items-center gap-2 px-4 py-3 rounded-2xl text-red-500 font-black text-xs hover:bg-red-50 transition-all"
               >
                 <Power size={18} />
                 SALIR
@@ -114,8 +121,8 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* --- DISEÑO MOBILE (TAB BAR ESTILO APP) --- */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-white/10 z-[100] pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.3)]">
+      {/* --- DISEÑO MOBILE (TAB BAR) --- */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#1A1D23] border-t border-white/5 z-[100] pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
         <div className="flex items-center h-16 px-4 overflow-x-auto scrollbar-hide gap-6">
           {links.map((link) => {
             const isActive = pathname === link.href;
@@ -126,11 +133,11 @@ export default function Navbar() {
                 className="relative flex flex-col items-center justify-center min-w-[64px] h-full active:scale-90 transition-transform"
               >
                 {isActive && (
-                  <div className="absolute top-0 w-8 h-1 bg-blue-500 rounded-b-full shadow-[0_0_15px_rgba(59,130,246,1)]" />
+                  <div className="absolute top-0 w-8 h-1 bg-[#FF9800] rounded-b-full shadow-[0_0_15px_rgba(255,152,0,0.6)]" />
                 )}
                 <link.icon
                   size={24}
-                  className={`transition-all duration-300 ${isActive ? 'text-blue-400 scale-125' : 'text-slate-500'}`}
+                  className={`transition-all duration-300 ${isActive ? 'text-[#FF9800] scale-125' : 'text-slate-500'}`}
                   strokeWidth={isActive ? 2.5 : 2}
                 />
                 <span
