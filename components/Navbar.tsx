@@ -52,23 +52,28 @@ export default function Navbar() {
     { name: 'Stock', href: '/', icon: Package },
     { name: 'Clientes', href: '/clientes', icon: Users },
     { name: 'Cotizar', href: '/cotizar', icon: FileEdit },
-    { name: 'Cobros', href: '/cobranzas', icon: BadgeDollarSign },
     { name: 'Historial', href: '/historial', icon: History },
+    { name: 'Cobros', href: '/cobranzas', icon: BadgeDollarSign },
     { name: 'Empresa', href: '/configuracion', icon: Settings },
   ];
 
   return (
     <>
       {/* --- DISEÑO DESKTOP --- */}
-      <nav className="hidden md:block bg-[#6cd6d6]/70 backdrop-blur-xl border-b border-slate-200 sticky top-0 z-50">
+      <nav className="hidden md:block bg-white/80 backdrop-blur-xl border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex justify-between items-center h-20">
-            <Link href="/" className="flex items-center gap-2 group">
-              <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 p-2.5 rounded-xl shadow-lg shadow-blue-200 group-hover:rotate-6 transition-transform">
-                <LayoutGrid className="text-white" size={22} />
+            {/* --- LOGO VENTIQ ACTUALIZADO --- */}
+            <Link href="/" className="flex items-center gap-3 group">
+              <div className="relative w-12 h-12 flex items-center justify-center transition-transform group-hover:scale-105">
+                <img
+                  src="/logo_ventiq.png"
+                  alt="Logo"
+                  className="w-full h-full object-contain drop-shadow-sm"
+                />
               </div>
               <span className="text-2xl font-black tracking-tighter text-slate-800">
-                SISCO<span className="text-blue-600 italic">PRO</span>
+                Venti<span className="text-[#FF9800]">q</span>
               </span>
             </Link>
 
@@ -110,19 +115,18 @@ export default function Navbar() {
       </nav>
 
       {/* --- DISEÑO MOBILE (TAB BAR ESTILO APP) --- */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-white/10 z-[100] pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.3)] z-[100] border border-white/10 overflow-hidden">
-        <div className="flex items-center h-16 px-4 overflow-x-auto scrollbar-hide gap-8">
-          F
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-white/10 z-[100] pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.3)]">
+        <div className="flex items-center h-16 px-4 overflow-x-auto scrollbar-hide gap-6">
           {links.map((link) => {
             const isActive = pathname === link.href;
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className="relative flex flex-col items-center justify-center min-w-[60px] h-full active:scale-90 transition-transform"
+                className="relative flex flex-col items-center justify-center min-w-[64px] h-full active:scale-90 transition-transform"
               >
                 {isActive && (
-                  <div className="absolute absolute top-0 w-8 h-1 bg-blue-500 rounded-b-full w-8 h-1 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,1)]" />
+                  <div className="absolute top-0 w-8 h-1 bg-blue-500 rounded-b-full shadow-[0_0_15px_rgba(59,130,246,1)]" />
                 )}
                 <link.icon
                   size={24}
@@ -137,16 +141,12 @@ export default function Navbar() {
               </Link>
             );
           })}
-          {/* BOTÓN SALIR MÓVIL (Con icono diferenciado) */}
+
           <button
             onClick={handleLogout}
-            className="flex flex-col items-center justify-center w-full"
+            className="flex flex-col items-center justify-center min-w-[64px] h-full"
           >
-            <LogOut
-              size={24}
-              className="text-red-400 opacity-80"
-              strokeWidth={2}
-            />
+            <LogOut size={24} className="text-red-400 opacity-80" />
             <span className="text-[8px] font-black mt-1.5 text-red-400 uppercase tracking-widest">
               Salir
             </span>
