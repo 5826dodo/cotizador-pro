@@ -609,7 +609,21 @@ export default function CotizarPage() {
 
             {/* El listado de productos aquí debe tener estilos de texto blanco */}
             <div className="max-h-[400px] overflow-y-auto pr-2 custom-scroll-dark">
-              {/* Asegúrate que el componente TarjetaProductoCarrito use texto claro si está aquí */}
+              {/* El listado de productos aquí */}
+              <div className="max-h-[400px] overflow-y-auto pr-2 custom-scroll-dark space-y-4">
+                {carrito.map((item) => (
+                  <TarjetaProductoCarrito
+                    key={`esc-${item.id}`}
+                    item={item}
+                    actualizarItem={actualizarItem}
+                    setCarrito={setCarrito}
+                    carrito={carrito}
+                    monedaPrincipal={monedaPrincipal}
+                    tasaBCV={tasaBCV}
+                    isDark={true} // Una prop opcional si quieres que el texto sea blanco en el fondo oscuro
+                  />
+                ))}
+              </div>
             </div>
 
             <div className="mt-10 pt-8 border-t border-white/10">
