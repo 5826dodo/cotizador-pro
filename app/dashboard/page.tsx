@@ -215,7 +215,7 @@ export default function InventarioPage() {
                 Estado
               </p>
               <p className="text-ventiq-black text-[10px] font-black uppercase">
-                Sincronizado
+                En linea
               </p>
             </div>
           </div>
@@ -232,7 +232,7 @@ export default function InventarioPage() {
                 Producto
               </label>
               <input
-                placeholder="Ej. Cloro Industrial"
+                placeholder="Agregar nombre del producto"
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
                 className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl focus:border-ventiq-orange focus:bg-white transition-all outline-none font-bold text-sm"
