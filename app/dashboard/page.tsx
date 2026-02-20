@@ -1,19 +1,32 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Loader2, Package } from 'lucide-react';
+import {
+  Loader2,
+  Package,
+  Store,
+  Hash,
+  Tag,
+  Trash2,
+  Edit3,
+  X,
+} from 'lucide-react';
 
 export default function InventarioPage() {
   const supabase = createClient();
   const [nombre, setNombre] = useState('');
   const [precio, setPrecio] = useState('');
   const [stock, setStock] = useState('');
+  const [unidad, setUnidad] = useState('UNIDADES'); // Nuevo estado para unidad
   const [productos, setProductos] = useState<any[]>([]);
   const [mensaje, setMensaje] = useState('');
   const [editando, setEditando] = useState<any>(null);
 
   const [empresaId, setEmpresaId] = useState<string | null>(null);
+  const [nombreEmpresa, setNombreEmpresa] = useState(''); // Nombre de la empresa
   const [cargando, setCargando] = useState(true);
+
+  const unidadesMedida = ['UNIDADES', 'LITROS', 'KILOS', 'METROS', 'PAQUETES'];
 
   const obtenerProductos = async (idEmpresa: string) => {
     const { data } = await supabase
@@ -32,12 +45,13 @@ export default function InventarioPage() {
       if (user) {
         const { data: perfil } = await supabase
           .from('perfiles')
-          .select('empresa_id')
+          .select('empresa_id, empresas(nombre)') // Join para traer el nombre de la empresa
           .eq('id', user.id)
           .single();
 
         if (perfil?.empresa_id) {
           setEmpresaId(perfil.empresa_id);
+          setNombreEmpresa(perfil.empresas?.nombre || 'Mi Empresa');
           await obtenerProductos(perfil.empresa_id);
         }
       }
@@ -48,12 +62,13 @@ export default function InventarioPage() {
 
   const guardarProducto = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!empresaId) return alert('Error: No se identificó tu empresa.');
+    if (!empresaId) return alert('Error de sesión');
 
     const payload = {
       nombre,
       precio: parseFloat(precio),
-      stock: parseInt(stock),
+      stock: parseFloat(stock), // Ahora aceptamos decimales
+      unidad_medida: unidad, // Guardamos la unidad
       empresa_id: empresaId,
     };
 
@@ -62,8 +77,7 @@ export default function InventarioPage() {
       const { error: err } = await supabase
         .from('productos')
         .update(payload)
-        .eq('id', editando.id)
-        .eq('empresa_id', empresaId);
+        .eq('id', editando.id);
       error = err;
     } else {
       const { error: err } = await supabase.from('productos').insert([payload]);
@@ -71,7 +85,7 @@ export default function InventarioPage() {
     }
 
     if (!error) {
-      setMensaje(editando ? '✅ Actualizado' : '🚀 Guardado');
+      setMensaje(editando ? '✅ Actualizado' : '🚀 Producto Registrado');
       setTimeout(() => setMensaje(''), 3000);
       cancelarEdicion();
       obtenerProductos(empresaId);
@@ -89,11 +103,13 @@ export default function InventarioPage() {
     }
   };
 
+  // ... (eliminarProducto y prepararEdicion se mantienen similares, ajustando stock)
   const prepararEdicion = (prod: any) => {
     setEditando(prod);
     setNombre(prod.nombre);
     setPrecio(prod.precio.toString());
     setStock(prod.stock.toString());
+    setUnidad(prod.unidad_medida || 'UNIDADES');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -102,6 +118,7 @@ export default function InventarioPage() {
     setNombre('');
     setPrecio('');
     setStock('');
+    setUnidad('UNIDADES');
   };
 
   if (cargando)
@@ -138,196 +155,189 @@ export default function InventarioPage() {
     );
 
   return (
-    <main className="min-h-screen bg-slate-100 text-ventiq-black">
-      <div className="max-w-5xl mx-auto p-2 md:p-8 space-y-4 md:space-y-8">
-        <div className="px-2 pt-2">
-          {/* TÍTULO USANDO VARIABLES */}
-          <h1 className="text-xl md:text-3xl font-black uppercase tracking-tighter">
-            Mi Inventario <span className="text-ventiq-orange">Ventiq</span>
-          </h1>
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">
-            ID: {empresaId?.split('-')[0]}...
-          </p>
+    <main className="min-h-screen bg-slate-100 text-ventiq-black pb-20 md:pb-8">
+      {/* EVITAR RECARGA POR SCROLL EN MÓVIL */}
+      <style jsx global>{`
+        body {
+          overscroll-behavior-y: contain;
+        }
+      `}</style>
+
+      <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-6">
+        {/* HEADER CON NOMBRE DE EMPRESA */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[2rem] shadow-sm border border-white">
+          <div>
+            <div className="flex items-center gap-2 text-ventiq-orange mb-1">
+              <Store size={16} />
+              <span className="text-[10px] font-black uppercase tracking-[0.3em]">
+                {nombreEmpresa}
+              </span>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter">
+              Control de <span className="text-ventiq-orange">Almacén</span>
+            </h1>
+          </div>
+          <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100">
+            <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest">
+              Estado de Conexión
+            </p>
+            <p className="text-green-500 text-xs font-black uppercase tracking-tighter flex items-center gap-2">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-ping"></span>{' '}
+              En Línea
+            </p>
+          </div>
         </div>
 
-        {/* FORMULARIO */}
-        <section className="bg-white p-4 md:p-6 rounded-3xl shadow-lg border border-white">
-          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-            {editando ? '✏️ Editando Producto' : '➕ Nuevo Registro'}
-          </h2>
-
+        {/* FORMULARIO MEJORADO */}
+        <section className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-white">
           <form
             onSubmit={guardarProducto}
-            className="flex flex-col md:grid md:grid-cols-4 gap-3"
+            className="grid grid-cols-1 md:grid-cols-4 gap-4"
           >
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">
+            <div className="md:col-span-2 space-y-1">
+              <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
                 Producto
               </label>
               <input
-                placeholder="Nombre"
+                placeholder="Ej. Cloro Industrial"
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
-                className="w-full bg-slate-50 border-2 border-transparent p-3 rounded-2xl focus:border-ventiq-orange focus:bg-white transition-all outline-none font-bold"
+                className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl focus:border-ventiq-orange focus:bg-white transition-all outline-none font-bold text-sm"
                 required
               />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
+                Unidad
+              </label>
+              <select
+                value={unidad}
+                onChange={(e) => setUnidad(e.target.value)}
+                className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl focus:border-ventiq-orange focus:bg-white transition-all outline-none font-bold text-sm appearance-none"
+              >
+                {unidadesMedida.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1 text-right">
+              {/* Visualización rápida de lo que estamos haciendo */}
+              <div className="h-6"></div>
+              <button
+                className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all active:scale-95 shadow-lg ${editando ? 'bg-ventiq-orange text-white' : 'bg-ventiq-black text-white hover:bg-slate-800'}`}
+              >
+                {editando ? 'Actualizar' : 'Registrar'}
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
                 Precio ($)
               </label>
               <input
-                placeholder="0.00"
                 type="number"
                 step="0.01"
+                placeholder="0.00"
                 value={precio}
                 onChange={(e) => setPrecio(e.target.value)}
-                className="w-full bg-slate-50 border-2 border-transparent p-3 rounded-2xl focus:border-ventiq-orange focus:bg-white transition-all outline-none font-bold"
+                className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl focus:border-ventiq-orange focus:bg-white transition-all outline-none font-bold text-sm"
                 required
               />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] uppercase font-bold text-slate-400 ml-1">
-                Stock
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
+                Stock (Acepta decimales)
               </label>
               <input
-                placeholder="0"
                 type="number"
+                step="0.01"
+                placeholder="0.00"
                 value={stock}
                 onChange={(e) => setStock(e.target.value)}
-                className="w-full bg-slate-50 border-2 border-transparent p-3 rounded-2xl focus:border-ventiq-orange focus:bg-white transition-all outline-none font-bold"
+                className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl focus:border-ventiq-orange focus:bg-white transition-all outline-none font-bold text-sm text-ventiq-orange"
                 required
               />
             </div>
 
-            <div className="flex gap-2 pt-1 md:pt-5">
-              {/* BOTÓN DINÁMICO (Cambia de color si edita o guarda usando tus variables) */}
+            {editando && (
               <button
-                className={`flex-1 py-3 md:py-0 rounded-2xl font-bold text-white shadow-md active:scale-95 transition-all ${
-                  editando
-                    ? 'bg-ventiq-orange'
-                    : 'bg-ventiq-black hover:bg-slate-800'
-                }`}
+                type="button"
+                onClick={cancelarEdicion}
+                className="md:mt-5 flex items-center justify-center bg-red-50 text-red-500 rounded-2xl font-bold p-4 hover:bg-red-100 transition-all"
               >
-                {editando ? 'Actualizar' : 'Guardar'}
+                <X size={20} />{' '}
+                <span className="ml-2 uppercase text-xs">Cancelar</span>
               </button>
-              {editando && (
-                <button
-                  type="button"
-                  onClick={cancelarEdicion}
-                  className="bg-slate-200 p-3 rounded-2xl hover:bg-slate-300 transition-colors"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+            )}
           </form>
-
-          {mensaje && (
-            <div className="mt-3 p-2 bg-orange-50 text-ventiq-orange text-center rounded-xl font-bold text-sm border border-orange-100 animate-pulse">
-              {mensaje}
-            </div>
-          )}
         </section>
 
-        {/* LISTADO ESCRITORIO */}
-        <section className="space-y-3">
-          <div className="hidden md:block bg-white rounded-3xl shadow-sm overflow-hidden border border-slate-200">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50">
-                <tr className="text-slate-400 text-xs uppercase font-black">
-                  <th className="p-5">Producto</th>
-                  <th className="p-5">Precio</th>
-                  <th className="p-5">Stock</th>
-                  <th className="p-5 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {productos.map((prod) => (
-                  <tr
-                    key={prod.id}
-                    className="hover:bg-slate-50/50 transition-colors"
-                  >
-                    <td className="p-5 font-bold uppercase text-sm tracking-tight">
-                      {prod.nombre}
-                    </td>
-                    <td className="p-5 text-ventiq-orange font-black">
-                      ${prod.precio.toFixed(2)}
-                    </td>
-                    <td className="p-5">
-                      <span
-                        className={`px-3 py-1 rounded-lg font-bold text-xs ${prod.stock < 5 ? 'bg-red-50 text-red-500' : 'bg-slate-100 text-slate-500'}`}
-                      >
-                        {prod.stock} UNIDADES
-                      </span>
-                    </td>
-                    <td className="p-5 text-right space-x-2">
-                      <button
-                        onClick={() => prepararEdicion(prod)}
-                        className="p-2 text-ventiq-orange hover:bg-orange-50 rounded-xl transition-colors"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => eliminarProducto(prod.id)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                      >
-                        🗑️
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* CARDS MÓVIL */}
-          <div className="md:hidden flex flex-col gap-3">
+        {/* LISTADO TIPO APP */}
+        <section className="space-y-4">
+          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] ml-2">
+            Productos en Almacén
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {productos.map((prod) => (
               <div
                 key={prod.id}
-                className="bg-white p-4 rounded-3xl shadow-md flex justify-between items-center border border-white"
+                className="bg-white p-5 rounded-[2rem] border border-white shadow-sm hover:shadow-md transition-all group"
               >
-                <div className="flex-1">
-                  <h3 className="font-bold text-ventiq-black uppercase text-sm">
-                    {prod.nombre}
-                  </h3>
-                  <div className="flex items-center gap-4 mt-1">
-                    <span className="text-ventiq-orange font-black text-lg">
-                      ${prod.precio}
-                    </span>
-                    <span className="text-slate-400 text-[10px] font-black bg-slate-100 px-2 py-1 rounded-lg">
-                      STOCK: {prod.stock}
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h4 className="font-black text-ventiq-black uppercase text-sm leading-tight">
+                      {prod.nombre}
+                    </h4>
+                    <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                      {prod.unidad_medida || 'UNIDADES'}
                     </span>
                   </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => prepararEdicion(prod)}
+                      className="p-2 bg-orange-50 text-ventiq-orange rounded-xl hover:bg-ventiq-orange hover:text-white transition-all"
+                    >
+                      <Edit3 size={14} />
+                    </button>
+                    <button
+                      onClick={() => eliminarProducto(prod.id)}
+                      className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => prepararEdicion(prod)}
-                    className="w-10 h-10 flex items-center justify-center bg-orange-50 text-ventiq-orange rounded-xl border border-orange-100"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    onClick={() => eliminarProducto(prod.id)}
-                    className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl border border-red-100"
-                  >
-                    🗑️
-                  </button>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase">
+                      Precio
+                    </p>
+                    <p className="text-xl font-black text-ventiq-black">
+                      ${prod.precio.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] font-black text-slate-400 uppercase">
+                      Stock Disponible
+                    </p>
+                    <p
+                      className={`text-lg font-black ${prod.stock < 5 ? 'text-red-500 animate-pulse' : 'text-ventiq-orange'}`}
+                    >
+                      {prod.stock}{' '}
+                      <span className="text-[10px]">
+                        {prod.unidad_medida === 'LITROS' ? 'Lts' : 'Und'}
+                      </span>
+                    </p>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-
-          {productos.length === 0 && (
-            <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
-              <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">
-                El almacén está vacío
-              </p>
-            </div>
-          )}
         </section>
       </div>
     </main>
