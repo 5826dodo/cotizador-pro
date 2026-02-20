@@ -88,12 +88,10 @@ export default function LoginPage() {
         {/* Logo y Header */}
         <div className="flex flex-col items-center text-center">
           <div className="relative w-28 mb-4">
-            <Image
+            <img
               src="/logo_ventiq.png"
               alt="Logo Ventiq"
-              fill
-              className="object-contain"
-              priority
+              className="w-full h-auto object-contain"
             />
           </div>
 
