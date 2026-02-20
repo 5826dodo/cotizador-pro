@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-// Agregamos Loader2 para el spinner de carga
 import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -12,7 +11,7 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Estados para el efecto máquina de escribir
+  // Estados máquina de escribir
   const [displayText, setDisplayText] = useState('');
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -27,29 +26,23 @@ export default function LoginPage() {
 
   const router = useRouter();
 
-  // Lógica del efecto Máquina de Escribir
   useEffect(() => {
     const handleTyping = () => {
       const currentPhrase = phrases[phraseIndex];
-
       if (!isDeleting) {
         setDisplayText(currentPhrase.substring(0, displayText.length + 1));
         setTypingSpeed(100);
-
-        if (displayText === currentPhrase) {
+        if (displayText === currentPhrase)
           setTimeout(() => setIsDeleting(true), 2000);
-        }
       } else {
         setDisplayText(currentPhrase.substring(0, displayText.length - 1));
         setTypingSpeed(50);
-
         if (displayText === '') {
           setIsDeleting(false);
           setPhraseIndex((prev) => (prev + 1) % phrases.length);
         }
       }
     };
-
     const timer = setTimeout(handleTyping, typingSpeed);
     return () => clearTimeout(timer);
   }, [displayText, isDeleting, phraseIndex]);
@@ -58,85 +51,79 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setErrorMsg(null);
-
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
+    const { error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-
     if (authError) {
       setErrorMsg('Credenciales incorrectas');
       setLoading(false);
       return;
     }
-
     router.refresh();
     router.push('/');
   };
 
   return (
-    <div className="relative flex h-[100dvh] w-full items-center justify-center bg-[#0D0F12] px-6 overflow-hidden">
-      {/* OVERLAY DE CARGA: Bloquea la pantalla mientras procesa el login */}
+    <div className="relative flex h-[100dvh] w-full items-center justify-center bg-[#0D0F12] px-6 overflow-hidden font-sans">
+      {/* SPINNER OVERLAY */}
       {loading && (
-        <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-[#0D0F12]/80 backdrop-blur-md transition-all">
+        <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-[#0D0F12]/90 backdrop-blur-sm">
           <Loader2
             className="animate-spin text-[#FF9800]"
-            size={48}
-            strokeWidth={2.5}
+            size={50}
+            strokeWidth={3}
           />
-          <p className="mt-4 text-[11px] font-black text-white uppercase tracking-[0.4em] animate-pulse">
-            Autenticando...
+          <p className="mt-4 text-[10px] font-black text-white uppercase tracking-[0.4em]">
+            Iniciando sesión
           </p>
         </div>
       )}
 
-      {/* Círculos de luz de fondo */}
+      {/* BACKGROUND DECORATION */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-600/10 rounded-full blur-[100px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-orange-600/10 rounded-full blur-[100px]"></div>
       </div>
 
-      {/* CARD DEL LOGIN */}
-      <div className="relative w-full max-w-md z-10 bg-white rounded-[2.5rem] p-8 md:p-10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] border border-gray-100">
-        {/* Logo y Header */}
+      {/* LOGIN CARD */}
+      <div className="relative w-full max-w-md z-10 bg-white rounded-[2.5rem] p-8 shadow-[0_20px_60px_rgba(0,0,0,0.5)] border border-gray-100">
         <div className="flex flex-col items-center text-center">
-          <div className="relative w-28 mb-4">
+          <div className="relative w-24 mb-4">
             <img
               src="/logo_ventiq.png"
               alt="Logo Ventiq"
-              className="w-full h-auto object-contain"
+              className="w-full h-auto"
             />
           </div>
-
-          <h2 className="text-4xl font-black text-[#1A1D23] tracking-tighter leading-none">
+          <h2 className="text-4xl font-black text-[#1A1D23] tracking-tighter">
             Venti<span className="text-[#FF9800]">Q</span>
           </h2>
-
-          <div className="h-5 mt-3 flex items-center justify-center">
+          <div className="h-5 mt-2 flex items-center justify-center">
             <p className="text-[10px] font-mono font-bold text-purple-600 uppercase tracking-widest border-r-2 border-purple-600 pr-1 animate-pulse-caret">
               {displayText}
             </p>
           </div>
         </div>
 
-        <form className="mt-8 space-y-5" onSubmit={handleLogin}>
+        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           <div className="space-y-4">
-            {/* Input Email */}
-            <div>
+            {/* EMAIL */}
+            <div className="group">
               <label className="text-[9px] font-black text-gray-400 ml-4 mb-1 block uppercase tracking-[0.2em]">
                 Correo Electrónico
               </label>
               <input
                 type="email"
                 required
-                className="block w-full rounded-2xl border-none bg-gray-50 px-6 py-4 text-gray-900 ring-2 ring-transparent focus:ring-[#FF9800] focus:shadow-[0_0_20px_rgba(255,152,0,0.2)] outline-none transition-all text-sm font-semibold"
+                className="block w-full rounded-2xl border-none bg-gray-50 px-6 py-4 text-gray-900 ring-2 ring-gray-100 focus:ring-[3px] focus:ring-[#FF9800] focus:shadow-[0_0_20px_rgba(255,152,0,0.3)] outline-none transition-all duration-300 text-sm font-bold"
                 placeholder="usuario@ventiq.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
 
-            {/* Input Contraseña con Botón de Ojo */}
+            {/* PASSWORD */}
             <div>
               <label className="text-[9px] font-black text-gray-400 ml-4 mb-1 block uppercase tracking-[0.2em]">
                 Contraseña
@@ -145,7 +132,7 @@ export default function LoginPage() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
-                  className="block w-full rounded-2xl border-none bg-gray-50 px-6 py-4 text-gray-900 ring-2 ring-transparent focus:ring-[#FF9800] focus:shadow-[0_0_20px_rgba(255,152,0,0.2)] outline-none transition-all text-sm font-semibold"
+                  className="block w-full rounded-2xl border-none bg-gray-50 px-6 py-4 text-gray-900 ring-2 ring-gray-100 focus:ring-[3px] focus:ring-[#FF9800] focus:shadow-[0_0_20px_rgba(255,152,0,0.3)] outline-none transition-all duration-300 text-sm font-bold"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -174,17 +161,13 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="group relative flex w-full justify-center items-center gap-3 rounded-2xl bg-[#1A1D23] py-4 text-sm font-bold text-white hover:bg-[#2D3139] active:scale-[0.96] transition-all shadow-lg"
+            className="group relative flex w-full justify-center items-center gap-3 rounded-2xl bg-[#1A1D23] py-4 text-sm font-black text-white hover:bg-black active:scale-[0.96] transition-all shadow-xl"
           >
-            <span className="uppercase tracking-widest text-xs">
-              {loading ? 'Entrando...' : 'Entrar al Sistema'}
-            </span>
-            {!loading && (
-              <ArrowRight
-                size={16}
-                className="text-[#FF9800] group-hover:translate-x-1 transition-transform"
-              />
-            )}
+            <span className="uppercase tracking-widest">Entrar al Sistema</span>
+            <ArrowRight
+              size={18}
+              className="text-[#FF9800] group-hover:translate-x-1 transition-transform"
+            />
           </button>
         </form>
 
