@@ -125,38 +125,36 @@ export default function HistorialPage() {
     cot: any,
     usdEquivalente: number,
     tipo: string,
-    montoBsOverride?: number, // Nuevo parámetro
-    montoUsdOverride?: number, // Nuevo parámetro
+    montoBsOverride?: number,
+    montoUsdOverride?: number,
   ) => {
     const deudaActualUsd = cot.total - (cot.monto_pagado || 0);
 
-    // Usamos el override si existe, si no, el estado del input
+    // Si hay override (botones total) usamos eso, si no, lo que esté en los inputs
     const bsAFinal =
       montoBsOverride !== undefined ? montoBsOverride : montoBsRecibido;
     const usdAFinal =
       montoUsdOverride !== undefined ? montoUsdOverride : montoUsdRecibido;
 
     if (usdEquivalente > deudaActualUsd + 0.05) {
-      alert(
-        `⚠️ Monto ($${usdEquivalente.toFixed(2)}) excede la deuda ($${deudaActualUsd.toFixed(2)})`,
-      );
+      alert(`⚠️ El monto excede la deuda actual`);
       return;
     }
 
     setProcesandoAccion(true);
     try {
-      // Registrar en la tabla de pagos (esto es lo que suma a las cards del día)
+      // 1. Registrar en caja (pagos_registrados)
       await supabase.from('pagos_registrados').insert([
         {
           cotizacion_id: cot.id,
           monto_bs: bsAFinal,
           monto_usd: usdAFinal,
-          tasa_applied: tasaDia || cot.tasa_bcv,
+          tasa_aplicada: tasaDia || cot.tasa_bcv,
           observacion: tipo,
         },
       ]);
 
-      // Actualizar el acumulado en la cotización
+      // 2. Actualizar monto_pagado en la cotización
       const nuevoTotalPagado = (cot.monto_pagado || 0) + usdEquivalente;
       await supabase
         .from('cotizaciones')
@@ -167,15 +165,15 @@ export default function HistorialPage() {
         })
         .eq('id', cot.id);
 
-      alert('✅ Pago registrado y caja actualizada');
+      alert('✅ Pago procesado exitosamente');
 
-      // LIMPIEZA DE ESTADOS
+      // Limpiar estados y refrescar
       setMontoBsRecibido(0);
       setMontoUsdRecibido(0);
       setTasaDia(0);
       setCotizacionSeleccionada(null);
       setMostrarAbonar(false);
-      cargarDatos(); // Esto refresca las cards de arriba
+      await cargarDatos(); // Recarga las cajas de arriba
     } catch (error) {
       alert('Error al procesar pago');
     }
@@ -474,26 +472,31 @@ export default function HistorialPage() {
 
                         {mostrarAbonar && (
                           <div className="p-6 bg-slate-50 rounded-[2.5rem] border-2 border-slate-100 space-y-4 animate-in zoom-in-95 duration-200">
-                            {/* VARIABLES AUXILIARES DE CÁLCULO */}
                             {(() => {
+                              // CÁLCULOS EN VIVO
                               const deudaPendienteUsd =
                                 cotizacionSeleccionada.total -
                                 (cotizacionSeleccionada.monto_pagado || 0);
                               const tasaParaCalculo =
-                                tasaDia || cotizacionSeleccionada.tasa_bcv;
-                              const deudaEnBs =
-                                deudaPendienteUsd * tasaParaCalculo;
+                                tasaDia > 0
+                                  ? tasaDia
+                                  : cotizacionSeleccionada.tasa_bcv || 1;
+                              const deudaEnBsALaTasa = Number(
+                                (deudaPendienteUsd * tasaParaCalculo).toFixed(
+                                  2,
+                                ),
+                              );
 
                               return (
                                 <>
-                                  {/* 1. INPUT DE TASA */}
+                                  {/* TASA DE CAMBIO */}
                                   <div className="relative">
                                     <label className="text-[9px] font-black uppercase text-slate-400 absolute -top-2 left-4 bg-white px-2 z-10">
-                                      Tasa de Cambio
+                                      Tasa del Día
                                     </label>
                                     <input
                                       type="number"
-                                      className="w-full p-4 rounded-[1.2rem] border-2 border-slate-200 font-black text-slate-700 focus:border-orange-500 outline-none transition-all shadow-sm"
+                                      className="w-full p-4 rounded-[1.2rem] border-2 border-slate-200 font-black text-slate-700 focus:border-orange-500 outline-none"
                                       placeholder="Ej: 54.50"
                                       value={tasaDia || ''}
                                       onChange={(e) =>
@@ -504,43 +507,32 @@ export default function HistorialPage() {
                                     />
                                   </div>
 
-                                  {/* 2. INPUTS DE ABONO DINÁMICOS */}
+                                  {/* INPUTS DE ABONO MANUAL */}
                                   <div className="grid grid-cols-2 gap-3">
-                                    {/* ABONO BS */}
-                                    <div className="relative group">
+                                    <div className="relative">
+                                      <span className="text-[8px] font-bold text-emerald-500 ml-2 italic">
+                                        Abonar Bolívares
+                                      </span>
                                       <input
                                         type="number"
                                         value={montoBsRecibido || ''}
-                                        className="w-full p-4 rounded-[1.2rem] border-2 border-emerald-100 font-black text-emerald-600 outline-none focus:ring-2 ring-emerald-500 placeholder:text-emerald-300"
-                                        placeholder={`Bs. ${deudaEnBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`}
+                                        className="w-full p-4 rounded-[1.2rem] border-2 border-emerald-100 font-black text-emerald-600 outline-none focus:ring-2 ring-emerald-500"
+                                        placeholder={`Bs. ${deudaEnBsALaTasa}`}
                                         onChange={(e) =>
                                           setMontoBsRecibido(
                                             parseFloat(e.target.value) || 0,
                                           )
                                         }
                                       />
-                                      <button
-                                        onClick={() =>
-                                          setMontoBsRecibido(
-                                            Number(deudaEnBs.toFixed(2)),
-                                          )
-                                        }
-                                        className="absolute right-2 top-2 text-[7px] bg-emerald-500 text-white px-2 py-1 rounded-lg font-black uppercase hover:bg-emerald-600"
-                                      >
-                                        {' '}
-                                        MAX{' '}
-                                      </button>
-                                      <span className="text-[7px] font-bold text-emerald-400 ml-2 italic">
-                                        Saldo en Bs.
-                                      </span>
                                     </div>
-
-                                    {/* ABONO USD */}
-                                    <div className="relative group">
+                                    <div className="relative">
+                                      <span className="text-[8px] font-bold text-blue-500 ml-2 italic">
+                                        Abonar Dólares
+                                      </span>
                                       <input
                                         type="number"
                                         value={montoUsdRecibido || ''}
-                                        className="w-full p-4 rounded-[1.2rem] border-2 border-blue-100 font-black text-blue-600 outline-none focus:ring-2 ring-blue-500 placeholder:text-blue-300"
+                                        className="w-full p-4 rounded-[1.2rem] border-2 border-blue-100 font-black text-blue-600 outline-none focus:ring-2 ring-blue-500"
                                         placeholder={`$${deudaPendienteUsd.toFixed(2)}`}
                                         onChange={(e) =>
                                           setMontoUsdRecibido(
@@ -548,26 +540,10 @@ export default function HistorialPage() {
                                           )
                                         }
                                       />
-                                      <button
-                                        onClick={() =>
-                                          setMontoUsdRecibido(
-                                            Number(
-                                              deudaPendienteUsd.toFixed(2),
-                                            ),
-                                          )
-                                        }
-                                        className="absolute right-2 top-2 text-[7px] bg-blue-500 text-white px-2 py-1 rounded-lg font-black uppercase hover:bg-blue-600"
-                                      >
-                                        {' '}
-                                        MAX{' '}
-                                      </button>
-                                      <span className="text-[7px] font-bold text-blue-400 ml-2 italic">
-                                        Saldo en $.
-                                      </span>
                                     </div>
                                   </div>
 
-                                  {/* 3. BOTÓN PROCESAR ABONO MANUAL */}
+                                  {/* BOTÓN PROCESAR ABONO PARCIAL */}
                                   <button
                                     disabled={
                                       montoBsRecibido <= 0 &&
@@ -580,83 +556,75 @@ export default function HistorialPage() {
                                       registrarPago(
                                         cotizacionSeleccionada,
                                         abonoEnUsd,
-                                        'Abono Parcial Registrado',
+                                        'Abono Parcial',
                                       );
                                     }}
-                                    className={`w-full p-5 rounded-[1.5rem] font-black uppercase text-xs shadow-lg transition-all ${
+                                    className={`w-full p-5 rounded-[1.5rem] font-black uppercase text-xs transition-all ${
                                       montoBsRecibido > 0 ||
                                       montoUsdRecibido > 0
-                                        ? 'bg-emerald-600 text-white shadow-emerald-200 hover:scale-[1.02]'
-                                        : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                                        ? 'bg-emerald-600 text-white shadow-lg'
+                                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                                     }`}
                                   >
-                                    {montoBsRecibido > 0 || montoUsdRecibido > 0
-                                      ? 'Confirmar y Procesar Abono'
-                                      : 'Ingrese un monto'}
+                                    Confirmar Abono
                                   </button>
 
-                                  {/* 4. LIQUIDACIÓN TOTAL RÁPIDA */}
+                                  {/* SECCIÓN DE LIQUIDACIÓN TOTAL */}
                                   <div className="relative py-2 mt-2">
                                     <div className="absolute inset-0 flex items-center">
                                       <span className="w-full border-t border-slate-200"></span>
                                     </div>
                                     <div className="relative flex justify-center text-[8px] uppercase font-black text-slate-400">
                                       <span className="bg-slate-50 px-2 italic">
-                                        Liquidar Deuda Total en:
+                                        Liquidar Deuda Total:
                                       </span>
                                     </div>
                                   </div>
 
                                   <div className="grid grid-cols-2 gap-3">
-                                    {/* LIQUIDAR EN BS */}
+                                    {/* BOTÓN LIQUIDAR BS (RESPETA TASA) */}
                                     <button
-                                      onClick={() => {
-                                        const tasa =
-                                          tasaDia ||
-                                          cotizacionSeleccionada.tasa_bcv;
-                                        const deudaUsd =
-                                          cotizacionSeleccionada.total -
-                                          (cotizacionSeleccionada.monto_pagado ||
-                                            0);
-                                        const totalEnBs = Number(
-                                          (deudaUsd * tasa).toFixed(2),
-                                        );
-
+                                      onClick={() =>
                                         registrarPago(
                                           cotizacionSeleccionada,
-                                          deudaUsd,
-                                          `Liquidación Total Bs (Tasa: ${tasa})`,
-                                          totalEnBs, // Monto BS para la caja
-                                          0, // Monto USD para la caja
-                                        );
-                                      }}
-                                      className="bg-white border-2 border-emerald-500 text-emerald-600 p-4 rounded-[1.2rem] font-black uppercase text-[9px] hover:bg-emerald-50"
+                                          deudaPendienteUsd,
+                                          `Total en Bs (Tasa: ${tasaParaCalculo})`,
+                                          deudaEnBsALaTasa,
+                                          0,
+                                        )
+                                      }
+                                      className="bg-white border-2 border-emerald-500 text-emerald-600 p-4 rounded-[1.2rem] font-black uppercase text-[10px] flex flex-col items-center justify-center hover:bg-emerald-50"
                                     >
-                                      <span>🇻🇪 Bs. Total</span>
+                                      <span className="text-xs">
+                                        Bs.{' '}
+                                        {deudaEnBsALaTasa.toLocaleString(
+                                          'es-VE',
+                                        )}
+                                      </span>
+                                      <span className="text-[7px]">
+                                        Pagar todo en Bs
+                                      </span>
                                     </button>
 
-                                    {/* LIQUIDAR EN USD */}
+                                    {/* BOTÓN LIQUIDAR USD */}
                                     <button
-                                      onClick={() => {
-                                        const deudaUsd = Number(
-                                          (
-                                            cotizacionSeleccionada.total -
-                                            (cotizacionSeleccionada.monto_pagado ||
-                                              0)
-                                          ).toFixed(2),
-                                        );
-
+                                      onClick={() =>
                                         registrarPago(
                                           cotizacionSeleccionada,
-                                          deudaUsd,
-                                          'Liquidación Total USD (Efectivo)',
-                                          0, // Monto BS para la caja
-                                          deudaUsd, // Monto USD para la caja
-                                        );
-                                      }}
-                                      className="bg-slate-900 text-white p-4 rounded-[1.2rem] font-black uppercase text-[9px] hover:bg-black shadow-lg"
+                                          deudaPendienteUsd,
+                                          'Total en USD',
+                                          0,
+                                          deudaPendienteUsd,
+                                        )
+                                      }
+                                      className="bg-slate-900 text-white p-4 rounded-[1.2rem] font-black uppercase text-[10px] flex flex-col items-center justify-center hover:bg-black shadow-lg"
                                     >
-                                      <span>💵 $. Total</span>
+                                      <span className="text-xs">
+                                        $ {deudaPendienteUsd.toFixed(2)}
+                                      </span>
+                                      <span className="text-[7px]">
+                                        Pagar todo en $
+                                      </span>
                                     </button>
                                   </div>
                                 </>
