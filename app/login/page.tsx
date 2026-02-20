@@ -74,51 +74,47 @@ export default function LoginPage() {
   };
 
   return (
-    // Fondo de página: Oscuro elegante para que el formulario resalte
-    <div className="flex min-h-screen items-center justify-center bg-[#0D0F12] px-4">
-      {/* Círculos de luz suaves al fondo */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+    /* Contenedor Principal: Ahora con h-[100dvh] y overflow-hidden para bloquear el scroll */
+    <div className="relative flex h-[100dvh] w-full items-center justify-center bg-[#0D0F12] px-6 overflow-hidden">
+      {/* Círculos de luz suaves al fondo: pointer-events-none es vital */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-600/10 rounded-full blur-[100px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-orange-600/10 rounded-full blur-[100px]"></div>
       </div>
 
-      <div className="relative w-full max-w-md space-y-8 rounded-[2.5rem] bg-white p-10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] border border-gray-100">
+      {/* CARD DEL LOGIN: Ajustado para que nunca exceda la pantalla móvil */}
+      <div className="relative w-full max-w-md z-10 bg-white rounded-[2.5rem] p-8 md:p-10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] border border-gray-100 transition-all">
         {/* Logo y Header */}
         <div className="flex flex-col items-center text-center">
-          <div className="relative w-32 mb-4">
-            {' '}
-            {/* Aumentamos ancho, quitamos h fija */}
+          <div className="relative w-28 mb-4">
             <img
               src="/logo_ventiq.png"
               alt="Logo Ventiq"
               className="w-full h-auto object-contain"
-              // Si la imagen sigue sin aparecer, intenta con una ruta absoluta temporal
-              // para descartar: src="https://tu-dominio.com/logo_ventiq.png"
             />
           </div>
 
-          <h2 className="text-4xl font-black text-[#1A1D23] tracking-tighter">
+          <h2 className="text-4xl font-black text-[#1A1D23] tracking-tighter leading-none">
             Venti<span className="text-[#FF9800]">q</span>
           </h2>
 
-          {/* Subtítulo con efecto máquina de escribir */}
-          <div className="h-5 mt-2 flex items-center justify-center">
-            <p className="text-[11px] font-mono font-bold text-purple-600 uppercase tracking-widest border-r-2 border-purple-600 pr-1 animate-pulse-caret">
+          <div className="h-5 mt-3 flex items-center justify-center">
+            <p className="text-[10px] font-mono font-bold text-purple-600 uppercase tracking-widest border-r-2 border-purple-600 pr-1 animate-pulse-caret">
               {displayText}
             </p>
           </div>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+        <form className="mt-8 space-y-5" onSubmit={handleLogin}>
           <div className="space-y-4">
             <div>
-              <label className="text-[10px] font-bold text-gray-400 ml-4 mb-1 block uppercase tracking-widest">
+              <label className="text-[9px] font-black text-gray-400 ml-4 mb-1 block uppercase tracking-[0.2em]">
                 Correo Electrónico
               </label>
               <input
                 type="email"
                 required
-                className="block w-full rounded-2xl border-none bg-gray-50 px-6 py-4 text-gray-900 ring-1 ring-gray-200 focus:ring-2 focus:ring-[#FF9800] outline-none transition-all"
+                className="block w-full rounded-2xl border-none bg-gray-50 px-6 py-4 text-gray-900 ring-1 ring-gray-200 focus:ring-2 focus:ring-[#FF9800] outline-none transition-all text-sm"
                 placeholder="usuario@ventiq.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -126,13 +122,13 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-gray-400 ml-4 mb-1 block uppercase tracking-widest">
+              <label className="text-[9px] font-black text-gray-400 ml-4 mb-1 block uppercase tracking-[0.2em]">
                 Contraseña
               </label>
               <input
                 type="password"
                 required
-                className="block w-full rounded-2xl border-none bg-gray-50 px-6 py-4 text-gray-900 ring-1 ring-gray-200 focus:ring-2 focus:ring-[#FF9800] outline-none transition-all"
+                className="block w-full rounded-2xl border-none bg-gray-50 px-6 py-4 text-gray-900 ring-1 ring-gray-200 focus:ring-2 focus:ring-[#FF9800] outline-none transition-all text-sm"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -141,7 +137,7 @@ export default function LoginPage() {
           </div>
 
           {errorMsg && (
-            <div className="rounded-xl bg-red-50 p-3 text-xs text-red-500 text-center font-bold border border-red-100 animate-bounce-short">
+            <div className="rounded-xl bg-red-50 p-3 text-[11px] text-red-500 text-center font-bold border border-red-100 animate-bounce-short">
               {errorMsg}
             </div>
           )}
@@ -149,17 +145,17 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="group relative flex w-full justify-center items-center gap-3 rounded-2xl bg-[#1A1D23] py-4 px-4 text-sm font-bold text-white hover:bg-[#2D3139] active:scale-[0.98] transition-all shadow-xl shadow-gray-200"
+            className="group relative flex w-full justify-center items-center gap-3 rounded-2xl bg-[#1A1D23] py-4 text-sm font-bold text-white hover:bg-[#2D3139] active:scale-[0.96] transition-all shadow-lg"
           >
             {loading ? (
               <div className="h-5 w-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
             ) : (
               <>
-                <span className="uppercase tracking-widest">
-                  Iniciar Sesión
+                <span className="uppercase tracking-widest text-xs">
+                  Entrar al Sistema
                 </span>
                 <ArrowRight
-                  size={18}
+                  size={16}
                   className="text-[#FF9800] group-hover:translate-x-1 transition-transform"
                 />
               </>
@@ -167,14 +163,21 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="text-center">
-          <span className="text-[10px] text-gray-300 font-bold tracking-[0.3em] uppercase">
+        <div className="text-center mt-8">
+          <span className="text-[9px] text-gray-300 font-black tracking-[0.4em] uppercase">
             Ventiq System v2.0
           </span>
         </div>
       </div>
 
       <style jsx>{`
+        /* Evita el scroll incluso si el teclado móvil aparece */
+        :global(body) {
+          overflow: hidden;
+          position: fixed;
+          width: 100%;
+          height: 100%;
+        }
         @keyframes pulse-caret {
           from,
           to {
