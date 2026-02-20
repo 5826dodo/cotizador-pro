@@ -291,20 +291,19 @@ export default function HistorialPage() {
                       )}
                     </div>
 
+                    {/* DEUDA ACTUALIZADA SEGÚN ORIGEN */}
                     <div className="text-right border-l-2 border-slate-50 pl-6">
                       <p className="text-[9px] font-black text-slate-400 uppercase italic">
                         Deuda Actual
                       </p>
+
                       {estaPagado ? (
                         <p className="font-black text-emerald-500 text-sm">
                           SOLVENTE
                         </p>
-                      ) : !esAprobada ? (
-                        <p className="font-black text-amber-500 text-xs uppercase">
-                          PENDIENTE
-                        </p>
                       ) : (
                         <>
+                          {/* Monto principal de deuda */}
                           <p
                             className={`font-black text-lg leading-none ${esBS ? 'text-emerald-600' : 'text-red-600'}`}
                           >
@@ -312,11 +311,20 @@ export default function HistorialPage() {
                               ? `Bs. ${(deudaUsd * tasa).toLocaleString('es-VE')}`
                               : `$${deudaUsd.toFixed(2)}`}
                           </p>
+
+                          {/* Monto secundario de deuda (conversión) */}
                           <p className="text-[10px] font-bold text-slate-400">
                             {esBS
                               ? `$ ${deudaUsd.toFixed(2)}`
                               : `Bs. ${(deudaUsd * tasa).toLocaleString('es-VE')}`}
                           </p>
+
+                          {/* Aviso si no está aprobada pero tiene deuda técnica */}
+                          {!esAprobada && (
+                            <span className="text-[7px] font-black bg-amber-100 text-amber-600 px-1 rounded uppercase block mt-1">
+                              No Aprobada
+                            </span>
+                          )}
                         </>
                       )}
                     </div>
