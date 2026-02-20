@@ -266,10 +266,22 @@ export default function HistorialPage() {
 
                   {/* Montos Dinámicos */}
                   <div className="grid grid-cols-2 md:flex md:items-center gap-8 w-full md:w-auto">
-                    <div className="text-right">
-                      <p className="text-[9px] font-black text-slate-400 uppercase">
-                        Monto Venta
-                      </p>
+                    {/* COLUMNA 1: MONTO TOTAL Y ETIQUETA DE TIPO */}
+                    <div className="text-right min-w-[120px]">
+                      <div className="flex flex-col items-end gap-1 mb-1">
+                        <p className="text-[9px] font-black text-slate-400 uppercase">
+                          Total Venta
+                        </p>
+                        {/* ETIQUETA DINÁMICA: VENTA O COTIZACIÓN */}
+                        <span
+                          className={`text-[8px] px-2 py-0.5 rounded-full font-black text-white uppercase ${cot.tipo_operacion === 'venta_directa' ? 'bg-orange-500' : 'bg-blue-500'}`}
+                        >
+                          {cot.tipo_operacion === 'venta_directa'
+                            ? 'Venta Directa'
+                            : 'Cotización'}
+                        </span>
+                      </div>
+
                       {esBS ? (
                         <>
                           <p className="font-black text-emerald-600 text-lg leading-none">
@@ -291,47 +303,51 @@ export default function HistorialPage() {
                       )}
                     </div>
 
-                    {/* DEUDA ACTUALIZADA SEGÚN ORIGEN */}
-                    <div className="text-right border-l-2 border-slate-50 pl-6">
-                      <p className="text-[9px] font-black text-slate-400 uppercase italic">
-                        Deuda Actual
+                    {/* COLUMNA 2: DEUDA (SIEMPRE EN ROJO SI EXISTE) */}
+                    <div className="text-right border-l-2 border-slate-100 pl-6 min-w-[120px]">
+                      <p className="text-[9px] font-black text-slate-400 uppercase italic mb-1">
+                        Por Cobrar
                       </p>
 
                       {estaPagado ? (
-                        <p className="font-black text-emerald-500 text-sm">
-                          SOLVENTE
-                        </p>
+                        <div className="flex flex-col items-end">
+                          <span className="bg-emerald-100 text-emerald-600 text-[9px] font-black px-2 py-1 rounded-lg uppercase">
+                            Solvente
+                          </span>
+                          <p className="font-black text-emerald-500 text-sm mt-1">
+                            ✓ Pagado
+                          </p>
+                        </div>
                       ) : (
                         <>
-                          {/* Monto principal de deuda */}
-                          <p
-                            className={`font-black text-lg leading-none ${esBS ? 'text-emerald-600' : 'text-red-600'}`}
-                          >
+                          {/* Deuda Principal en Rojo */}
+                          <p className="font-black text-red-600 text-xl leading-none animate-pulse-slow">
                             {esBS
                               ? `Bs. ${(deudaUsd * tasa).toLocaleString('es-VE')}`
                               : `$${deudaUsd.toFixed(2)}`}
                           </p>
 
-                          {/* Monto secundario de deuda (conversión) */}
-                          <p className="text-[10px] font-bold text-slate-400">
+                          {/* Deuda Secundaria (Conversión) también en rojo suave */}
+                          <p className="text-[10px] font-bold text-red-400/80">
                             {esBS
                               ? `$ ${deudaUsd.toFixed(2)}`
                               : `Bs. ${(deudaUsd * tasa).toLocaleString('es-VE')}`}
                           </p>
 
-                          {/* Aviso si no está aprobada pero tiene deuda técnica */}
-                          {!esAprobada && (
+                          {/* Alerta si es cotización pendiente de pago */}
+                          {cot.estado === 'pendiente' && (
                             <span className="text-[7px] font-black bg-amber-100 text-amber-600 px-1 rounded uppercase block mt-1">
-                              No Aprobada
+                              Esperando Aprobación
                             </span>
                           )}
                         </>
                       )}
                     </div>
 
+                    {/* BOTÓN DE ACCIÓN */}
                     <button
                       onClick={() => setCotizacionSeleccionada(cot)}
-                      className="p-4 bg-slate-900 text-white rounded-2xl hover:bg-emerald-600 transition-all flex justify-center"
+                      className="p-4 bg-slate-900 text-white rounded-2xl hover:bg-emerald-600 transition-all flex justify-center shadow-lg"
                     >
                       <Eye size={20} />
                     </button>
