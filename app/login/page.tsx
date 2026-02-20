@@ -2,8 +2,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { LogIn, ArrowRight, Eye, EyeOff } from 'lucide-react';
-import Image from 'next/image';
+// Agregamos Loader2 para el spinner de carga
+import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -37,7 +37,7 @@ export default function LoginPage() {
         setTypingSpeed(100);
 
         if (displayText === currentPhrase) {
-          setTimeout(() => setIsDeleting(true), 2000); // Pausa al terminar de escribir
+          setTimeout(() => setIsDeleting(true), 2000);
         }
       } else {
         setDisplayText(currentPhrase.substring(0, displayText.length - 1));
@@ -75,16 +75,29 @@ export default function LoginPage() {
   };
 
   return (
-    /* Contenedor Principal: Ahora con h-[100dvh] y overflow-hidden para bloquear el scroll */
     <div className="relative flex h-[100dvh] w-full items-center justify-center bg-[#0D0F12] px-6 overflow-hidden">
-      {/* Círculos de luz suaves al fondo: pointer-events-none es vital */}
+      {/* OVERLAY DE CARGA: Bloquea la pantalla mientras procesa el login */}
+      {loading && (
+        <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-[#0D0F12]/80 backdrop-blur-md transition-all">
+          <Loader2
+            className="animate-spin text-[#FF9800]"
+            size={48}
+            strokeWidth={2.5}
+          />
+          <p className="mt-4 text-[11px] font-black text-white uppercase tracking-[0.4em] animate-pulse">
+            Autenticando...
+          </p>
+        </div>
+      )}
+
+      {/* Círculos de luz de fondo */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-600/10 rounded-full blur-[100px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-orange-600/10 rounded-full blur-[100px]"></div>
       </div>
 
-      {/* CARD DEL LOGIN: Ajustado para que nunca exceda la pantalla móvil */}
-      <div className="relative w-full max-w-md z-10 bg-white rounded-[2.5rem] p-8 md:p-10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] border border-gray-100 transition-all">
+      {/* CARD DEL LOGIN */}
+      <div className="relative w-full max-w-md z-10 bg-white rounded-[2.5rem] p-8 md:p-10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] border border-gray-100">
         {/* Logo y Header */}
         <div className="flex flex-col items-center text-center">
           <div className="relative w-28 mb-4">
@@ -108,6 +121,7 @@ export default function LoginPage() {
 
         <form className="mt-8 space-y-5" onSubmit={handleLogin}>
           <div className="space-y-4">
+            {/* Input Email */}
             <div>
               <label className="text-[9px] font-black text-gray-400 ml-4 mb-1 block uppercase tracking-[0.2em]">
                 Correo Electrónico
@@ -115,32 +129,31 @@ export default function LoginPage() {
               <input
                 type="email"
                 required
-                className="block w-full rounded-2xl border-none bg-gray-50 px-6 py-4 text-gray-900 ring-1 ring-gray-200 focus:ring-2 focus:ring-[#FF9800] outline-none transition-all text-sm"
+                className="block w-full rounded-2xl border-none bg-gray-50 px-6 py-4 text-gray-900 ring-2 ring-transparent focus:ring-[#FF9800] focus:shadow-[0_0_20px_rgba(255,152,0,0.2)] outline-none transition-all text-sm font-semibold"
                 placeholder="usuario@ventiq.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
 
+            {/* Input Contraseña con Botón de Ojo */}
             <div>
               <label className="text-[9px] font-black text-gray-400 ml-4 mb-1 block uppercase tracking-[0.2em]">
                 Contraseña
               </label>
               <div className="relative">
                 <input
-                  type={showPassword ? 'text' : 'password'} // Cambio dinámico de tipo
+                  type={showPassword ? 'text' : 'password'}
                   required
-                  className="block w-full rounded-2xl border-none bg-gray-50 px-6 py-4 text-gray-900 ring-1 ring-gray-200 focus:ring-2 focus:ring-[#FF9800] outline-none transition-all text-sm"
+                  className="block w-full rounded-2xl border-none bg-gray-50 px-6 py-4 text-gray-900 ring-2 ring-transparent focus:ring-[#FF9800] focus:shadow-[0_0_20px_rgba(255,152,0,0.2)] outline-none transition-all text-sm font-semibold"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
-
-                {/* Botón para mostrar/ocultar */}
                 <button
-                  type="button" // IMPORTANTE: tipo button para que no envíe el formulario
+                  type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-orange-500 transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-[#FF9800] transition-colors"
                 >
                   {showPassword ? (
                     <EyeOff size={20} strokeWidth={2.5} />
@@ -163,18 +176,14 @@ export default function LoginPage() {
             disabled={loading}
             className="group relative flex w-full justify-center items-center gap-3 rounded-2xl bg-[#1A1D23] py-4 text-sm font-bold text-white hover:bg-[#2D3139] active:scale-[0.96] transition-all shadow-lg"
           >
-            {loading ? (
-              <div className="h-5 w-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>
-                <span className="uppercase tracking-widest text-xs">
-                  Entrar al Sistema
-                </span>
-                <ArrowRight
-                  size={16}
-                  className="text-[#FF9800] group-hover:translate-x-1 transition-transform"
-                />
-              </>
+            <span className="uppercase tracking-widest text-xs">
+              {loading ? 'Entrando...' : 'Entrar al Sistema'}
+            </span>
+            {!loading && (
+              <ArrowRight
+                size={16}
+                className="text-[#FF9800] group-hover:translate-x-1 transition-transform"
+              />
             )}
           </button>
         </form>
@@ -187,7 +196,6 @@ export default function LoginPage() {
       </div>
 
       <style jsx>{`
-        /* Evita el scroll incluso si el teclado móvil aparece */
         :global(body) {
           overflow: hidden;
           position: fixed;
