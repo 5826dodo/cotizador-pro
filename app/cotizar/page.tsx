@@ -99,11 +99,12 @@ export default function CotizarPage() {
     setCarrito((prevCarrito) =>
       prevCarrito.map((item) => {
         if (item.id === id) {
-          // Permitimos decimales. Si es vacío, dejamos 0 para evitar errores de NAN
+          // Si el valor es un string vacío (porque el usuario borró),
+          // guardamos 0 temporalmente para no romper la lógica
           const num = valor === '' ? 0 : parseFloat(valor);
 
           if (campo === 'cantidad') {
-            // Validamos contra el stock real
+            // Si el usuario intenta poner más de lo que hay en stock
             const cant = num > item.stock ? item.stock : num;
             return { ...item, cantidad: cant };
           }
@@ -113,7 +114,6 @@ export default function CotizarPage() {
       }),
     );
   };
-
   const calcularTotal = () =>
     carrito.reduce((acc, item) => acc + item.precio * item.cantidad, 0);
 
@@ -447,8 +447,15 @@ export default function CotizarPage() {
             </label>
             <input
               type="number"
-              value={montoPagado}
-              onChange={(e) => setMontoPagado(parseFloat(e.target.value) || 0)}
+              // Si el valor es 0, mostramos string vacío para que el placeholder actúe
+              // o para que no aparezca el 0 a la izquierda al escribir.
+              value={montoPagado === 0 ? '' : montoPagado}
+              onChange={(e) => {
+                const val = e.target.value;
+                // Si borra todo, ponemos 0 en el estado para evitar errores
+                setMontoPagado(val === '' ? 0 : parseFloat(val));
+              }}
+              placeholder="0.00"
               className="w-full p-4 bg-white text-slate-900 rounded-2xl font-black text-xl border-2 border-orange-500 outline-none"
             />
           </div>
@@ -947,13 +954,20 @@ function TarjetaProductoCarrito({
 
           <input
             type="number"
-            step="0.01"
+            step="0.01" // Permite decimales
+            // Usamos un condicional para que si es 0.5 no lo "limpie" a .5
             value={item.cantidad === 0 ? '' : item.cantidad}
-            onChange={(e) =>
-              actualizarItem(item.id, 'cantidad', e.target.value)
-            }
-            onFocus={(e) => e.target.select()}
-            className="w-12 text-center font-black text-xl text-slate-800 outline-none bg-transparent"
+            onChange={(e) => {
+              const valor = e.target.value;
+              // Permitimos que el usuario escriba el punto decimal libremente
+              actualizarItem(item.id, 'cantidad', valor);
+            }}
+            onBlur={(e) => {
+              // Al salir del input, si está vacío, aseguramos que vuelva a 0 o 1
+              if (e.target.value === '')
+                actualizarItem(item.id, 'cantidad', '0');
+            }}
+            className="w-16 bg-transparent text-center font-black text-lg outline-none"
           />
 
           <button
