@@ -462,6 +462,7 @@ export default function HistorialPage() {
 
                         {mostrarAbonar && (
                           <div className="p-6 bg-slate-50 rounded-[2.5rem] border-2 border-slate-100 space-y-4 animate-in zoom-in-95 duration-200">
+                            {/* INPUTS DE MONTO */}
                             <div className="grid grid-cols-1 gap-4">
                               <div className="relative">
                                 <label className="text-[9px] font-black uppercase text-slate-400 absolute -top-2 left-4 bg-white px-2">
@@ -471,6 +472,7 @@ export default function HistorialPage() {
                                   type="number"
                                   className="w-full p-4 rounded-[1.2rem] border-2 border-slate-100 font-black text-slate-700 focus:border-orange-500 outline-none transition-colors"
                                   placeholder="Tasa del día"
+                                  value={tasaDia}
                                   onChange={(e) =>
                                     setTasaDia(parseFloat(e.target.value) || 0)
                                   }
@@ -500,7 +502,11 @@ export default function HistorialPage() {
                               </div>
                             </div>
 
+                            {/* BOTÓN CONFIRMAR CON VALIDACIÓN */}
                             <button
+                              disabled={
+                                montoBsRecibido <= 0 && montoUsdRecibido <= 0
+                              }
                               onClick={() =>
                                 registrarPago(
                                   cotizacionSeleccionada,
@@ -511,26 +517,88 @@ export default function HistorialPage() {
                                   'Abono Parcial',
                                 )
                               }
-                              className="w-full bg-emerald-600 text-white p-5 rounded-[1.5rem] font-black uppercase text-xs shadow-lg shadow-emerald-200 hover:bg-emerald-700"
+                              className={`w-full p-5 rounded-[1.5rem] font-black uppercase text-xs shadow-lg transition-all ${
+                                montoBsRecibido > 0 || montoUsdRecibido > 0
+                                  ? 'bg-emerald-600 text-white shadow-emerald-200 hover:bg-emerald-700'
+                                  : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                              }`}
                             >
-                              Confirmar y Procesar Abono
+                              {montoBsRecibido > 0 || montoUsdRecibido > 0
+                                ? 'Confirmar y Procesar Abono'
+                                : 'Ingrese un monto para abonar'}
                             </button>
 
-                            <button
-                              onClick={() => {
-                                const saldoUsd =
-                                  cotizacionSeleccionada.total -
-                                  (cotizacionSeleccionada.monto_pagado || 0);
-                                registrarPago(
-                                  cotizacionSeleccionada,
-                                  saldoUsd,
-                                  'Pago Total',
-                                );
-                              }}
-                              className="w-full bg-slate-200 text-slate-500 p-4 rounded-[1.2rem] font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:bg-red-100 hover:text-red-600 transition-colors"
-                            >
-                              <Check size={14} /> Liquidar Deuda Total
-                            </button>
+                            <div className="relative py-2">
+                              <div className="absolute inset-0 flex items-center">
+                                <span className="w-full border-t border-slate-200"></span>
+                              </div>
+                              <div className="relative flex justify-center text-[8px] uppercase font-black text-slate-400">
+                                <span className="bg-slate-50 px-2 italic">
+                                  Liquidar Deuda Total en:
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* LIQUIDACIÓN RÁPIDA POR MONEDA */}
+                            {/* LIQUIDACIÓN RÁPIDA POR MONEDA */}
+                            <div className="grid grid-cols-2 gap-3">
+                              {/* LIQUIDAR EN BOLÍVARES (Depende de la tasa ingresada) */}
+                              <button
+                                onClick={() => {
+                                  const tasaUsar =
+                                    tasaDia || cotizacionSeleccionada.tasa_bcv;
+                                  const saldoUsd =
+                                    cotizacionSeleccionada.total -
+                                    (cotizacionSeleccionada.monto_pagado || 0);
+                                  const montoBsReal = (
+                                    saldoUsd * tasaUsar
+                                  ).toLocaleString('es-VE');
+
+                                  registrarPago(
+                                    cotizacionSeleccionada,
+                                    saldoUsd,
+                                    `Liquidación Total en Bs (Tasa: ${tasaUsar}) - Recibido: Bs. ${montoBsReal}`,
+                                  );
+                                }}
+                                className="bg-white border-2 border-emerald-500 text-emerald-600 p-4 rounded-[1.2rem] font-black uppercase text-[9px] flex flex-col items-center justify-center gap-1 hover:bg-emerald-50 transition-colors shadow-sm"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg">🇻🇪</span>
+                                  <span>Bs. Total</span>
+                                </div>
+                                <span className="text-[7px] opacity-70 italic text-emerald-800">
+                                  Usa Tasa:{' '}
+                                  {tasaDia || cotizacionSeleccionada.tasa_bcv}
+                                </span>
+                              </button>
+
+                              {/* LIQUIDAR EN DÓLARES (No depende de la tasa) */}
+                              <button
+                                onClick={() => {
+                                  const saldoUsd =
+                                    cotizacionSeleccionada.total -
+                                    (cotizacionSeleccionada.monto_pagado || 0);
+                                  registrarPago(
+                                    cotizacionSeleccionada,
+                                    saldoUsd,
+                                    'Liquidación Total en Dólares (Efectivo/Zelle)',
+                                  );
+                                }}
+                                className="bg-slate-900 text-white p-4 rounded-[1.2rem] font-black uppercase text-[9px] flex flex-col items-center justify-center gap-1 hover:bg-black transition-colors shadow-lg"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg">💵</span>
+                                  <span>$. Total</span>
+                                </div>
+                                <span className="text-[7px] opacity-70 italic text-slate-400">
+                                  Monto: $
+                                  {(
+                                    cotizacionSeleccionada.total -
+                                    (cotizacionSeleccionada.monto_pagado || 0)
+                                  ).toFixed(2)}
+                                </span>
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
