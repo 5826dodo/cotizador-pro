@@ -42,21 +42,36 @@ export default function InventarioPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
       if (user) {
-        const { data: perfil } = await supabase
+        // Traemos el perfil y el nombre de la empresa asociada en una sola consulta
+        const { data: perfil, error } = await supabase
           .from('perfiles')
-          .select('empresa_id, empresas(nombre)') // Join para traer el nombre de la empresa
+          .select(
+            `
+            empresa_id,
+            empresas (
+              nombre
+            )
+          `,
+          )
           .eq('id', user.id)
           .single();
 
-        if (perfil?.empresa_id) {
+        if (perfil && !error) {
           setEmpresaId(perfil.empresa_id);
-          setNombreEmpresa(perfil.empresas?.nombre || 'Mi Empresa');
+
+          // Accedemos al nombre de la empresa de forma segura
+          // Usamos (perfil.empresas as any) para que TS no se queje
+          const nombreExtraido = (perfil.empresas as any)?.nombre;
+          setNombreEmpresa(nombreExtraido || 'Mi Empresa');
+
           await obtenerProductos(perfil.empresa_id);
         }
       }
       setCargando(false);
     };
+
     inicializarDatos();
   }, []);
 
@@ -165,26 +180,44 @@ export default function InventarioPage() {
 
       <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-6">
         {/* HEADER CON NOMBRE DE EMPRESA */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[2rem] shadow-sm border border-white">
+        {/* Inserta esto al principio de tu return, dentro del main */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-[2rem] shadow-sm border border-white mb-6">
           <div>
-            <div className="flex items-center gap-2 text-ventiq-orange mb-1">
-              <Store size={16} />
+            <div className="flex items-center gap-2 text-[#FF9800] mb-1">
+              {/* Icono de Tienda/Empresa */}
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-7h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                />
+              </svg>
               <span className="text-[10px] font-black uppercase tracking-[0.3em]">
-                {nombreEmpresa}
+                Sesión: {nombreEmpresa}
               </span>
             </div>
             <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter">
-              Control de <span className="text-ventiq-orange">Almacén</span>
+              Panel de <span className="text-[#FF9800]">Inventario</span>
             </h1>
           </div>
-          <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100">
-            <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest">
-              Estado de Conexión
-            </p>
-            <p className="text-green-500 text-xs font-black uppercase tracking-tighter flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-ping"></span>{' '}
-              En Línea
-            </p>
+
+          {/* Badge de Usuario Activo */}
+          <div className="bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100 flex items-center gap-3">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
+            <div>
+              <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest">
+                Estado
+              </p>
+              <p className="text-ventiq-black text-[10px] font-black uppercase">
+                Sincronizado
+              </p>
+            </div>
           </div>
         </div>
 
@@ -282,61 +315,83 @@ export default function InventarioPage() {
           <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] ml-2">
             Productos en Almacén
           </h3>
+          {/* LISTADO DE PRODUCTOS */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {productos.map((prod) => (
-              <div
-                key={prod.id}
-                className="bg-white p-5 rounded-[2rem] border border-white shadow-sm hover:shadow-md transition-all group"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h4 className="font-black text-ventiq-black uppercase text-sm leading-tight">
-                      {prod.nombre}
-                    </h4>
-                    <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                      {prod.unidad_medida || 'UNIDADES'}
-                    </span>
+            {productos.map((prod) => {
+              // 1. Definimos el umbral de alerta (ejemplo: menos de 5 unidades/litros)
+              const esStockCritico = prod.stock <= 5;
+
+              return (
+                <div
+                  key={prod.id}
+                  className={`relative bg-white p-5 rounded-[2.5rem] shadow-sm border-2 transition-all 
+          ${
+            esStockCritico
+              ? 'border-red-100 bg-red-50/30 shadow-[0_10px_20px_rgba(239,68,68,0.1)]'
+              : 'border-white'
+          }`}
+                >
+                  {/* 2. ETIQUETA DE ALERTA (Solo se muestra si es crítico) */}
+                  {esStockCritico && (
+                    <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black px-3 py-1 rounded-full shadow-lg animate-bounce uppercase tracking-tighter">
+                      ¡Reabastecer!
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      {/* 3. FECHA DE REGISTRO (Usando la columna created_at) */}
+                      <p className="text-[8px] font-black text-slate-300 uppercase mb-1">
+                        Ingreso:{' '}
+                        {new Date(prod.created_at).toLocaleDateString()}
+                      </p>
+
+                      <h3 className="font-bold text-ventiq-black uppercase text-sm">
+                        {prod.nombre}
+                      </h3>
+
+                      <div className="flex items-center gap-3 mt-2">
+                        <span className="text-ventiq-black font-black text-xl">
+                          ${prod.precio.toFixed(2)}
+                        </span>
+                        <span
+                          className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase 
+                ${esStockCritico ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-400'}`}
+                        >
+                          Stock: {prod.stock}{' '}
+                          {prod.unidad_medida === 'LITROS' ? 'Lts' : 'Und'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => prepararEdicion(prod)}
+                        className="w-10 h-10 flex items-center justify-center bg-orange-50 text-ventiq-orange rounded-xl border border-orange-100 hover:bg-ventiq-orange hover:text-white transition-all"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => eliminarProducto(prod.id)}
+                        className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl border border-red-100 hover:bg-red-600 hover:text-white transition-all"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => prepararEdicion(prod)}
-                      className="p-2 bg-orange-50 text-ventiq-orange rounded-xl hover:bg-ventiq-orange hover:text-white transition-all"
-                    >
-                      <Edit3 size={14} />
-                    </button>
-                    <button
-                      onClick={() => eliminarProducto(prod.id)}
-                      className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+
+                  {/* 4. BARRA VISUAL DE PROGRESO */}
+                  <div className="mt-4 w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-500 ${esStockCritico ? 'bg-red-500' : 'bg-ventiq-orange'}`}
+                      style={{
+                        width: `${Math.min((prod.stock / 20) * 100, 100)}%`,
+                      }} // Asumiendo que 20 es el stock ideal
+                    ></div>
                   </div>
                 </div>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase">
-                      Precio
-                    </p>
-                    <p className="text-xl font-black text-ventiq-black">
-                      ${prod.precio.toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[9px] font-black text-slate-400 uppercase">
-                      Stock Disponible
-                    </p>
-                    <p
-                      className={`text-lg font-black ${prod.stock < 5 ? 'text-red-500 animate-pulse' : 'text-ventiq-orange'}`}
-                    >
-                      {prod.stock}{' '}
-                      <span className="text-[10px]">
-                        {prod.unidad_medida === 'LITROS' ? 'Lts' : 'Und'}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       </div>
