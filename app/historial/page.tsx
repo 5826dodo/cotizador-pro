@@ -15,6 +15,8 @@ import {
   Calendar,
   TrendingUp,
   ChevronDown,
+  User, // <--- Agrega este
+  ShoppingCart, // <--- Agrega este
 } from 'lucide-react';
 
 export default function HistorialPage() {
@@ -232,125 +234,74 @@ export default function HistorialPage() {
               return (
                 <div
                   key={cot.id}
-                  className="bg-white p-6 rounded-[2.5rem] border border-slate-100 flex flex-col md:flex-row items-center gap-6 shadow-sm hover:shadow-md transition-all"
+                  className="bg-white p-6 rounded-[2.5rem] shadow-sm border-2 border-slate-50 hover:border-orange-100 transition-all mb-4"
                 >
-                  {/* Info Cliente */}
-                  <div className="flex items-center gap-4 flex-1 w-full">
-                    <div
-                      className={`p-4 rounded-2xl ${estaPagado ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100'}`}
-                    >
-                      {esBS ? <Wallet size={24} /> : <DollarSign size={24} />}
-                    </div>
-                    <div>
-                      <h4 className="font-black text-slate-800 uppercase text-sm leading-none">
-                        {cot.clientes?.nombre}
-                      </h4>
-                      <div className="flex gap-2 mt-2 items-center">
-                        <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1">
-                          <Calendar size={10} />{' '}
-                          {formatearFecha(cot.created_at)}
-                        </span>
-                        <span
-                          className={`text-[8px] font-black px-2 py-0.5 rounded ${esBS ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}
-                        >
-                          ORIGEN: {cot.moneda}
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    {/* INFO CLIENTE */}
+                    <div className="flex items-center gap-4">
+                      <div className="bg-slate-900 p-4 rounded-[1.5rem] shadow-lg shadow-slate-200">
+                        <User className="text-orange-500" size={24} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                          Cliente
+                        </p>
+                        <h3 className="text-xl font-black text-slate-800 italic uppercase tracking-tighter">
+                          {cot.clientes?.nombre} {cot.clientes?.apellido}
+                        </h3>
+                        <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-500">
+                          ID: {cot.clientes?.cedula || 'N/A'}
                         </span>
                       </div>
-                      {esBS && (
-                        <p className="text-[9px] font-black text-emerald-500 mt-1 flex items-center gap-1">
-                          <TrendingUp size={10} /> Tasa: {tasa}
-                        </p>
-                      )}
                     </div>
-                  </div>
 
-                  {/* Montos Dinámicos */}
-                  <div className="grid grid-cols-2 md:flex md:items-center gap-8 w-full md:w-auto">
-                    {/* COLUMNA 1: MONTO TOTAL Y ETIQUETA DE TIPO */}
-                    <div className="text-right min-w-[120px]">
-                      <div className="flex flex-col items-end gap-1 mb-1">
-                        <p className="text-[9px] font-black text-slate-400 uppercase">
-                          Total Venta
-                        </p>
-                        {/* ETIQUETA DINÁMICA: VENTA O COTIZACIÓN */}
+                    {/* MONTOS Y ESTADOS */}
+                    <div className="grid grid-cols-2 md:flex md:items-center gap-8 w-full md:w-auto border-t md:border-t-0 pt-4 md:pt-0">
+                      {/* TOTAL VENTA */}
+                      <div className="text-left md:text-right">
                         <span
-                          className={`text-[8px] px-2 py-0.5 rounded-full font-black text-white uppercase ${cot.tipo_operacion === 'venta_directa' ? 'bg-orange-500' : 'bg-blue-500'}`}
+                          className={`text-[8px] px-2 py-0.5 rounded-full font-black text-white uppercase mb-1 inline-block ${cot.tipo_operacion === 'venta_directa' ? 'bg-orange-600' : 'bg-blue-600'}`}
                         >
                           {cot.tipo_operacion === 'venta_directa'
                             ? 'Venta Directa'
                             : 'Cotización'}
                         </span>
+                        <p className="text-[9px] font-black text-slate-400 uppercase italic">
+                          Monto Total
+                        </p>
+                        <p className="font-black text-lg text-slate-900 leading-none">
+                          {cot.moneda === 'BS'
+                            ? `Bs. ${(cot.total * cot.tasa_bcv).toLocaleString('es-VE')}`
+                            : `$${cot.total.toFixed(2)}`}
+                        </p>
                       </div>
 
-                      {esBS ? (
-                        <>
-                          <p className="font-black text-emerald-600 text-lg leading-none">
-                            Bs. {(cot.total * tasa).toLocaleString('es-VE')}
-                          </p>
-                          <p className="text-[10px] font-bold text-slate-400">
-                            $ {cot.total.toFixed(2)}
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="font-black text-slate-800 text-lg leading-none">
-                            $ {cot.total.toFixed(2)}
-                          </p>
-                          <p className="text-[10px] font-bold text-slate-400 italic">
-                            Bs. {(cot.total * tasa).toLocaleString('es-VE')}
-                          </p>
-                        </>
-                      )}
-                    </div>
-
-                    {/* COLUMNA 2: DEUDA (SIEMPRE EN ROJO SI EXISTE) */}
-                    <div className="text-right border-l-2 border-slate-100 pl-6 min-w-[120px]">
-                      <p className="text-[9px] font-black text-slate-400 uppercase italic mb-1">
-                        Por Cobrar
-                      </p>
-
-                      {estaPagado ? (
-                        <div className="flex flex-col items-end">
-                          <span className="bg-emerald-100 text-emerald-600 text-[9px] font-black px-2 py-1 rounded-lg uppercase">
+                      {/* DEUDA EN ROJO VENTIQ */}
+                      <div className="text-right border-l-2 border-orange-100 pl-6">
+                        <p className="text-[9px] font-black text-red-400 uppercase italic">
+                          Saldo Pendiente
+                        </p>
+                        {deudaUsd <= 0 ? (
+                          <p className="font-black text-emerald-500 text-lg italic uppercase">
                             Solvente
-                          </span>
-                          <p className="font-black text-emerald-500 text-sm mt-1">
-                            ✓ Pagado
                           </p>
-                        </div>
-                      ) : (
-                        <>
-                          {/* Deuda Principal en Rojo */}
-                          <p className="font-black text-red-600 text-xl leading-none animate-pulse-slow">
-                            {esBS
-                              ? `Bs. ${(deudaUsd * tasa).toLocaleString('es-VE')}`
+                        ) : (
+                          <p className="font-black text-red-600 text-2xl leading-none tracking-tighter animate-pulse">
+                            {cot.moneda === 'BS'
+                              ? `Bs. ${(deudaUsd * cot.tasa_bcv).toLocaleString('es-VE')}`
                               : `$${deudaUsd.toFixed(2)}`}
                           </p>
+                        )}
+                      </div>
 
-                          {/* Deuda Secundaria (Conversión) también en rojo suave */}
-                          <p className="text-[10px] font-bold text-red-400/80">
-                            {esBS
-                              ? `$ ${deudaUsd.toFixed(2)}`
-                              : `Bs. ${(deudaUsd * tasa).toLocaleString('es-VE')}`}
-                          </p>
-
-                          {/* Alerta si es cotización pendiente de pago */}
-                          {cot.estado === 'pendiente' && (
-                            <span className="text-[7px] font-black bg-amber-100 text-amber-600 px-1 rounded uppercase block mt-1">
-                              Esperando Aprobación
-                            </span>
-                          )}
-                        </>
-                      )}
+                      {/* ACCIÓN */}
+                      <button
+                        onClick={() => setCotizacionSeleccionada(cot)}
+                        className="col-span-2 md:col-span-1 p-4 bg-slate-900 text-white rounded-[1.5rem] hover:bg-orange-600 transition-all flex justify-center items-center shadow-xl shadow-slate-200"
+                      >
+                        <Eye size={22} />
+                      </button>
                     </div>
-
-                    {/* BOTÓN DE ACCIÓN */}
-                    <button
-                      onClick={() => setCotizacionSeleccionada(cot)}
-                      className="p-4 bg-slate-900 text-white rounded-2xl hover:bg-emerald-600 transition-all flex justify-center shadow-lg"
-                    >
-                      <Eye size={20} />
-                    </button>
                   </div>
                 </div>
               );
@@ -359,29 +310,28 @@ export default function HistorialPage() {
 
         {/* MODAL DE GESTIÓN */}
         {cotizacionSeleccionada && (
-          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex items-end md:items-center justify-center p-4">
-            <div className="bg-white w-full max-w-lg rounded-[3rem] overflow-hidden shadow-2xl">
-              <div className="p-8 border-b flex justify-between items-center bg-slate-50">
+          <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-end md:items-center justify-center p-4">
+            <div className="bg-white w-full max-w-lg rounded-[3rem] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-10 duration-300">
+              {/* CABECERA ESTILO VENTIQ DARK */}
+              <div className="p-8 bg-slate-900 text-white flex justify-between items-center border-b-4 border-orange-600">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-black uppercase text-xl">
-                      Detalle de Gestión
+                    <h3 className="text-2xl font-black italic uppercase tracking-tighter">
+                      Gestión de Cobro
                     </h3>
                     <span
-                      className={`text-[9px] px-2 py-0.5 rounded-full font-black text-white uppercase ${cotizacionSeleccionada.tipo_operacion === 'venta_directa' ? 'bg-orange-500' : 'bg-blue-500'}`}
+                      className={`text-[8px] px-2 py-0.5 rounded-full font-black text-white uppercase ${cotizacionSeleccionada.tipo_operacion === 'venta_directa' ? 'bg-orange-600' : 'bg-blue-600'}`}
                     >
                       {cotizacionSeleccionada.tipo_operacion === 'venta_directa'
                         ? 'Venta'
-                        : 'Presupuesto'}
+                        : 'Cotización'}
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                      Origen: {cotizacionSeleccionada.moneda} | Tasa:{' '}
-                      {cotizacionSeleccionada.tasa_bcv}
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      Tasa: {cotizacionSeleccionada.tasa_bcv}
                     </p>
-                    {/* MONTO TOTAL DE LA VENTA EN EL ORIGEN */}
-                    <span className="text-[10px] font-black text-slate-900 bg-slate-200 px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-black bg-orange-600/20 text-orange-500 px-2 py-0.5 rounded-lg border border-orange-600/30">
                       TOTAL:{' '}
                       {cotizacionSeleccionada.moneda === 'BS'
                         ? `Bs. ${(cotizacionSeleccionada.total * cotizacionSeleccionada.tasa_bcv).toLocaleString('es-VE')}`
@@ -391,81 +341,90 @@ export default function HistorialPage() {
                 </div>
                 <button
                   onClick={() => setCotizacionSeleccionada(null)}
-                  className="p-3 bg-white rounded-full shadow-sm hover:text-red-500 transition-colors"
+                  className="p-3 bg-white/10 rounded-2xl hover:bg-red-500 transition-all text-white"
                 >
                   <X size={20} />
                 </button>
               </div>
-              {/* LISTA BREVE DE PRODUCTOS */}
-              <div className="px-8 pt-4">
-                <details className="group">
-                  <summary className="list-none flex justify-between items-center cursor-pointer p-3 bg-slate-100 rounded-xl">
-                    <span className="text-[10px] font-black uppercase text-slate-600">
-                      Ver Productos (
-                      {cotizacionSeleccionada.productos_seleccionados?.length})
-                    </span>
-                    <ChevronDown
-                      size={14}
-                      className="group-open:rotate-180 transition-transform"
-                    />
-                  </summary>
-                  <div className="mt-2 space-y-2 max-h-32 overflow-y-auto p-2">
-                    {cotizacionSeleccionada.productos_seleccionados?.map(
-                      (item: any, idx: number) => (
-                        <div
-                          key={idx}
-                          className="flex justify-between text-[11px] border-b border-slate-50 pb-1"
-                        >
-                          <span className="font-bold text-slate-700">
-                            {item.cantidad} x {item.nombre}
-                          </span>
-                          <span className="font-black text-slate-900">
-                            ${(item.precio * item.cantidad).toFixed(2)}
-                          </span>
-                        </div>
-                      ),
-                    )}
-                  </div>
-                </details>
-              </div>
 
-              <div className="p-8 space-y-6">
-                {/* Caso 1: Sin Aprobar */}
+              {/* CUERPO DEL MODAL */}
+              <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scroll">
+                {/* LISTA DE PRODUCTOS (REDISEÑADA) */}
+                <div className="bg-slate-50 rounded-[2rem] p-5 border-2 border-slate-100">
+                  <details className="group">
+                    <summary className="list-none flex justify-between items-center cursor-pointer">
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <ShoppingCart size={14} />
+                        <span className="text-[10px] font-black uppercase italic tracking-widest">
+                          Detalle del Pedido (
+                          {
+                            cotizacionSeleccionada.productos_seleccionados
+                              ?.length
+                          }
+                          )
+                        </span>
+                      </div>
+                      <ChevronDown
+                        size={14}
+                        className="group-open:rotate-180 transition-transform text-slate-400"
+                      />
+                    </summary>
+                    <div className="mt-4 space-y-2 max-h-32 overflow-y-auto pr-2">
+                      {cotizacionSeleccionada.productos_seleccionados?.map(
+                        (item: any, idx: number) => (
+                          <div
+                            key={idx}
+                            className="flex justify-between items-center bg-white p-3 rounded-[1rem] shadow-sm border border-slate-100"
+                          >
+                            <span className="text-[11px] font-black text-slate-700 italic uppercase">
+                              {item.cantidad} x {item.nombre}
+                            </span>
+                            <span className="text-[11px] font-black text-slate-900">
+                              ${(item.precio * item.cantidad).toFixed(2)}
+                            </span>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </details>
+                </div>
+
+                {/* LÓGICA DE COBRO */}
                 {cotizacionSeleccionada.estado === 'pendiente' ? (
-                  <div className="p-8 bg-amber-50 rounded-[2rem] border-2 border-dashed border-amber-200 text-center">
+                  <div className="p-8 bg-amber-50 rounded-[2.5rem] border-2 border-dashed border-amber-200 text-center">
                     <AlertCircle
                       className="mx-auto mb-3 text-amber-500"
                       size={32}
                     />
-                    <p className="text-sm font-black text-amber-800 uppercase mb-4">
-                      Aprobar para habilitar cobros e inventario
+                    <p className="text-sm font-black text-amber-800 uppercase mb-4 italic">
+                      Aprobación requerida para cobros
                     </p>
                     <button
                       onClick={() => aprobarOperacion(cotizacionSeleccionada)}
-                      className="w-full bg-amber-500 text-white p-5 rounded-2xl font-black uppercase text-xs shadow-lg shadow-amber-200"
+                      className="w-full bg-amber-500 text-white p-5 rounded-[1.5rem] font-black uppercase text-xs shadow-xl shadow-amber-200 hover:scale-[1.02] transition-transform"
                     >
                       Aprobar Ahora
                     </button>
                   </div>
                 ) : (
-                  /* Caso 2: Aprobada (Cobros) */
                   <div className="space-y-6">
+                    {/* CARDS DE SALDO */}
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="p-5 bg-emerald-50 rounded-3xl border border-emerald-100">
-                        <p className="text-[10px] font-black text-emerald-400 uppercase">
-                          Abonado ({cotizacionSeleccionada.moneda})
+                      <div className="p-5 bg-emerald-50 rounded-[2rem] border border-emerald-100 shadow-sm">
+                        <p className="text-[9px] font-black text-emerald-400 uppercase italic mb-1">
+                          Pagado
                         </p>
-                        <p className="text-xl font-black text-emerald-700">
+                        <p className="text-lg font-black text-emerald-700 leading-none">
                           {cotizacionSeleccionada.moneda === 'BS'
                             ? `Bs. ${(cotizacionSeleccionada.monto_pagado * cotizacionSeleccionada.tasa_bcv).toLocaleString('es-VE')}`
                             : `$${(cotizacionSeleccionada.monto_pagado || 0).toFixed(2)}`}
                         </p>
                       </div>
-                      <div className="p-5 bg-red-50 rounded-3xl border border-red-100">
-                        <p className="text-[10px] font-black text-red-400 uppercase">
-                          Debe ({cotizacionSeleccionada.moneda})
+                      <div className="p-5 bg-red-50 rounded-[2rem] border border-red-100 shadow-sm">
+                        <p className="text-[9px] font-black text-red-400 uppercase italic mb-1 tracking-tighter">
+                          Deuda Pendiente
                         </p>
-                        <p className="text-xl font-black text-red-600">
+                        <p className="text-lg font-black text-red-600 leading-none">
                           {cotizacionSeleccionada.moneda === 'BS'
                             ? `Bs. ${((cotizacionSeleccionada.total - (cotizacionSeleccionada.monto_pagado || 0)) * cotizacionSeleccionada.tasa_bcv).toLocaleString('es-VE')}`
                             : `$${(cotizacionSeleccionada.total - (cotizacionSeleccionada.monto_pagado || 0)).toFixed(2)}`}
@@ -473,59 +432,62 @@ export default function HistorialPage() {
                       </div>
                     </div>
 
+                    {/* INTERFAZ DE ABONO */}
                     {cotizacionSeleccionada.total -
                       (cotizacionSeleccionada.monto_pagado || 0) >
                     0.05 ? (
                       <div className="space-y-4">
                         <button
                           onClick={() => setMostrarAbonar(!mostrarAbonar)}
-                          className="w-full bg-slate-100 text-slate-600 p-4 rounded-2xl font-black uppercase text-xs flex justify-center gap-2"
+                          className="w-full bg-slate-900 text-white p-5 rounded-[1.5rem] font-black uppercase text-xs flex justify-center items-center gap-3 shadow-xl"
                         >
                           {mostrarAbonar
                             ? 'Cerrar Registro'
-                            : 'Registrar Nuevo Pago'}{' '}
+                            : 'Registrar Pago / Abono'}
                           <ChevronDown
-                            size={16}
-                            className={mostrarAbonar ? 'rotate-180' : ''}
+                            size={18}
+                            className={`transition-transform duration-300 ${mostrarAbonar ? 'rotate-180' : ''}`}
                           />
                         </button>
 
                         {mostrarAbonar && (
-                          <div className="p-6 bg-slate-50 rounded-[2.5rem] border-2 border-slate-100 space-y-4">
-                            <div>
-                              <label className="text-[10px] font-black uppercase ml-2 text-slate-400 italic">
-                                Tasa de este pago
-                              </label>
-                              <input
-                                type="number"
-                                className="w-full p-4 rounded-2xl border-none ring-2 ring-slate-200 font-black"
-                                placeholder="Tasa actual"
-                                onChange={(e) =>
-                                  setTasaDia(parseFloat(e.target.value) || 0)
-                                }
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <input
-                                type="number"
-                                className="p-4 rounded-2xl ring-2 ring-emerald-100 border-none font-black text-emerald-600"
-                                placeholder="Monto Bs"
-                                onChange={(e) =>
-                                  setMontoBsRecibido(
-                                    parseFloat(e.target.value) || 0,
-                                  )
-                                }
-                              />
-                              <input
-                                type="number"
-                                className="p-4 rounded-2xl ring-2 ring-blue-100 border-none font-black text-blue-600"
-                                placeholder="Monto $"
-                                onChange={(e) =>
-                                  setMontoUsdRecibido(
-                                    parseFloat(e.target.value) || 0,
-                                  )
-                                }
-                              />
+                          <div className="p-6 bg-slate-50 rounded-[2.5rem] border-2 border-slate-100 space-y-4 animate-in zoom-in-95 duration-200">
+                            <div className="grid grid-cols-1 gap-4">
+                              <div className="relative">
+                                <label className="text-[9px] font-black uppercase text-slate-400 absolute -top-2 left-4 bg-white px-2">
+                                  Tasa de Cambio
+                                </label>
+                                <input
+                                  type="number"
+                                  className="w-full p-4 rounded-[1.2rem] border-2 border-slate-100 font-black text-slate-700 focus:border-orange-500 outline-none transition-colors"
+                                  placeholder="Tasa del día"
+                                  onChange={(e) =>
+                                    setTasaDia(parseFloat(e.target.value) || 0)
+                                  }
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <input
+                                  type="number"
+                                  className="p-4 rounded-[1.2rem] border-2 border-emerald-100 font-black text-emerald-600 outline-none focus:ring-2 ring-emerald-500"
+                                  placeholder="Abono Bs"
+                                  onChange={(e) =>
+                                    setMontoBsRecibido(
+                                      parseFloat(e.target.value) || 0,
+                                    )
+                                  }
+                                />
+                                <input
+                                  type="number"
+                                  className="p-4 rounded-[1.2rem] border-2 border-blue-100 font-black text-blue-600 outline-none focus:ring-2 ring-blue-500"
+                                  placeholder="Abono $"
+                                  onChange={(e) =>
+                                    setMontoUsdRecibido(
+                                      parseFloat(e.target.value) || 0,
+                                    )
+                                  }
+                                />
+                              </div>
                             </div>
 
                             <button
@@ -539,15 +501,9 @@ export default function HistorialPage() {
                                   'Abono Parcial',
                                 )
                               }
-                              className="w-full bg-emerald-600 text-white p-5 rounded-2xl font-black uppercase text-xs shadow-lg"
+                              className="w-full bg-emerald-600 text-white p-5 rounded-[1.5rem] font-black uppercase text-xs shadow-lg shadow-emerald-200 hover:bg-emerald-700"
                             >
-                              Confirmar Abono (${' '}
-                              {(
-                                montoUsdRecibido +
-                                montoBsRecibido /
-                                  (tasaDia || cotizacionSeleccionada.tasa_bcv)
-                              ).toFixed(2)}
-                              )
+                              Confirmar y Procesar Abono
                             </button>
 
                             <button
@@ -555,15 +511,13 @@ export default function HistorialPage() {
                                 const saldoUsd =
                                   cotizacionSeleccionada.total -
                                   (cotizacionSeleccionada.monto_pagado || 0);
-                                setMontoUsdRecibido(saldoUsd);
-                                setMontoBsRecibido(0);
                                 registrarPago(
                                   cotizacionSeleccionada,
                                   saldoUsd,
                                   'Pago Total',
                                 );
                               }}
-                              className="w-full bg-slate-900 text-white p-4 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2"
+                              className="w-full bg-slate-200 text-slate-500 p-4 rounded-[1.2rem] font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:bg-red-100 hover:text-red-600 transition-colors"
                             >
                               <Check size={14} /> Liquidar Deuda Total
                             </button>
@@ -571,13 +525,16 @@ export default function HistorialPage() {
                         )}
                       </div>
                     ) : (
-                      <div className="p-8 bg-emerald-50 rounded-[2.5rem] text-center border-2 border-emerald-100">
-                        <div className="w-16 h-16 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Check size={32} />
+                      <div className="p-10 bg-emerald-50 rounded-[3rem] text-center border-4 border-emerald-100 shadow-inner">
+                        <div className="w-20 h-20 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-200">
+                          <Check size={40} strokeWidth={3} />
                         </div>
-                        <h3 className="text-xl font-black text-emerald-900 uppercase">
-                          SOLVENTE
+                        <h3 className="text-2xl font-black text-emerald-900 uppercase italic tracking-tighter">
+                          Estado Solvente
                         </h3>
+                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mt-1">
+                          Operación Finalizada
+                        </p>
                       </div>
                     )}
                   </div>
