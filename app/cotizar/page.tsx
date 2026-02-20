@@ -89,9 +89,11 @@ export default function CotizarPage() {
     setCarrito((prevCarrito) =>
       prevCarrito.map((item) => {
         if (item.id === id) {
-          const num = parseFloat(valor) || 0;
+          // Permitimos decimales. Si es vacío, dejamos 0 para evitar errores de NAN
+          const num = valor === '' ? 0 : parseFloat(valor);
+
           if (campo === 'cantidad') {
-            // Validar stock
+            // Validamos contra el stock real
             const cant = num > item.stock ? item.stock : num;
             return { ...item, cantidad: cant };
           }
@@ -183,25 +185,21 @@ export default function CotizarPage() {
       const simbolo = monedaPrincipal === 'BS' ? 'Bs.' : '$';
       const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
 
+      // --- TABLA ---
       autoTable(doc, {
         startY: 105,
-        head: [
-          [
-            'DESCRIPCIÓN',
-            'CANT.',
-            `PRECIO (${monedaPrincipal})`,
-            `SUBTOTAL (${monedaPrincipal})`,
-          ],
-        ],
+        head: [['DESCRIPCIÓN', 'CANT.', 'PRECIO', 'SUBTOTAL']],
         body: items.map((i) => [
-          i.nombre.toUpperCase(),
-          i.cantidad,
+          // Opción: "CEMENTO (SACOS)" o "ARENA (METROS)"
+          `${i.nombre.toUpperCase()}\n[UNIDAD: ${i.unidad_medida || 'UNID.'}]`,
+          i.cantidad.toString(), // Aquí saldrán los decimales como 0.5
           `${simbolo} ${(i.precio * factor).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
           `${simbolo} ${(i.precio * i.cantidad * factor).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
         ]),
         headStyles: { fillColor: [30, 41, 59], halign: 'center' },
-        styles: { fontSize: 8 },
+        styles: { fontSize: 8, cellPadding: 3 }, // Añadimos padding para que la unidad quepa bien
         columnStyles: {
+          0: { cellWidth: 80 }, // Le damos más ancho a la descripción
           1: { halign: 'center' },
           2: { halign: 'right' },
           3: { halign: 'right' },
@@ -317,10 +315,9 @@ export default function CotizarPage() {
     const listaProd = items
       .map(
         (i) =>
-          `🔹 *${i.nombre.trim()}*\nCant: ${i.cantidad} -> ${simbolo}${(i.precio * i.cantidad * factor).toLocaleString('es-VE')}`,
+          `🔹 *${i.nombre.trim()}*\n    Cant: ${i.cantidad} ${i.unidad_medida || 'UNID.'} -> ${simbolo}${(i.precio * i.cantidad * factor).toLocaleString('es-VE')}`,
       )
       .join('\n\n');
-
     const textoMensaje = `🏗️ *${datosEmpresa?.nombre || 'MI EMPRESA'}*\n--------------------------------------------\n👤 *Cliente:* ${cliente.nombre}\n🆔 *ID:* ${cliente.cedula || 'N/A'}\n📍 *Entrega:* ${notas || 'Retiro en tienda'}\n\n📝 *RESUMEN:*\n${listaProd}\n\n💵 *TOTAL: ${simbolo} ${(total * factor).toLocaleString('es-VE')}*\n--------------------------------------------\n🛠️ *¡Estamos para servirle!*`;
     window.open(
       `https://wa.me/${telLimpio}?text=${encodeURIComponent(textoMensaje)}`,
@@ -909,6 +906,7 @@ function TarjetaProductoCarrito({
 
           <input
             type="number"
+            step="0.01"
             value={item.cantidad === 0 ? '' : item.cantidad}
             onChange={(e) =>
               actualizarItem(item.id, 'cantidad', e.target.value)
