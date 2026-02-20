@@ -99,12 +99,15 @@ export default function CotizarPage() {
     setCarrito((prevCarrito) =>
       prevCarrito.map((item) => {
         if (item.id === id) {
-          // Si el valor es un string vacío (porque el usuario borró),
-          // guardamos 0 temporalmente para no romper la lógica
-          const num = valor === '' ? 0 : parseFloat(valor);
+          // Permitimos que el valor sea procesado como número,
+          // pero validamos que no sea NaN si el usuario está borrando.
+          let num = valor === '' ? 0 : parseFloat(valor);
 
           if (campo === 'cantidad') {
-            // Si el usuario intenta poner más de lo que hay en stock
+            // Si el valor termina en punto (ej: "0."), no lo procesamos
+            // como número final aún para que el usuario pueda terminar de escribir
+            if (valor.endsWith('.')) return { ...item, cantidad: valor };
+
             const cant = num > item.stock ? item.stock : num;
             return { ...item, cantidad: cant };
           }
@@ -884,112 +887,86 @@ function TarjetaProductoCarrito({
   actualizarItem,
   setCarrito,
   carrito,
-  monedaPrincipal,
-  tasaBCV,
+  isDark = false,
 }: any) {
   return (
-    <div className="bg-slate-50 p-4 rounded-[2rem] border-2 border-slate-100 mb-3">
-      <div className="flex justify-between items-start mb-4">
-        <div className="flex-1">
-          <p className="font-black text-slate-800 leading-tight uppercase text-sm mb-2">
-            {item.nombre}
-          </p>
-
-          {/* --- BLOQUE DE PRECIO EDITABLE --- */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-              Precio Unit. ($)
-            </label>
-            <div className="flex items-center gap-1">
-              <span className="font-black text-orange-500">$</span>
-              <input
-                type="number"
-                step="any"
-                // Si el precio es 0, muestra vacío para escribir limpio
-                value={item.precio === 0 ? '' : item.precio}
-                onChange={(e) =>
-                  actualizarItem(item.id, 'precio', e.target.value)
-                }
-                onFocus={(e) => e.target.select()}
-                className="w-24 bg-white border-b-2 border-blue-200 font-black text-lg text-orange-700 outline-none px-1 rounded-sm"
-              />
-            </div>
-            {/* Referencia en Bs. justo debajo */}
-            {monedaPrincipal === 'BS' && (
-              <p className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full w-fit">
-                ≈ Bs.{' '}
-                {(item.precio * tasaBCV).toLocaleString('es-VE', {
-                  minimumFractionDigits: 2,
-                })}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Botón de eliminar */}
+    <div
+      className={`p-4 rounded-3xl mb-3 border ${
+        isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'
+      }`}
+    >
+      <div className="flex justify-between items-start mb-3">
+        <p
+          className={`font-black text-sm uppercase italic ${isDark ? 'text-white' : 'text-slate-800'}`}
+        >
+          {item.nombre}
+        </p>
         <button
           onClick={() =>
             setCarrito(carrito.filter((i: any) => i.id !== item.id))
           }
-          className="p-2 text-red-400 hover:text-red-600 transition-colors"
+          className="text-red-400 hover:text-red-500"
         >
-          <Trash2 size={20} />
+          <Trash2 size={18} />
         </button>
       </div>
 
-      <div className="flex justify-between items-center bg-white p-3 rounded-2xl shadow-sm">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() =>
-              actualizarItem(
-                item.id,
-                'cantidad',
-                (item.cantidad - 1).toString(),
-              )
-            }
-            className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600 active:bg-slate-200"
+      <div className="flex items-center justify-between gap-4">
+        {/* Campo Cantidad con Label y Estilo visible */}
+        <div className="flex-1">
+          <label
+            className={`text-[9px] font-black uppercase mb-1 block ${isDark ? 'text-orange-400' : 'text-slate-400'}`}
           >
-            <Minus size={18} />
-          </button>
+            CANTIDAD
+          </label>
+          <div className="flex items-center bg-white rounded-xl p-1 shadow-inner">
+            <button
+              onClick={() =>
+                actualizarItem(
+                  item.id,
+                  'cantidad',
+                  (item.cantidad - 1).toString(),
+                )
+              }
+              className="p-1 text-slate-400"
+            >
+              <Minus size={16} />
+            </button>
 
-          <input
-            type="number"
-            step="0.01" // Permite decimales
-            // Usamos un condicional para que si es 0.5 no lo "limpie" a .5
-            value={item.cantidad === 0 ? '' : item.cantidad}
-            onChange={(e) => {
-              const valor = e.target.value;
-              // Permitimos que el usuario escriba el punto decimal libremente
-              actualizarItem(item.id, 'cantidad', valor);
-            }}
-            onBlur={(e) => {
-              // Al salir del input, si está vacío, aseguramos que vuelva a 0 o 1
-              if (e.target.value === '')
-                actualizarItem(item.id, 'cantidad', '0');
-            }}
-            className="w-16 bg-transparent text-center font-black text-lg outline-none"
-          />
+            <input
+              type="number"
+              step="0.1"
+              value={item.cantidad}
+              onChange={(e) =>
+                actualizarItem(item.id, 'cantidad', e.target.value)
+              }
+              className="w-full text-center font-black text-slate-900 bg-transparent outline-none"
+            />
 
-          <button
-            onClick={() =>
-              actualizarItem(
-                item.id,
-                'cantidad',
-                (item.cantidad + 1).toString(),
-              )
-            }
-            className="w-10 h-10 bg-orange-600 rounded-xl flex items-center justify-center text-white active:bg-orange-700 shadow-lg shadow-blue-200"
-          >
-            <Plus size={18} />
-          </button>
+            <button
+              onClick={() =>
+                actualizarItem(
+                  item.id,
+                  'cantidad',
+                  (item.cantidad + 1).toString(),
+                )
+              }
+              className="p-1 text-orange-600"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
         </div>
 
-        {/* Subtotal del item */}
         <div className="text-right">
-          <p className="text-[9px] font-black text-slate-400 uppercase">
+          <p
+            className={`text-[9px] font-black uppercase mb-1 ${isDark ? 'text-white/40' : 'text-slate-400'}`}
+          >
             Subtotal
           </p>
-          <p className="font-black text-slate-800">
+          <p
+            className={`font-black text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}
+          >
             ${(item.precio * item.cantidad).toLocaleString()}
           </p>
         </div>
