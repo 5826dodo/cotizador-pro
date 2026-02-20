@@ -363,20 +363,70 @@ export default function HistorialPage() {
             <div className="bg-white w-full max-w-lg rounded-[3rem] overflow-hidden shadow-2xl">
               <div className="p-8 border-b flex justify-between items-center bg-slate-50">
                 <div>
-                  <h3 className="font-black uppercase text-xl">
-                    Detalle de Gestión
-                  </h3>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">
-                    Origen: {cotizacionSeleccionada.moneda} | Tasa:{' '}
-                    {cotizacionSeleccionada.tasa_bcv}
-                  </p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-black uppercase text-xl">
+                      Detalle de Gestión
+                    </h3>
+                    <span
+                      className={`text-[9px] px-2 py-0.5 rounded-full font-black text-white uppercase ${cotizacionSeleccionada.tipo_operacion === 'venta_directa' ? 'bg-orange-500' : 'bg-blue-500'}`}
+                    >
+                      {cotizacionSeleccionada.tipo_operacion === 'venta_directa'
+                        ? 'Venta'
+                        : 'Presupuesto'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                      Origen: {cotizacionSeleccionada.moneda} | Tasa:{' '}
+                      {cotizacionSeleccionada.tasa_bcv}
+                    </p>
+                    {/* MONTO TOTAL DE LA VENTA EN EL ORIGEN */}
+                    <span className="text-[10px] font-black text-slate-900 bg-slate-200 px-2 py-0.5 rounded">
+                      TOTAL:{' '}
+                      {cotizacionSeleccionada.moneda === 'BS'
+                        ? `Bs. ${(cotizacionSeleccionada.total * cotizacionSeleccionada.tasa_bcv).toLocaleString('es-VE')}`
+                        : `$${cotizacionSeleccionada.total.toFixed(2)}`}
+                    </span>
+                  </div>
                 </div>
                 <button
                   onClick={() => setCotizacionSeleccionada(null)}
-                  className="p-3 bg-white rounded-full shadow-sm hover:text-red-500"
+                  className="p-3 bg-white rounded-full shadow-sm hover:text-red-500 transition-colors"
                 >
                   <X size={20} />
                 </button>
+              </div>
+              {/* LISTA BREVE DE PRODUCTOS */}
+              <div className="px-8 pt-4">
+                <details className="group">
+                  <summary className="list-none flex justify-between items-center cursor-pointer p-3 bg-slate-100 rounded-xl">
+                    <span className="text-[10px] font-black uppercase text-slate-600">
+                      Ver Productos (
+                      {cotizacionSeleccionada.productos_seleccionados?.length})
+                    </span>
+                    <ChevronDown
+                      size={14}
+                      className="group-open:rotate-180 transition-transform"
+                    />
+                  </summary>
+                  <div className="mt-2 space-y-2 max-h-32 overflow-y-auto p-2">
+                    {cotizacionSeleccionada.productos_seleccionados?.map(
+                      (item: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="flex justify-between text-[11px] border-b border-slate-50 pb-1"
+                        >
+                          <span className="font-bold text-slate-700">
+                            {item.cantidad} x {item.nombre}
+                          </span>
+                          <span className="font-black text-slate-900">
+                            ${(item.precio * item.cantidad).toFixed(2)}
+                          </span>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </details>
               </div>
 
               <div className="p-8 space-y-6">
