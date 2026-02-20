@@ -408,7 +408,11 @@ export default function CotizarPage() {
 
   // --- RENDERIZADO ---
   return (
-    <main className="min-h-screen bg-slate-50 p-4 md:p-8 pb-32">
+    <main
+      /* ESTO BLOQUEA EL REFRESH AL HACER SCROLL FUERTE */
+      style={{ overscrollBehaviorY: 'contain' }}
+      className="min-h-screen bg-slate-50 p-4 md:p-8 pb-32 touch-pan-y"
+    >
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
         {/* IZQUIERDA: BUSCADOR Y PRODUCTOS */}
         <div className="flex-1 space-y-6">
