@@ -462,143 +462,191 @@ export default function HistorialPage() {
 
                         {mostrarAbonar && (
                           <div className="p-6 bg-slate-50 rounded-[2.5rem] border-2 border-slate-100 space-y-4 animate-in zoom-in-95 duration-200">
-                            {/* INPUTS DE MONTO */}
-                            <div className="grid grid-cols-1 gap-4">
-                              <div className="relative">
-                                <label className="text-[9px] font-black uppercase text-slate-400 absolute -top-2 left-4 bg-white px-2">
-                                  Tasa de Cambio
-                                </label>
-                                <input
-                                  type="number"
-                                  className="w-full p-4 rounded-[1.2rem] border-2 border-slate-100 font-black text-slate-700 focus:border-orange-500 outline-none transition-colors"
-                                  placeholder="Tasa del día"
-                                  value={tasaDia}
-                                  onChange={(e) =>
-                                    setTasaDia(parseFloat(e.target.value) || 0)
-                                  }
-                                />
-                              </div>
-                              <div className="grid grid-cols-2 gap-3">
-                                <input
-                                  type="number"
-                                  className="p-4 rounded-[1.2rem] border-2 border-emerald-100 font-black text-emerald-600 outline-none focus:ring-2 ring-emerald-500"
-                                  placeholder="Abono Bs"
-                                  onChange={(e) =>
-                                    setMontoBsRecibido(
-                                      parseFloat(e.target.value) || 0,
-                                    )
-                                  }
-                                />
-                                <input
-                                  type="number"
-                                  className="p-4 rounded-[1.2rem] border-2 border-blue-100 font-black text-blue-600 outline-none focus:ring-2 ring-blue-500"
-                                  placeholder="Abono $"
-                                  onChange={(e) =>
-                                    setMontoUsdRecibido(
-                                      parseFloat(e.target.value) || 0,
-                                    )
-                                  }
-                                />
-                              </div>
-                            </div>
+                            {/* VARIABLES AUXILIARES DE CÁLCULO */}
+                            {(() => {
+                              const deudaPendienteUsd =
+                                cotizacionSeleccionada.total -
+                                (cotizacionSeleccionada.monto_pagado || 0);
+                              const tasaParaCalculo =
+                                tasaDia || cotizacionSeleccionada.tasa_bcv;
+                              const deudaEnBs =
+                                deudaPendienteUsd * tasaParaCalculo;
 
-                            {/* BOTÓN CONFIRMAR CON VALIDACIÓN */}
-                            <button
-                              disabled={
-                                montoBsRecibido <= 0 && montoUsdRecibido <= 0
-                              }
-                              onClick={() =>
-                                registrarPago(
-                                  cotizacionSeleccionada,
-                                  montoUsdRecibido +
-                                    montoBsRecibido /
-                                      (tasaDia ||
-                                        cotizacionSeleccionada.tasa_bcv),
-                                  'Abono Parcial',
-                                )
-                              }
-                              className={`w-full p-5 rounded-[1.5rem] font-black uppercase text-xs shadow-lg transition-all ${
-                                montoBsRecibido > 0 || montoUsdRecibido > 0
-                                  ? 'bg-emerald-600 text-white shadow-emerald-200 hover:bg-emerald-700'
-                                  : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
-                              }`}
-                            >
-                              {montoBsRecibido > 0 || montoUsdRecibido > 0
-                                ? 'Confirmar y Procesar Abono'
-                                : 'Ingrese un monto para abonar'}
-                            </button>
+                              return (
+                                <>
+                                  {/* 1. INPUT DE TASA */}
+                                  <div className="relative">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 absolute -top-2 left-4 bg-white px-2 z-10">
+                                      Tasa de Cambio
+                                    </label>
+                                    <input
+                                      type="number"
+                                      className="w-full p-4 rounded-[1.2rem] border-2 border-slate-200 font-black text-slate-700 focus:border-orange-500 outline-none transition-all shadow-sm"
+                                      placeholder="Ej: 54.50"
+                                      value={tasaDia || ''}
+                                      onChange={(e) =>
+                                        setTasaDia(
+                                          parseFloat(e.target.value) || 0,
+                                        )
+                                      }
+                                    />
+                                  </div>
 
-                            <div className="relative py-2">
-                              <div className="absolute inset-0 flex items-center">
-                                <span className="w-full border-t border-slate-200"></span>
-                              </div>
-                              <div className="relative flex justify-center text-[8px] uppercase font-black text-slate-400">
-                                <span className="bg-slate-50 px-2 italic">
-                                  Liquidar Deuda Total en:
-                                </span>
-                              </div>
-                            </div>
+                                  {/* 2. INPUTS DE ABONO DINÁMICOS */}
+                                  <div className="grid grid-cols-2 gap-3">
+                                    {/* ABONO BS */}
+                                    <div className="relative group">
+                                      <input
+                                        type="number"
+                                        value={montoBsRecibido || ''}
+                                        className="w-full p-4 rounded-[1.2rem] border-2 border-emerald-100 font-black text-emerald-600 outline-none focus:ring-2 ring-emerald-500 placeholder:text-emerald-300"
+                                        placeholder={`Bs. ${deudaEnBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`}
+                                        onChange={(e) =>
+                                          setMontoBsRecibido(
+                                            parseFloat(e.target.value) || 0,
+                                          )
+                                        }
+                                      />
+                                      <button
+                                        onClick={() =>
+                                          setMontoBsRecibido(
+                                            Number(deudaEnBs.toFixed(2)),
+                                          )
+                                        }
+                                        className="absolute right-2 top-2 text-[7px] bg-emerald-500 text-white px-2 py-1 rounded-lg font-black uppercase hover:bg-emerald-600"
+                                      >
+                                        {' '}
+                                        MAX{' '}
+                                      </button>
+                                      <span className="text-[7px] font-bold text-emerald-400 ml-2 italic">
+                                        Saldo en Bs.
+                                      </span>
+                                    </div>
 
-                            {/* LIQUIDACIÓN RÁPIDA POR MONEDA */}
-                            {/* LIQUIDACIÓN RÁPIDA POR MONEDA */}
-                            <div className="grid grid-cols-2 gap-3">
-                              {/* LIQUIDAR EN BOLÍVARES (Depende de la tasa ingresada) */}
-                              <button
-                                onClick={() => {
-                                  const tasaUsar =
-                                    tasaDia || cotizacionSeleccionada.tasa_bcv;
-                                  const saldoUsd =
-                                    cotizacionSeleccionada.total -
-                                    (cotizacionSeleccionada.monto_pagado || 0);
-                                  const montoBsReal = (
-                                    saldoUsd * tasaUsar
-                                  ).toLocaleString('es-VE');
+                                    {/* ABONO USD */}
+                                    <div className="relative group">
+                                      <input
+                                        type="number"
+                                        value={montoUsdRecibido || ''}
+                                        className="w-full p-4 rounded-[1.2rem] border-2 border-blue-100 font-black text-blue-600 outline-none focus:ring-2 ring-blue-500 placeholder:text-blue-300"
+                                        placeholder={`$${deudaPendienteUsd.toFixed(2)}`}
+                                        onChange={(e) =>
+                                          setMontoUsdRecibido(
+                                            parseFloat(e.target.value) || 0,
+                                          )
+                                        }
+                                      />
+                                      <button
+                                        onClick={() =>
+                                          setMontoUsdRecibido(
+                                            Number(
+                                              deudaPendienteUsd.toFixed(2),
+                                            ),
+                                          )
+                                        }
+                                        className="absolute right-2 top-2 text-[7px] bg-blue-500 text-white px-2 py-1 rounded-lg font-black uppercase hover:bg-blue-600"
+                                      >
+                                        {' '}
+                                        MAX{' '}
+                                      </button>
+                                      <span className="text-[7px] font-bold text-blue-400 ml-2 italic">
+                                        Saldo en $.
+                                      </span>
+                                    </div>
+                                  </div>
 
-                                  registrarPago(
-                                    cotizacionSeleccionada,
-                                    saldoUsd,
-                                    `Liquidación Total en Bs (Tasa: ${tasaUsar}) - Recibido: Bs. ${montoBsReal}`,
-                                  );
-                                }}
-                                className="bg-white border-2 border-emerald-500 text-emerald-600 p-4 rounded-[1.2rem] font-black uppercase text-[9px] flex flex-col items-center justify-center gap-1 hover:bg-emerald-50 transition-colors shadow-sm"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span className="text-lg">🇻🇪</span>
-                                  <span>Bs. Total</span>
-                                </div>
-                                <span className="text-[7px] opacity-70 italic text-emerald-800">
-                                  Usa Tasa:{' '}
-                                  {tasaDia || cotizacionSeleccionada.tasa_bcv}
-                                </span>
-                              </button>
+                                  {/* 3. BOTÓN PROCESAR ABONO MANUAL */}
+                                  <button
+                                    disabled={
+                                      montoBsRecibido <= 0 &&
+                                      montoUsdRecibido <= 0
+                                    }
+                                    onClick={() => {
+                                      const abonoEnUsd =
+                                        montoUsdRecibido +
+                                        montoBsRecibido / tasaParaCalculo;
+                                      registrarPago(
+                                        cotizacionSeleccionada,
+                                        abonoEnUsd,
+                                        'Abono Parcial Registrado',
+                                      );
+                                    }}
+                                    className={`w-full p-5 rounded-[1.5rem] font-black uppercase text-xs shadow-lg transition-all ${
+                                      montoBsRecibido > 0 ||
+                                      montoUsdRecibido > 0
+                                        ? 'bg-emerald-600 text-white shadow-emerald-200 hover:scale-[1.02]'
+                                        : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                                    }`}
+                                  >
+                                    {montoBsRecibido > 0 || montoUsdRecibido > 0
+                                      ? 'Confirmar y Procesar Abono'
+                                      : 'Ingrese un monto'}
+                                  </button>
 
-                              {/* LIQUIDAR EN DÓLARES (No depende de la tasa) */}
-                              <button
-                                onClick={() => {
-                                  const saldoUsd =
-                                    cotizacionSeleccionada.total -
-                                    (cotizacionSeleccionada.monto_pagado || 0);
-                                  registrarPago(
-                                    cotizacionSeleccionada,
-                                    saldoUsd,
-                                    'Liquidación Total en Dólares (Efectivo/Zelle)',
-                                  );
-                                }}
-                                className="bg-slate-900 text-white p-4 rounded-[1.2rem] font-black uppercase text-[9px] flex flex-col items-center justify-center gap-1 hover:bg-black transition-colors shadow-lg"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span className="text-lg">💵</span>
-                                  <span>$. Total</span>
-                                </div>
-                                <span className="text-[7px] opacity-70 italic text-slate-400">
-                                  Monto: $
-                                  {(
-                                    cotizacionSeleccionada.total -
-                                    (cotizacionSeleccionada.monto_pagado || 0)
-                                  ).toFixed(2)}
-                                </span>
-                              </button>
-                            </div>
+                                  {/* 4. LIQUIDACIÓN TOTAL RÁPIDA */}
+                                  <div className="relative py-2 mt-2">
+                                    <div className="absolute inset-0 flex items-center">
+                                      <span className="w-full border-t border-slate-200"></span>
+                                    </div>
+                                    <div className="relative flex justify-center text-[8px] uppercase font-black text-slate-400">
+                                      <span className="bg-slate-50 px-2 italic">
+                                        Liquidar Deuda Total en:
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                      onClick={() => {
+                                        // Al liquidar todo en Bs, enviamos el montoBsRecibido como el total en Bs
+                                        setMontoBsRecibido(
+                                          Number(deudaEnBs.toFixed(2)),
+                                        );
+                                        setMontoUsdRecibido(0);
+                                        registrarPago(
+                                          cotizacionSeleccionada,
+                                          deudaPendienteUsd,
+                                          `Pago Total en Bs (Tasa: ${tasaParaCalculo})`,
+                                        );
+                                      }}
+                                      className="bg-white border-2 border-emerald-500 text-emerald-600 p-4 rounded-[1.2rem] font-black uppercase text-[9px] flex flex-col items-center justify-center gap-1 hover:bg-emerald-50 transition-all"
+                                    >
+                                      <span>
+                                        🇻🇪 Bs.{' '}
+                                        {deudaEnBs.toLocaleString('es-VE', {
+                                          maximumFractionDigits: 2,
+                                        })}
+                                      </span>
+                                      <span className="text-[6px] opacity-60 italic text-center">
+                                        Todo por transferencia/pago móvil
+                                      </span>
+                                    </button>
+
+                                    <button
+                                      onClick={() => {
+                                        setMontoUsdRecibido(
+                                          Number(deudaPendienteUsd.toFixed(2)),
+                                        );
+                                        setMontoBsRecibido(0);
+                                        registrarPago(
+                                          cotizacionSeleccionada,
+                                          deudaPendienteUsd,
+                                          'Pago Total en Dólares (Efectivo)',
+                                        );
+                                      }}
+                                      className="bg-slate-900 text-white p-4 rounded-[1.2rem] font-black uppercase text-[9px] flex flex-col items-center justify-center gap-1 hover:bg-black transition-all shadow-lg"
+                                    >
+                                      <span>
+                                        💵 $. {deudaPendienteUsd.toFixed(2)}
+                                      </span>
+                                      <span className="text-[6px] opacity-60 italic text-center">
+                                        Todo en divisas efectivo/zelle
+                                      </span>
+                                    </button>
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>
