@@ -403,12 +403,55 @@ export default function CotizarPage() {
     }
   };
 
+  // --- PEGA ESTO JUSTO ANTES DEL RETURN ---
+  const renderSeccionPago = () => {
+    if (tipoOperacion !== 'venta_directa') return null;
+
+    return (
+      <div
+        className={`mb-6 space-y-4 p-5 rounded-[2rem] border-2 ${monedaPrincipal === 'BS' ? 'bg-orange-50/20 border-orange-100' : 'bg-slate-800/50 border-white/10'}`}
+      >
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-2">
+          Estado del Pago
+        </label>
+        <select
+          value={estadoPago}
+          onChange={(e) => {
+            setEstadoPago(e.target.value);
+            if (e.target.value === 'pagado') {
+              const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
+              setMontoPagado(calcularTotal() * factor);
+            }
+          }}
+          className="w-full p-4 bg-white text-slate-900 rounded-2xl font-bold border-2 border-slate-200 outline-none"
+        >
+          <option value="pendiente_pago">❌ Pendiente</option>
+          <option value="pago_parcial">⏳ Abono / Parcial</option>
+          <option value="pagado">✅ Pagado Total</option>
+        </select>
+
+        {estadoPago !== 'pendiente_pago' && (
+          <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-2">
+              Monto Recibido ({monedaPrincipal === 'BS' ? 'Bs.' : '$'})
+            </label>
+            <input
+              type="number"
+              value={montoPagado}
+              onChange={(e) => setMontoPagado(parseFloat(e.target.value) || 0)}
+              className="w-full p-4 bg-white text-slate-900 rounded-2xl font-black text-xl border-2 border-orange-500 outline-none"
+            />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // --- RENDERIZADO ---
   return (
     <main
-      /* ESTO BLOQUEA EL REFRESH AL HACER SCROLL FUERTE */
-      style={{ overscrollBehaviorY: 'contain' }}
-      className="min-h-screen bg-slate-50 p-4 md:p-8 pb-32 touch-pan-y"
+      style={{ overscrollBehaviorY: 'contain', touchAction: 'pan-x pan-y' }}
+      className="min-h-screen bg-slate-50 p-4 pb-32"
     >
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
         {/* IZQUIERDA: BUSCADOR Y PRODUCTOS */}
@@ -627,6 +670,9 @@ export default function CotizarPage() {
               </div>
             </div>
 
+            {/* --- AGREGA ESTA LÍNEA AQUÍ --- */}
+            {renderSeccionPago()}
+
             <div className="mt-10 pt-8 border-t border-white/10">
               <div className="flex flex-col items-end mb-8">
                 <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] mb-2">
@@ -741,42 +787,7 @@ export default function CotizarPage() {
             </div>
 
             {/* Inputs de Pago (Solo si es Venta Directa) */}
-            {tipoOperacion === 'venta_directa' && (
-              <div className="mb-6 space-y-4 p-5 bg-slate-50 rounded-[2rem] border-2 border-slate-200">
-                <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest block ml-2">
-                  Estado del Pago
-                </label>
-                <select
-                  value={estadoPago}
-                  onChange={(e) => {
-                    setEstadoPago(e.target.value);
-                    if (e.target.value === 'pagado')
-                      setMontoPagado(calcularTotal());
-                  }}
-                  className="w-full p-4 bg-white rounded-2xl font-bold border-2 border-slate-200"
-                >
-                  <option value="pendiente_pago">❌ Pendiente</option>
-                  <option value="pago_parcial">⏳ Abono / Parcial</option>
-                  <option value="pagado">✅ Pagado Total</option>
-                </select>
-
-                {estadoPago !== 'pendiente_pago' && (
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-orange-700 uppercase tracking-widest block ml-2">
-                      Monto Recibido ({monedaPrincipal})
-                    </label>
-                    <input
-                      type="number"
-                      value={montoPagado}
-                      onChange={(e) =>
-                        setMontoPagado(parseFloat(e.target.value) || 0)
-                      }
-                      className="w-full p-4 bg-white rounded-2xl font-black text-2xl border-2 border-blue-500"
-                    />
-                  </div>
-                )}
-              </div>
-            )}
+            {renderSeccionPago()}
 
             {/* Notas y Botón Final */}
             <div className="space-y-4">
