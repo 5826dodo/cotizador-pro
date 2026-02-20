@@ -358,31 +358,61 @@ export default function CotizarPage() {
       const total = calcularTotal();
       const esVenta = tipoOperacion === 'venta_directa';
 
-      const { error } = await supabase.from('cotizaciones').insert([
-        {
-          cliente_id: clienteSeleccionado.id,
-          productos_seleccionados: carrito,
-          total: total, // Este total suele ser en $ en base de datos
-          empresa_id: miEmpresaId,
-          estado: esVenta ? 'aprobada' : 'pendiente',
-          tipo_operacion: tipoOperacion,
-          estado_pago: esVenta ? estadoPago : 'pendiente_pago',
-          // Si el monto fue en BS, lo convertimos a $ para la DB (opcional, depende de tu preferencia)
-          monto_pagado:
-            monedaPrincipal === 'BS' ? montoPagado / tasaBCV : montoPagado,
-          moneda: monedaPrincipal,
-          tasa_bcv: tasaBCV,
-          observaciones: observaciones,
-        },
-      ]);
+      // Calculamos el monto pagado en USD para la DB
+      // Si el usuario escribió en Bs, dividimos por la tasa. Si escribió en $, se queda igual.
+      const montoPagadoUsd =
+        monedaPrincipal === 'BS' ? montoPagado / tasaBCV : montoPagado;
 
-      if (error) throw error;
+      // 1. Insertar Cotización/Venta
+      const { data: nuevaCot, error: errorCot } = await supabase
+        .from('cotizaciones')
+        .insert([
+          {
+            cliente_id: clienteSeleccionado.id,
+            productos_seleccionados: carrito,
+            total: total,
+            empresa_id: miEmpresaId,
+            estado: esVenta ? 'aprobado' : 'pendiente',
+            tipo_operacion: tipoOperacion,
+            estado_pago: esVenta
+              ? montoPagadoUsd >= total - 0.05
+                ? 'pagado'
+                : 'parcial'
+              : 'pendiente_pago',
+            monto_pagado: montoPagadoUsd,
+            moneda: monedaPrincipal, // Guardamos el origen (BS o USD)
+            tasa_bcv: tasaBCV,
+            observaciones: observaciones,
+          },
+        ])
+        .select()
+        .single();
 
-      // SI ES VENTA, DESCONTAMOS EL STOCK REAL
+      if (errorCot) throw errorCot;
+
+      // 2. Si es VENTA y hay un pago (Abono o Total), registrar en la tabla PAGOS para la CAJA
+      if (esVenta && montoPagado > 0) {
+        const { error: errorPago } = await supabase
+          .from('pagos_registrados')
+          .insert([
+            {
+              cotizacion_id: nuevaCot.id,
+              // Guardamos según la moneda seleccionada en el Switch para que sume a la caja correcta
+              monto_bs: monedaPrincipal === 'BS' ? montoPagado : 0,
+              monto_usd: monedaPrincipal === 'USD' ? montoPagado : 0,
+              tasa_aplicada: tasaBCV,
+              observacion: `Pago inicial venta directa - Cliente: ${clienteSeleccionado.nombre}`,
+            },
+          ]);
+        if (errorPago) console.error('Error al registrar en caja:', errorPago);
+      }
+
+      // 3. Descontar Inventario si es venta
       if (esVenta) {
         await descontarInventario(carrito);
       }
 
+      // Generar PDF y Notificaciones
       descargarPDF(clienteSeleccionado, carrito, total, observaciones);
 
       setTimeout(() => {
@@ -404,13 +434,15 @@ export default function CotizarPage() {
       setObservaciones('');
       setMontoPagado(0);
       setMostrarModalResumen(false);
+
       alert(
         esVenta
-          ? '✅ Venta registrada e inventario actualizado'
+          ? '✅ Venta registrada y sumada a caja'
           : '📄 Cotización guardada',
       );
     } catch (e) {
-      alert('Error al procesar');
+      console.error(e);
+      alert('Error al procesar la operación');
     } finally {
       setCargando(false);
     }
