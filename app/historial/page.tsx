@@ -125,10 +125,17 @@ export default function HistorialPage() {
     cot: any,
     usdEquivalente: number,
     tipo: string,
+    montoBsOverride?: number, // Nuevo parámetro
+    montoUsdOverride?: number, // Nuevo parámetro
   ) => {
     const deudaActualUsd = cot.total - (cot.monto_pagado || 0);
 
-    // Validación de sobrepago
+    // Usamos el override si existe, si no, el estado del input
+    const bsAFinal =
+      montoBsOverride !== undefined ? montoBsOverride : montoBsRecibido;
+    const usdAFinal =
+      montoUsdOverride !== undefined ? montoUsdOverride : montoUsdRecibido;
+
     if (usdEquivalente > deudaActualUsd + 0.05) {
       alert(
         `⚠️ Monto ($${usdEquivalente.toFixed(2)}) excede la deuda ($${deudaActualUsd.toFixed(2)})`,
@@ -138,18 +145,18 @@ export default function HistorialPage() {
 
     setProcesandoAccion(true);
     try {
-      // Registrar en caja
+      // Registrar en la tabla de pagos (esto es lo que suma a las cards del día)
       await supabase.from('pagos_registrados').insert([
         {
           cotizacion_id: cot.id,
-          monto_bs: montoBsRecibido,
-          monto_usd: montoUsdRecibido,
-          tasa_aplicada: tasaDia || cot.tasa_bcv,
+          monto_bs: bsAFinal,
+          monto_usd: usdAFinal,
+          tasa_applied: tasaDia || cot.tasa_bcv,
           observacion: tipo,
         },
       ]);
 
-      // Actualizar cotización
+      // Actualizar el acumulado en la cotización
       const nuevoTotalPagado = (cot.monto_pagado || 0) + usdEquivalente;
       await supabase
         .from('cotizaciones')
@@ -160,10 +167,15 @@ export default function HistorialPage() {
         })
         .eq('id', cot.id);
 
-      alert('✅ Pago registrado correctamente');
+      alert('✅ Pago registrado y caja actualizada');
+
+      // LIMPIEZA DE ESTADOS
+      setMontoBsRecibido(0);
+      setMontoUsdRecibido(0);
+      setTasaDia(0);
       setCotizacionSeleccionada(null);
       setMostrarAbonar(false);
-      cargarDatos();
+      cargarDatos(); // Esto refresca las cards de arriba
     } catch (error) {
       alert('Error al procesar pago');
     }
@@ -596,52 +608,55 @@ export default function HistorialPage() {
                                   </div>
 
                                   <div className="grid grid-cols-2 gap-3">
+                                    {/* LIQUIDAR EN BS */}
                                     <button
                                       onClick={() => {
-                                        // Al liquidar todo en Bs, enviamos el montoBsRecibido como el total en Bs
-                                        setMontoBsRecibido(
-                                          Number(deudaEnBs.toFixed(2)),
+                                        const tasa =
+                                          tasaDia ||
+                                          cotizacionSeleccionada.tasa_bcv;
+                                        const deudaUsd =
+                                          cotizacionSeleccionada.total -
+                                          (cotizacionSeleccionada.monto_pagado ||
+                                            0);
+                                        const totalEnBs = Number(
+                                          (deudaUsd * tasa).toFixed(2),
                                         );
-                                        setMontoUsdRecibido(0);
+
                                         registrarPago(
                                           cotizacionSeleccionada,
-                                          deudaPendienteUsd,
-                                          `Pago Total en Bs (Tasa: ${tasaParaCalculo})`,
+                                          deudaUsd,
+                                          `Liquidación Total Bs (Tasa: ${tasa})`,
+                                          totalEnBs, // Monto BS para la caja
+                                          0, // Monto USD para la caja
                                         );
                                       }}
-                                      className="bg-white border-2 border-emerald-500 text-emerald-600 p-4 rounded-[1.2rem] font-black uppercase text-[9px] flex flex-col items-center justify-center gap-1 hover:bg-emerald-50 transition-all"
+                                      className="bg-white border-2 border-emerald-500 text-emerald-600 p-4 rounded-[1.2rem] font-black uppercase text-[9px] hover:bg-emerald-50"
                                     >
-                                      <span>
-                                        🇻🇪 Bs.{' '}
-                                        {deudaEnBs.toLocaleString('es-VE', {
-                                          maximumFractionDigits: 2,
-                                        })}
-                                      </span>
-                                      <span className="text-[6px] opacity-60 italic text-center">
-                                        Todo por transferencia/pago móvil
-                                      </span>
+                                      <span>🇻🇪 Bs. Total</span>
                                     </button>
 
+                                    {/* LIQUIDAR EN USD */}
                                     <button
                                       onClick={() => {
-                                        setMontoUsdRecibido(
-                                          Number(deudaPendienteUsd.toFixed(2)),
+                                        const deudaUsd = Number(
+                                          (
+                                            cotizacionSeleccionada.total -
+                                            (cotizacionSeleccionada.monto_pagado ||
+                                              0)
+                                          ).toFixed(2),
                                         );
-                                        setMontoBsRecibido(0);
+
                                         registrarPago(
                                           cotizacionSeleccionada,
-                                          deudaPendienteUsd,
-                                          'Pago Total en Dólares (Efectivo)',
+                                          deudaUsd,
+                                          'Liquidación Total USD (Efectivo)',
+                                          0, // Monto BS para la caja
+                                          deudaUsd, // Monto USD para la caja
                                         );
                                       }}
-                                      className="bg-slate-900 text-white p-4 rounded-[1.2rem] font-black uppercase text-[9px] flex flex-col items-center justify-center gap-1 hover:bg-black transition-all shadow-lg"
+                                      className="bg-slate-900 text-white p-4 rounded-[1.2rem] font-black uppercase text-[9px] hover:bg-black shadow-lg"
                                     >
-                                      <span>
-                                        💵 $. {deudaPendienteUsd.toFixed(2)}
-                                      </span>
-                                      <span className="text-[6px] opacity-60 italic text-center">
-                                        Todo en divisas efectivo/zelle
-                                      </span>
+                                      <span>💵 $. Total</span>
                                     </button>
                                   </div>
                                 </>
