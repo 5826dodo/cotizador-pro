@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { LogIn, ArrowRight } from 'lucide-react';
+import { LogIn, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import Image from 'next/image';
 
 export default function LoginPage() {
@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Estados para el efecto máquina de escribir
   const [displayText, setDisplayText] = useState('');
@@ -87,15 +88,17 @@ export default function LoginPage() {
         {/* Logo y Header */}
         <div className="flex flex-col items-center text-center">
           <div className="relative w-28 mb-4">
-            <img
+            <Image
               src="/logo_ventiq.png"
               alt="Logo Ventiq"
-              className="w-full h-auto object-contain"
+              fill
+              className="object-contain"
+              priority
             />
           </div>
 
           <h2 className="text-4xl font-black text-[#1A1D23] tracking-tighter leading-none">
-            Venti<span className="text-[#FF9800]">q</span>
+            Venti<span className="text-[#FF9800]">Q</span>
           </h2>
 
           <div className="h-5 mt-3 flex items-center justify-center">
@@ -125,14 +128,29 @@ export default function LoginPage() {
               <label className="text-[9px] font-black text-gray-400 ml-4 mb-1 block uppercase tracking-[0.2em]">
                 Contraseña
               </label>
-              <input
-                type="password"
-                required
-                className="block w-full rounded-2xl border-none bg-gray-50 px-6 py-4 text-gray-900 ring-1 ring-gray-200 focus:ring-2 focus:ring-[#FF9800] outline-none transition-all text-sm"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'} // Cambio dinámico de tipo
+                  required
+                  className="block w-full rounded-2xl border-none bg-gray-50 px-6 py-4 text-gray-900 ring-1 ring-gray-200 focus:ring-2 focus:ring-[#FF9800] outline-none transition-all text-sm"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+
+                {/* Botón para mostrar/ocultar */}
+                <button
+                  type="button" // IMPORTANTE: tipo button para que no envíe el formulario
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-orange-500 transition-colors"
+                >
+                  {showPassword ? (
+                    <EyeOff size={20} strokeWidth={2.5} />
+                  ) : (
+                    <Eye size={20} strokeWidth={2.5} />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
