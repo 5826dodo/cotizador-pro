@@ -252,6 +252,10 @@ export default function HistorialPage() {
                         <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-500">
                           ID: {cot.clientes?.cedula || 'N/A'}
                         </span>
+                        {/* FECHA AGREGADA AQUÍ */}
+                        <span className="text-[10px] font-black text-orange-600/70 italic">
+                          {new Date(cot.created_at).toLocaleDateString('es-VE')}
+                        </span>
                       </div>
                     </div>
 
@@ -331,6 +335,12 @@ export default function HistorialPage() {
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                       Tasa: {cotizacionSeleccionada.tasa_bcv}
                     </p>
+                    {/* FECHA EN EL MODAL */}
+                    <span className="ml-1 text-slate-300">
+                      {new Date(
+                        cotizacionSeleccionada.created_at,
+                      ).toLocaleDateString('es-VE')}
+                    </span>
                     <span className="text-[10px] font-black bg-orange-600/20 text-orange-500 px-2 py-0.5 rounded-lg border border-orange-600/30">
                       TOTAL:{' '}
                       {cotizacionSeleccionada.moneda === 'BS'
