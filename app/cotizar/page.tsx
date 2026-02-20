@@ -81,6 +81,16 @@ export default function CotizarPage() {
     cargarDatos();
   }, []);
 
+  useEffect(() => {
+    if (mostrarModalResumen) {
+      // Bloquea el scroll del cuerpo de la página
+      document.body.style.overflow = 'hidden';
+    } else {
+      // Lo libera cuando se cierra el modal
+      document.body.style.overflow = 'unset';
+    }
+  }, [mostrarModalResumen]);
+
   const actualizarItem = (
     id: string,
     campo: 'precio' | 'cantidad',
@@ -450,8 +460,10 @@ export default function CotizarPage() {
   // --- RENDERIZADO ---
   return (
     <main
+      // overscroll-behavior-y: contain evita que el scroll pase a la capa superior (el navegador)
+      // touch-action: pan-x pan-y asegura que los gestos de deslizamiento sean solo para scroll
       style={{ overscrollBehaviorY: 'contain', touchAction: 'pan-x pan-y' }}
-      className="min-h-screen bg-slate-50 p-4 pb-32"
+      className="min-h-screen bg-slate-50 p-4 md:p-8 pb-32"
     >
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
         {/* IZQUIERDA: BUSCADOR Y PRODUCTOS */}
@@ -758,10 +770,16 @@ export default function CotizarPage() {
 
       {/* --- MODAL RESUMEN MÓVIL OPTIMIZADO --- */}
       {/* --- MODAL DE RESUMEN MÓVIL --- */}
+      {/* --- MODAL DE RESUMEN MÓVIL OPTIMIZADO --- */}
       {mostrarModalResumen && (
         <div className="lg:hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end">
-          <div className="bg-white rounded-t-[3rem] p-6 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom duration-300">
-            <div className="flex justify-between items-center mb-6">
+          <div
+            className="bg-white rounded-t-[3rem] p-6 max-h-[92vh] flex flex-col animate-in slide-in-from-bottom duration-300"
+            // Evitamos que el scroll se propague al fondo
+            style={{ overscrollBehavior: 'none' }}
+          >
+            {/* CABECERA FIJA */}
+            <div className="flex justify-between items-center mb-4 flex-shrink-0">
               <h2 className="text-2xl font-black text-slate-800">Tu Pedido</h2>
               <button
                 onClick={() => setMostrarModalResumen(false)}
@@ -771,39 +789,51 @@ export default function CotizarPage() {
               </button>
             </div>
 
-            {/* Lista de productos en el móvil */}
-            <div className="space-y-4 mb-8">
-              {carrito.map((item) => (
-                <TarjetaProductoCarrito
-                  key={`movil-${item.id}`}
-                  item={item}
-                  actualizarItem={actualizarItem}
-                  setCarrito={setCarrito}
-                  carrito={carrito}
-                  monedaPrincipal={monedaPrincipal}
-                  tasaBCV={tasaBCV}
-                />
-              ))}
-            </div>
+            {/* CUERPO CON SCROLL INDEPENDIENTE */}
+            {/* El flex-1 hace que este div use todo el espacio disponible entre la cabecera y el botón */}
+            <div className="flex-1 overflow-y-auto pr-1 space-y-6 mb-4 custom-scroll">
+              {/* Lista de productos */}
+              <div className="space-y-4">
+                {carrito.map((item) => (
+                  <TarjetaProductoCarrito
+                    key={`movil-${item.id}`}
+                    item={item}
+                    actualizarItem={actualizarItem}
+                    setCarrito={setCarrito}
+                    carrito={carrito}
+                    monedaPrincipal={monedaPrincipal}
+                    tasaBCV={tasaBCV}
+                  />
+                ))}
+              </div>
 
-            {/* Inputs de Pago (Solo si es Venta Directa) */}
-            {renderSeccionPago()}
+              {/* Sección de Pago */}
+              {renderSeccionPago()}
 
-            {/* Notas y Botón Final */}
-            <div className="space-y-4">
+              {/* Notas */}
               <textarea
                 value={observaciones}
                 onChange={(e) => setObservaciones(e.target.value)}
                 placeholder="Notas o dirección de envío..."
-                className="w-full p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 text-sm"
+                className="w-full p-4 bg-slate-50 rounded-2xl border-2 border-slate-100 text-sm outline-none focus:border-orange-500 transition-colors"
                 rows={2}
               />
+            </div>
 
+            {/* FOOTER FIJO (Siempre visible) */}
+            <div className="space-y-4 pt-4 border-t border-slate-100 flex-shrink-0">
               <div className="flex justify-between items-center px-2">
                 <span className="font-black text-slate-400">TOTAL</span>
-                <span className="text-3xl font-black text-orange-700">
-                  ${calcularTotal().toLocaleString()}
-                </span>
+                <div className="text-right">
+                  <span className="text-3xl font-black text-orange-700 block">
+                    ${calcularTotal().toLocaleString()}
+                  </span>
+                  {monedaPrincipal === 'BS' && (
+                    <span className="text-sm font-bold text-emerald-600">
+                      Bs. {(calcularTotal() * tasaBCV).toLocaleString('es-VE')}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <button
@@ -813,7 +843,7 @@ export default function CotizarPage() {
                   procesarCotizacion();
                 }}
                 disabled={cargando}
-                className={`w-full py-5 rounded-[2rem] font-black text-xl text-white shadow-xl ${
+                className={`w-full py-5 rounded-[2rem] font-black text-xl text-white shadow-xl active:scale-95 transition-transform ${
                   tipoOperacion === 'cotizacion'
                     ? 'bg-orange-600'
                     : 'bg-emerald-600'
