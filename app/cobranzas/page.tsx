@@ -9,23 +9,31 @@ import {
   ArrowRightCircle,
   Loader2,
   Filter,
+  X,
 } from 'lucide-react';
 
 export default function CobranzasPage() {
   const [deudas, setDeudas] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
+  const [deudaSeleccionada, setDeudaSeleccionada] = useState<any | null>(null);
+  const [mostrarRecibos, setMostrarRecibos] = useState(false);
 
   const cargarCuentasPorCobrar = async () => {
     setCargando(true);
     const { data, error } = await supabase
       .from('cotizaciones')
-      .select(`*, clientes ( nombre, telefono, empresa )`)
+      .select(
+        `
+      *,
+      clientes ( nombre, telefono, empresa ),
+      pagos ( id, monto, fecha, metodo_pago, nota ) 
+    `,
+      ) // Traemos la relación de pagos
       .eq('tipo_operacion', 'venta_directa')
       .order('created_at', { ascending: false });
 
     if (data) {
-      // Filtramos localmente los que aún deben dinero
       const pendientes = data.filter(
         (c) => c.total - (c.monto_pagado || 0) > 0.1,
       );
@@ -153,7 +161,7 @@ export default function CobranzasPage() {
                     </div>
 
                     <button
-                      onClick={() => alert('Próximamente: Registrar abono')}
+                      onClick={() => setDeudaSeleccionada(deuda)}
                       className="p-4 bg-slate-100 text-slate-800 rounded-2xl hover:bg-slate-900 hover:text-white transition-all group"
                     >
                       <ArrowRightCircle
@@ -174,6 +182,115 @@ export default function CobranzasPage() {
           </div>
         )}
       </div>
+      {/* MODAL DE DETALLES Y RECIBOS */}
+      {deudaSeleccionada && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-8">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h2 className="text-3xl font-black text-slate-800 tracking-tighter uppercase italic">
+                    Estado de Cuenta
+                  </h2>
+                  <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">
+                    Cliente: {deudaSeleccionada.clientes?.nombre}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setDeudaSeleccionada(null)}
+                  className="bg-slate-100 p-2 rounded-full hover:bg-red-100 hover:text-red-600 transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* RESUMEN RÁPIDO DENTRO DEL MODAL */}
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] font-black text-slate-400 uppercase">
+                    Total
+                  </p>
+                  <p className="text-lg font-bold text-slate-800">
+                    ${deudaSeleccionada.total}
+                  </p>
+                </div>
+                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                  <p className="text-[10px] font-black text-emerald-400 uppercase">
+                    Pagado
+                  </p>
+                  <p className="text-lg font-bold text-emerald-600">
+                    ${deudaSeleccionada.monto_pagado || 0}
+                  </p>
+                </div>
+                <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
+                  <p className="text-[10px] font-black text-red-400 uppercase">
+                    Pendiente
+                  </p>
+                  <p className="text-lg font-bold text-red-600">
+                    $
+                    {deudaSeleccionada.total -
+                      (deudaSeleccionada.monto_pagado || 0)}
+                  </p>
+                </div>
+              </div>
+
+              {/* LISTA DE PAGOS REALIZADOS (LOS RECIBOS) */}
+              <div className="space-y-3">
+                <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest flex items-center gap-2">
+                  <ArrowRightCircle size={16} className="text-red-500" />{' '}
+                  Historial de Abonos
+                </h3>
+                <div className="max-h-60 overflow-y-auto pr-2 space-y-2">
+                  {deudaSeleccionada.pagos &&
+                  deudaSeleccionada.pagos.length > 0 ? (
+                    deudaSeleccionada.pagos.map((pago: any) => (
+                      <div
+                        key={pago.id}
+                        className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-300 transition-all"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="bg-white p-2 rounded-xl shadow-sm">
+                            <Calendar size={18} className="text-slate-400" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-700 text-sm">
+                              {new Date(pago.fecha).toLocaleDateString()}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase">
+                              {pago.metodo_pago}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-black text-emerald-600">
+                            +${pago.monto.toLocaleString()}
+                          </p>
+                          <p className="text-[9px] text-slate-400 italic">
+                            {pago.nota || 'Sin nota'}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-center py-8 text-slate-400 text-sm font-bold italic">
+                      No se han registrado abonos aún.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* BOTÓN DE ACCIÓN */}
+              <button className="w-full mt-8 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-lg shadow-slate-200 flex items-center justify-center gap-2 group">
+                Registrar Nuevo Pago
+                <DollarSign
+                  size={20}
+                  className="group-hover:scale-125 transition-transform"
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
