@@ -29,44 +29,60 @@ export default function CobranzaPage() {
   const cargarDatosCobranza = async () => {
     setCargando(true);
     try {
+      // 1. Traemos la data
       const { data: cots, error } = await supabase
         .from('cotizaciones')
         .select(`*, clientes ( nombre, apellido, telefono, empresa )`)
         .order('created_at', { ascending: false });
 
+      if (error) throw error;
+
       if (cots) {
+        console.log('Datos brutos de Supabase:', cots); // <-- REVISA ESTO EN F12
+
         const filtradas = cots.filter((cot) => {
-          const deuda = cot.total - (cot.monto_pagado || 0);
-          const tieneDeuda = deuda > 0.05;
-          const esVentaValida =
-            cot.tipo_operacion === 'venta_directa' && tieneDeuda;
+          // Aseguramos que los valores sean números para la resta
+          const total = Number(cot.total) || 0;
+          const pagado = Number(cot.monto_pagado) || 0;
+          const deuda = total - pagado;
+
+          const tieneDeuda = deuda > 0.1; // Más de 10 centavos
+
+          // Normalizamos el tipo y estado para evitar errores de mayúsculas
+          const tipo = cot.tipo_operacion?.toLowerCase();
+          const estado = cot.estado?.toLowerCase();
+
+          const esVentaValida = tipo === 'venta_directa' && tieneDeuda;
           const esCotAprobada =
-            cot.tipo_operacion === 'cotizacion' &&
-            cot.estado === 'aprobado' &&
+            (tipo === 'cotizacion' || tipo === 'presupuesto') &&
+            (estado === 'aprobado' || estado === 'finalizado') &&
             tieneDeuda;
+
           return esVentaValida || esCotAprobada;
         });
 
+        console.log('Datos después de filtrar:', filtradas); // <-- SI ESTO ESTÁ VACÍO, REVISA TUS ESTADOS
+
         setCuentas(filtradas);
 
-        // Calcular Resumen para las Cards
-        const hoy = new Date().toISOString().split('T')[0];
+        // Calcular Resumen
         const totalCalle = filtradas.reduce(
-          (acc, curr) => acc + (curr.total - (curr.monto_pagado || 0)),
+          (acc, curr) =>
+            acc + (Number(curr.total) - Number(curr.monto_pagado || 0)),
           0,
         );
 
-        // Simulación de cobrado hoy (puedes ajustar esta query a pagos_registrados si prefieres)
         setResumen({
           totalCalle: totalCalle,
-          cobradoHoyUsd: 0, // Aquí podrías hacer otra query a pagos_registrados si la necesitas
+          cobradoHoyUsd: 0,
           cantidadDeudores: filtradas.length,
         });
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error cargando cobranza:', error);
+    } finally {
+      setCargando(false);
     }
-    setCargando(false);
   };
 
   useEffect(() => {
