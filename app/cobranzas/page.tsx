@@ -15,6 +15,39 @@ export default function CobranzasPage() {
   const [deudas, setDeudas] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState('');
+  const [deudaSeleccionada, setDeudaSeleccionada] = useState<any>(null);
+  const [items, setItems] = useState<any[]>([]);
+  const [cargandoItems, setCargandoItems] = useState(false);
+
+  const abrirDetalleDeuda = async (deuda: any) => {
+    setDeudaSeleccionada(deuda);
+    setCargandoItems(true);
+
+    const { data, error } = await supabase
+      .from('cotizacion_items') // Ajusta el nombre de la tabla si es distinto
+      .select('*')
+      .eq('cotizacion_id', deuda.id);
+
+    if (!error) setItems(data || []);
+    setCargandoItems(false);
+  };
+
+  const enviarRecordatorioWhatsApp = () => {
+    if (!deudaSeleccionada) return;
+
+    const saldo =
+      deudaSeleccionada.total - (deudaSeleccionada.monto_pagado || 0);
+    const mensaje =
+      `Hola *${deudaSeleccionada.clientes?.nombre}*, te saludamos de [Tu Empresa]. %0A%0A` +
+      `Recordatorio de pago para tu *${deudaSeleccionada.tipo_operacion}*.%0A` +
+      `*Total:* $${deudaSeleccionada.total.toLocaleString()}%0A` +
+      `*Abonado:* $${(deudaSeleccionada.monto_pagado || 0).toLocaleString()}%0A` +
+      `*Pendiente:* $${saldo.toLocaleString()}%0A%0A` +
+      `¿Podrías confirmarnos el estado de este pago? Gracias.`;
+
+    const link = `https://wa.me/${deudaSeleccionada.clientes?.telefono}?text=${mensaje}`;
+    window.open(link, '_blank');
+  };
 
   const cargarCuentasPorCobrar = async () => {
     setCargando(true);
@@ -202,7 +235,7 @@ export default function CobranzasPage() {
                     </div>
 
                     <button
-                      onClick={() => alert('Abriendo registro de abono...')}
+                      onClick={() => abrirDetalleDeuda(deuda)} // <--- Ahora llama a la función del modal
                       className="p-4 bg-slate-100 text-slate-800 rounded-2xl group-hover:bg-red-600 group-hover:text-white transition-all shadow-sm"
                     >
                       <ArrowRightCircle
@@ -223,6 +256,101 @@ export default function CobranzasPage() {
           </div>
         )}
       </div>
+      {deudaSeleccionada && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[3rem] w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
+            {/* Cabecera Modal */}
+            <div className="p-8 border-b border-slate-100 flex justify-between items-center">
+              <div>
+                <h2 className="text-3xl font-black text-slate-800 tracking-tighter italic">
+                  DETALLE DE COBRO
+                </h2>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  Cliente: {deudaSeleccionada.clientes?.nombre}
+                </p>
+              </div>
+              <button
+                onClick={() => setDeudaSeleccionada(null)}
+                className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+              >
+                <CircleDollarSign
+                  className="rotate-45 text-slate-400"
+                  size={32}
+                />
+              </button>
+            </div>
+
+            <div className="p-8">
+              {/* Resumen de Montos */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+                <div className="bg-slate-50 p-4 rounded-2xl">
+                  <p className="text-[10px] font-black text-slate-400 uppercase">
+                    Total
+                  </p>
+                  <p className="text-xl font-bold text-slate-800">
+                    ${deudaSeleccionada.total.toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-emerald-50 p-4 rounded-2xl">
+                  <p className="text-[10px] font-black text-emerald-600 uppercase">
+                    Abonado
+                  </p>
+                  <p className="text-xl font-bold text-emerald-700">
+                    ${(deudaSeleccionada.monto_pagado || 0).toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-red-50 p-4 rounded-2xl col-span-2 md:col-span-1 border border-red-100">
+                  <p className="text-[10px] font-black text-red-600 uppercase">
+                    Por Pagar
+                  </p>
+                  <p className="text-xl font-black text-red-700">
+                    $
+                    {(
+                      deudaSeleccionada.total -
+                      (deudaSeleccionada.monto_pagado || 0)
+                    ).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              {/* Lista de Items */}
+              <div className="mb-8">
+                <h4 className="text-xs font-black text-slate-400 uppercase mb-4 tracking-widest">
+                  Productos / Servicios
+                </h4>
+                <div className="space-y-2">
+                  {cargandoItems ? (
+                    <Loader2 className="animate-spin text-slate-300 mx-auto" />
+                  ) : (
+                    items.map((item: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="flex justify-between items-center bg-white border border-slate-100 p-3 rounded-xl"
+                      >
+                        <span className="font-bold text-slate-700 text-sm">
+                          {item.descripcion || item.nombre}
+                        </span>
+                        <span className="text-slate-500 font-bold text-sm">
+                          x{item.cantidad} — $
+                          {item.precio_unitario?.toLocaleString()}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Botón WhatsApp */}
+              <button
+                onClick={enviarRecordatorioWhatsApp}
+                className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-lg shadow-emerald-200"
+              >
+                ENVIAR RECORDATORIO POR WHATSAPP
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
