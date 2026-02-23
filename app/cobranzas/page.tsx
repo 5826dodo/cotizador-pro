@@ -19,25 +19,37 @@ export default function CobranzaPage() {
 
   const cargarCuentasPorCobrar = async () => {
     setCargando(true);
-    // Traemos solo cotizaciones aprobadas que no estén pagadas totalmente
-    const { data, error } = await supabase
-      .from('cotizaciones')
-      .select(
-        `
-        *,
-        clientes (
-          nombre,
-          apellido,
-          telefono,
-          empresa
+    try {
+      // 1. Traemos las que están aprobadas
+      const { data, error } = await supabase
+        .from('cotizaciones')
+        .select(
+          `
+          *,
+          clientes (
+            nombre,
+            apellido,
+            telefono,
+            empresa
+          )
+        `,
         )
-      `,
-      )
-      .eq('estado', 'aprobado')
-      .neq('estado_pago', 'pagado')
-      .order('created_at', { ascending: true }); // Las más viejas primero
+        .eq('estado', 'aprobado') // Debe estar aprobada para ser una deuda real
+        .order('created_at', { ascending: true });
 
-    if (data) setCuentas(data);
+      if (data) {
+        // 2. Filtramos manualmente las que realmente deben (Total > Monto Pagado)
+        // Esto evita errores si estado_pago es null o está mal escrito
+        const conDeuda = data.filter((cot) => {
+          const deuda = cot.total - (cot.monto_pagado || 0);
+          return deuda > 0.05; // Margen de 5 centavos para redondear
+        });
+
+        setCuentas(conDeuda);
+      }
+    } catch (error) {
+      console.error('Error cargando cobranza:', error);
+    }
     setCargando(false);
   };
 
