@@ -1,14 +1,14 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase'; // Ajusta la ruta según tu proyecto
+import { supabase } from '../../lib/supabase';
 import {
   DollarSign,
   Search,
-  User,
   Calendar,
   ArrowRightCircle,
   Loader2,
-  Filter,
+  CheckCircle2,
+  CircleDollarSign,
 } from 'lucide-react';
 
 export default function CobranzasPage() {
@@ -18,18 +18,40 @@ export default function CobranzasPage() {
 
   const cargarCuentasPorCobrar = async () => {
     setCargando(true);
-    const { data, error } = await supabase
-      .from('cotizaciones')
-      .select(`*, clientes ( nombre, telefono, empresa )`)
-      .eq('tipo_operacion', 'venta_directa')
-      .order('created_at', { ascending: false });
+    try {
+      // 1. Quitamos el .eq para traer ambos tipos de operación
+      const { data, error } = await supabase
+        .from('cotizaciones')
+        .select(`*, clientes ( nombre, telefono, empresa )`)
+        .order('created_at', { ascending: false });
 
-    if (data) {
-      // Filtramos localmente los que aún deben dinero
-      const pendientes = data.filter(
-        (c) => c.total - (c.monto_pagado || 0) > 0.1,
-      );
-      setDeudas(pendientes);
+      if (data) {
+        // 2. Lógica de filtrado:
+        // - Si es venta_directa Y debe dinero
+        // - O si es cotizacion Y está aprobada Y debe dinero
+        const pendientes = data.filter((c) => {
+          const saldo = Number(c.total) - Number(c.monto_pagado || 0);
+          const tieneDeuda = saldo > 0.1;
+
+          if (c.tipo_operacion === 'venta_directa' && tieneDeuda) {
+            return true;
+          }
+
+          if (
+            c.tipo_operacion === 'cotizacion' &&
+            c.estado === 'aprobado' &&
+            tieneDeuda
+          ) {
+            return true;
+          }
+
+          return false;
+        });
+
+        setDeudas(pendientes);
+      }
+    } catch (error) {
+      console.error('Error cargando cobranzas:', error);
     }
     setCargando(false);
   };
@@ -38,8 +60,10 @@ export default function CobranzasPage() {
     cargarCuentasPorCobrar();
   }, []);
 
-  const deudasFiltradas = deudas.filter((d) =>
-    d.clientes?.nombre?.toLowerCase().includes(busqueda.toLowerCase()),
+  const deudasFiltradas = deudas.filter(
+    (d) =>
+      d.clientes?.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
+      d.clientes?.empresa?.toLowerCase().includes(busqueda.toLowerCase()),
   );
 
   const totalPendienteGlobal = deudas.reduce(
@@ -61,20 +85,23 @@ export default function CobranzasPage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
               </span>
-              Cuentas pendientes por cobrar
+              Cartera de Clientes Pendientes
             </p>
           </div>
 
           <div className="bg-white px-8 py-6 rounded-[2.5rem] shadow-xl border-2 border-red-100 flex items-center gap-6">
             <div className="bg-red-100 p-4 rounded-2xl text-red-600">
-              <DollarSign size={32} />
+              <CircleDollarSign size={32} />
             </div>
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Deuda Total
+                Deuda Total en Calle
               </p>
               <h2 className="text-4xl font-black text-slate-800">
-                ${totalPendienteGlobal.toLocaleString()}
+                $
+                {totalPendienteGlobal.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                })}
               </h2>
             </div>
           </div>
@@ -88,8 +115,8 @@ export default function CobranzasPage() {
           />
           <input
             type="text"
-            placeholder="Buscar deudor por nombre..."
-            className="w-full pl-14 pr-4 py-5 bg-white rounded-3xl border-none ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-red-500 font-bold shadow-sm"
+            placeholder="Buscar deudor por nombre o empresa..."
+            className="w-full pl-14 pr-4 py-5 bg-white rounded-3xl border-none ring-1 ring-slate-200 outline-none focus:ring-2 focus:ring-red-500 font-bold shadow-sm transition-all"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
           />
@@ -108,53 +135,75 @@ export default function CobranzasPage() {
                 return (
                   <div
                     key={deuda.id}
-                    className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row justify-between items-center gap-6"
+                    className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:border-red-200 transition-all flex flex-col md:flex-row justify-between items-center gap-6 group"
                   >
                     <div className="flex items-center gap-5 flex-1">
-                      <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-xl">
-                        {deuda.clientes?.nombre?.substring(0, 1).toUpperCase()}
+                      <div className="w-16 h-16 bg-slate-900 rounded-2xl flex flex-col items-center justify-center text-white relative overflow-hidden">
+                        <span className="font-black text-xl relative z-10">
+                          {deuda.clientes?.nombre
+                            ?.substring(0, 1)
+                            .toUpperCase()}
+                        </span>
+                        {/* Pequeño tag indicador de tipo */}
+                        <div
+                          className={`absolute bottom-0 w-full text-[7px] font-black text-center py-1 uppercase ${deuda.tipo_operacion === 'venta_directa' ? 'bg-orange-500' : 'bg-blue-500'}`}
+                        >
+                          {deuda.tipo_operacion === 'venta_directa'
+                            ? 'Venta'
+                            : 'Cotiz'}
+                        </div>
                       </div>
                       <div>
-                        <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight leading-none mb-1">
-                          {deuda.clientes?.nombre}
-                        </h3>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight leading-none">
+                            {deuda.clientes?.nombre}
+                          </h3>
+                          {deuda.estado === 'aprobado' && (
+                            <CheckCircle2 size={14} className="text-blue-500" />
+                          )}
+                        </div>
                         <p className="text-[10px] text-slate-400 font-bold flex items-center gap-2 uppercase">
-                          <Calendar size={12} /> Emitida:{' '}
+                          <Calendar size={12} />{' '}
                           {new Date(deuda.created_at).toLocaleDateString()}
+                          <span className="text-slate-200">|</span>
+                          {deuda.clientes?.empresa || 'Particular'}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-12 text-center md:text-right">
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase mb-1">
-                          Total Venta
+                    <div className="flex items-center gap-8 text-center md:text-right">
+                      <div className="hidden sm:block">
+                        <p className="text-[9px] font-black text-slate-300 uppercase mb-1">
+                          Total
                         </p>
-                        <p className="font-bold text-slate-600">
+                        <p className="font-bold text-slate-400 text-sm">
                           ${deuda.total.toLocaleString()}
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase mb-1">
+                        <p className="text-[9px] font-black text-slate-300 uppercase mb-1">
                           Abonado
                         </p>
-                        <p className="font-bold text-emerald-500">
+                        <p className="font-bold text-emerald-500 text-sm">
                           ${(deuda.monto_pagado || 0).toLocaleString()}
                         </p>
                       </div>
-                      <div className="bg-red-50 px-6 py-3 rounded-2xl border border-red-100">
-                        <p className="text-[10px] font-black text-red-400 uppercase mb-1">
+                      <div className="bg-red-50 px-6 py-3 rounded-[1.5rem] border border-red-100 min-w-[140px]">
+                        <p className="text-[10px] font-black text-red-400 uppercase mb-1 leading-none">
                           Resta por pagar
                         </p>
-                        <p className="text-2xl font-black text-red-600">
-                          ${saldoPendiente.toLocaleString()}
+                        <p className="text-2xl font-black text-red-600 tracking-tighter">
+                          $
+                          {saldoPendiente.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                          })}
                         </p>
                       </div>
                     </div>
 
                     <button
-                      onClick={() => alert('Próximamente: Registrar abono')}
-                      className="p-4 bg-slate-100 text-slate-800 rounded-2xl hover:bg-slate-900 hover:text-white transition-all group"
+                      onClick={() => alert('Abriendo registro de abono...')}
+                      className="p-4 bg-slate-100 text-slate-800 rounded-2xl group-hover:bg-red-600 group-hover:text-white transition-all shadow-sm"
                     >
                       <ArrowRightCircle
                         size={24}
