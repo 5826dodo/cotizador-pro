@@ -20,7 +20,7 @@ export default function CobranzaPage() {
   const cargarCuentasPorCobrar = async () => {
     setCargando(true);
     try {
-      // 1. Traemos las que están aprobadas
+      // Traemos TODO para filtrar con precisión en el cliente
       const { data, error } = await supabase
         .from('cotizaciones')
         .select(
@@ -34,21 +34,34 @@ export default function CobranzaPage() {
           )
         `,
         )
-        .eq('estado', 'aprobado') // Debe estar aprobada para ser una deuda real
         .order('created_at', { ascending: true });
 
       if (data) {
-        // 2. Filtramos manualmente las que realmente deben (Total > Monto Pagado)
-        // Esto evita errores si estado_pago es null o está mal escrito
-        const conDeuda = data.filter((cot) => {
+        const filtradas = data.filter((cot) => {
           const deuda = cot.total - (cot.monto_pagado || 0);
-          return deuda > 0.05; // Margen de 5 centavos para redondear
+          const tieneDeuda = deuda > 0.05;
+
+          // LOGICA:
+          // Si es venta_directa Y debe plata -> SALE
+          // Si es cotizacion Y está aprobada Y debe plata -> SALE
+          if (cot.tipo_operacion === 'venta_directa' && tieneDeuda) {
+            return true;
+          }
+          if (
+            cot.tipo_operacion === 'cotizacion' &&
+            cot.estado === 'aprobado' &&
+            tieneDeuda
+          ) {
+            return true;
+          }
+
+          return false;
         });
 
-        setCuentas(conDeuda);
+        setCuentas(filtradas);
       }
     } catch (error) {
-      console.error('Error cargando cobranza:', error);
+      console.error('Error:', error);
     }
     setCargando(false);
   };
@@ -131,67 +144,70 @@ export default function CobranzaPage() {
                   .includes(busqueda.toLowerCase()),
             )
             .map((cta) => {
-              const dias = calcularDias(cta.created_at);
-              const deuda = cta.total - (cta.monto_pagado || 0);
+              // Dentro del .map de las cuentas:
+              const deudaUsd = cta.total - (cta.monto_pagado || 0);
+              // Si la cotización se hizo en BS, calculamos la deuda en BS usando la tasa que guardaste
+              const deudaBs = deudaUsd * (cta.tasa_bcv || 1);
 
               return (
                 <div
                   key={cta.id}
-                  className="bg-white rounded-[2.5rem] p-6 shadow-sm border-2 border-transparent hover:border-orange-200 transition-all group"
+                  className="bg-white rounded-[2.5rem] p-6 shadow-sm border-2 border-slate-50"
                 >
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                    {/* CLIENTE Y TIEMPO */}
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={`p-4 rounded-2xl ${dias > 15 ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}
-                      >
-                        <Calendar size={24} />
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-black text-slate-800 uppercase italic leading-none mb-1">
-                          {cta.clientes?.nombre} {cta.clientes?.apellido}
-                        </h3>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                          {cta.clientes?.empresa || 'Particular'} •{' '}
-                          <span
-                            className={
-                              dias > 15 ? 'text-red-500 font-black' : ''
-                            }
-                          >
-                            Hace {dias} días
-                          </span>
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* MONTO Y ACCIONES */}
-                    <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-                      <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100">
-                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">
-                          Saldo Deudor
-                        </p>
-                        <p className="text-xl font-black text-slate-900">
-                          ${deuda.toFixed(2)}
-                        </p>
-                      </div>
-
-                      <div className="flex gap-2">
-                        {/* Botón WhatsApp */}
-                        <a
-                          href={`https://wa.me/${cta.clientes?.telefono}?text=Hola%20${cta.clientes?.nombre},%20te%20escribimos%20de%20parte%20de%20la%20administración%20para%20recordarte%20tu%20saldo%20pendiente%20de%20$${deuda.toFixed(2)}.`}
-                          target="_blank"
-                          className="p-4 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100"
+                  <div className="flex flex-col md:flex-row justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span
+                          className={`text-[8px] px-2 py-1 rounded-full font-black text-white uppercase ${cta.tipo_operacion === 'venta_directa' ? 'bg-orange-500' : 'bg-blue-500'}`}
                         >
-                          <MessageCircle size={20} />
-                        </a>
-
-                        {/* Botón Ir a Pagar (Aquí podrías navegar al Historial o abrir el modal) */}
-                        <button className="flex items-center gap-2 px-6 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] hover:bg-orange-600 transition-all shadow-xl shadow-slate-200">
-                          Gestionar Pago
-                          <ChevronRight size={14} />
-                        </button>
+                          {cta.tipo_operacion}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400">
+                          {new Date(cta.created_at).toLocaleDateString()}
+                        </span>
                       </div>
+                      <h3 className="text-xl font-black text-slate-900 italic uppercase">
+                        {cta.clientes?.nombre} {cta.clientes?.apellido}
+                      </h3>
+                      <p className="text-xs font-bold text-slate-500">
+                        {cta.clientes?.empresa}
+                      </p>
                     </div>
+
+                    <div className="text-right bg-red-50 p-4 rounded-[1.5rem] border border-red-100">
+                      <p className="text-[9px] font-black text-red-400 uppercase italic">
+                        Saldo Pendiente
+                      </p>
+                      <p className="text-2xl font-black text-red-600 leading-none tracking-tighter">
+                        {cta.moneda === 'BS'
+                          ? `Bs. ${deudaBs.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
+                          : `$${deudaUsd.toFixed(2)}`}
+                      </p>
+                      {cta.monto_pagado > 0 && (
+                        <p className="text-[8px] font-bold text-emerald-600 mt-1 uppercase">
+                          Abonado:{' '}
+                          {cta.moneda === 'BS'
+                            ? `Bs. ${(cta.monto_pagado * cta.tasa_bcv).toFixed(2)}`
+                            : `$${cta.monto_pagado}`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Botones de acción rápidos */}
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={() => setCotizacionSeleccionada(cta)} // Usamos el mismo modal de abono
+                      className="flex-1 bg-slate-900 text-white py-3 rounded-xl font-black text-[10px] uppercase hover:bg-orange-600 transition-all"
+                    >
+                      Registrar Pago / Abono
+                    </button>
+                    <a
+                      href={`https://wa.me/${cta.clientes?.telefono}`}
+                      className="p-3 bg-emerald-500 text-white rounded-xl"
+                    >
+                      <MessageCircle size={18} />
+                    </a>
                   </div>
                 </div>
               );
