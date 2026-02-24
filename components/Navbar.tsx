@@ -73,9 +73,9 @@ export default function Navbar() {
   const links = [
     { name: 'Stock', href: '/', icon: Package },
     { name: 'Clientes', href: '/clientes', icon: Users },
-    { name: 'Cotizar', href: '/cotizar', icon: FileEdit },
-    { name: 'Cobros', href: '/cobranzas', icon: BadgeDollarSign },
+    { name: 'Venta-Cotizar', href: '/cotizar', icon: FileEdit },
     { name: 'Historial', href: '/historial', icon: History },
+    { name: 'Cobros', href: '/cobranzas', icon: BadgeDollarSign },
   ];
 
   return (
