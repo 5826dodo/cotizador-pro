@@ -9,6 +9,11 @@ import {
   Phone,
   MapPin,
   Loader2,
+  ToggleLeft,
+  ToggleRight,
+  Settings,
+  Info,
+  CheckCircle2,
 } from 'lucide-react';
 
 export default function PerfilEmpresa() {
@@ -16,6 +21,12 @@ export default function PerfilEmpresa() {
   const [loading, setLoading] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+
+  const [configGlobal, setConfigGlobal] = useState({
+    notificaciones_stock: true,
+    mostrar_bcv: true,
+    permitir_ventas_sin_stock: false,
+  });
 
   useEffect(() => {
     const cargarDatosEmpresa = async () => {
@@ -103,6 +114,30 @@ export default function PerfilEmpresa() {
             Personaliza la información que aparece en tus PDFs
           </p>
         </header>
+
+        {!empresa?.nombre || !empresa?.rif ? (
+          <div className="bg-orange-500 text-white p-6 rounded-[2rem] mb-8 flex items-center gap-4 shadow-lg animate-in fade-in slide-in-from-top-4">
+            <div className="bg-white/20 p-3 rounded-2xl">
+              <Info size={24} />
+            </div>
+            <div>
+              <h3 className="font-black uppercase text-sm tracking-tighter text-white">
+                Paso 1: Configura tu negocio
+              </h3>
+              <p className="text-xs opacity-90 font-bold text-white/90">
+                Completa el nombre y RIF para que tus facturas salgan
+                profesionales.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-emerald-50 text-emerald-600 p-4 rounded-[1.5rem] mb-8 flex items-center gap-3 border border-emerald-100">
+            <CheckCircle2 size={20} />
+            <span className="text-[10px] font-black uppercase">
+              ¡Tu cuenta está configurada y lista para vender!
+            </span>
+          </div>
+        )}
 
         <form
           onSubmit={handleUpdate}
@@ -215,6 +250,72 @@ export default function PerfilEmpresa() {
                     setEmpresa({ ...empresa, direccion: e.target.value })
                   }
                 />
+              </div>
+            </div>
+          </div>
+          <div className="md:col-span-2 mt-8">
+            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Settings size={16} /> Preferencias del Sistema
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Ejemplo de Switch para activar/desactivar función */}
+              <div
+                className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-between ${configGlobal.notificaciones_stock ? 'border-orange-100 bg-orange-50/30' : 'border-slate-100 bg-white'}`}
+              >
+                <div>
+                  <p className="text-xs font-black uppercase tracking-tighter text-slate-700">
+                    Alertas de Inventario
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    Notificar cuando el stock sea bajo
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setConfigGlobal({
+                      ...configGlobal,
+                      notificaciones_stock: !configGlobal.notificaciones_stock,
+                    })
+                  }
+                  className={`transition-colors ${configGlobal.notificaciones_stock ? 'text-orange-500' : 'text-slate-300'}`}
+                >
+                  {configGlobal.notificaciones_stock ? (
+                    <ToggleRight size={32} />
+                  ) : (
+                    <ToggleLeft size={32} />
+                  )}
+                </button>
+              </div>
+
+              <div
+                className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-between ${configGlobal.mostrar_bcv ? 'border-orange-100 bg-orange-50/30' : 'border-slate-100 bg-white'}`}
+              >
+                <div>
+                  <p className="text-xs font-black uppercase tracking-tighter text-slate-700">
+                    Tasa BCV Automática
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    Mostrar conversión en el punto de venta
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setConfigGlobal({
+                      ...configGlobal,
+                      mostrar_bcv: !configGlobal.mostrar_bcv,
+                    })
+                  }
+                  className={`transition-colors ${configGlobal.mostrar_bcv ? 'text-orange-500' : 'text-slate-300'}`}
+                >
+                  {configGlobal.mostrar_bcv ? (
+                    <ToggleRight size={32} />
+                  ) : (
+                    <ToggleLeft size={32} />
+                  )}
+                </button>
               </div>
             </div>
           </div>
