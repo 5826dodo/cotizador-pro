@@ -665,49 +665,92 @@ export default function CotizarPage() {
                 .filter((p) =>
                   p.nombre.toLowerCase().includes(busqueda.toLowerCase()),
                 )
-                .map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => agregarAlCarrito(p)}
-                    className={`p-6 rounded-[2.5rem] border-2 text-left transition-all relative group ${
-                      carrito.find((i) => i.id === p.id)
-                        ? 'border-orange-500 bg-orange-50/30 shadow-lg shadow-orange-100'
-                        : 'border-white bg-white hover:border-slate-200'
-                    }`}
-                  >
-                    {/* Contador Naranja */}
-                    {carrito.find((i) => i.id === p.id) && (
-                      <div className="absolute -top-3 -right-3 bg-orange-600 text-white font-black w-11 h-11 rounded-full flex items-center justify-center shadow-xl text-lg ring-4 ring-white animate-in zoom-in">
-                        {carrito.find((i) => i.id === p.id).cantidad}
-                      </div>
-                    )}
-                    <p className="font-black text-xl text-slate-800 mb-2 italic uppercase tracking-tighter group-hover:text-orange-600 transition-colors">
-                      {p.nombre}
-                    </p>
-                    <div className="flex justify-between items-end">
-                      <div className="flex flex-col">
-                        {/* El precio principal siempre en Dólares */}
-                        <span className="text-2xl font-black text-orange-500 leading-none">
-                          ${p.precio.toLocaleString()}
-                        </span>
+                .map((p) => {
+                  // --- LÓGICA DE STOCK CRÍTICO ---
+                  const esStockCritico = p.stock <= 5;
+                  const itemEnCarrito = carrito.find((i) => i.id === p.id);
 
-                        {/* El equivalente en Bs. pequeño abajo (Solo si el switch es BS) */}
-                        {monedaPrincipal === 'BS' && (
-                          <span className="text-[11px] font-black text-emerald-600 mt-1 uppercase tracking-tighter">
-                            ≈ Bs.{' '}
-                            {(p.precio * tasaBCV).toLocaleString('es-VE', {
-                              minimumFractionDigits: 2,
-                            })}
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => agregarAlCarrito(p)}
+                      className={`p-6 rounded-[2.5rem] border-2 text-left transition-all relative group ${
+                        itemEnCarrito
+                          ? 'border-orange-500 bg-orange-50/30 shadow-lg shadow-orange-100'
+                          : esStockCritico
+                            ? 'border-red-100 bg-red-50/20 shadow-sm' // Estilo si está bajo
+                            : 'border-white bg-white hover:border-slate-200'
+                      }`}
+                    >
+                      {/* Badge de Reabastecer (Notificación dinámica) */}
+                      {esStockCritico && !itemEnCarrito && (
+                        <div className="absolute -top-2 -left-2 bg-red-500 text-white text-[8px] font-black px-3 py-1 rounded-full shadow-lg animate-pulse uppercase tracking-tighter z-10">
+                          Stock Bajo
+                        </div>
+                      )}
+
+                      {/* Contador Naranja (Se mantiene igual) */}
+                      {itemEnCarrito && (
+                        <div className="absolute -top-3 -right-3 bg-orange-600 text-white font-black w-11 h-11 rounded-full flex items-center justify-center shadow-xl text-lg ring-4 ring-white animate-in zoom-in">
+                          {itemEnCarrito.cantidad}
+                        </div>
+                      )}
+
+                      <p
+                        className={`font-black text-xl mb-2 italic uppercase tracking-tighter transition-colors ${
+                          esStockCritico
+                            ? 'text-red-700'
+                            : 'text-slate-800 group-hover:text-orange-600'
+                        }`}
+                      >
+                        {p.nombre}
+                      </p>
+
+                      <div className="flex justify-between items-end">
+                        <div className="flex flex-col">
+                          <span
+                            className={`text-2xl font-black leading-none ${
+                              esStockCritico
+                                ? 'text-red-600'
+                                : 'text-orange-500'
+                            }`}
+                          >
+                            ${p.precio.toLocaleString()}
                           </span>
-                        )}
+
+                          {monedaPrincipal === 'BS' && (
+                            <span className="text-[11px] font-black text-emerald-600 mt-1 uppercase tracking-tighter">
+                              ≈ Bs.{' '}
+                              {(p.precio * tasaBCV).toLocaleString('es-VE', {
+                                minimumFractionDigits: 2,
+                              })}
+                            </span>
+                          )}
+                        </div>
+
+                        <span
+                          className={`text-[10px] font-bold px-3 py-1 rounded-lg transition-colors ${
+                            esStockCritico
+                              ? 'bg-red-500 text-white animate-pulse'
+                              : 'bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          Stock: {p.stock}
+                        </span>
                       </div>
 
-                      <span className="text-xs font-bold px-3 py-1 bg-slate-100 text-slate-500 rounded-lg">
-                        Stock: {p.stock}
-                      </span>
-                    </div>
-                  </button>
-                ))}
+                      {/* BARRA DE PROGRESO INFERIOR (Opcional, igual que en inventario) */}
+                      <div className="mt-4 w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-500 ${esStockCritico ? 'bg-red-500' : 'bg-orange-400'}`}
+                          style={{
+                            width: `${Math.min((p.stock / 20) * 100, 100)}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </button>
+                  );
+                })}
             </div>
           </section>
         </div>
