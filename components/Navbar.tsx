@@ -12,6 +12,7 @@ import {
   BadgeDollarSign,
   LogOut,
   Power,
+  RefreshCw, // Nuevo icono para refrescar
 } from 'lucide-react';
 
 export default function Navbar() {
@@ -20,7 +21,29 @@ export default function Navbar() {
   const supabase = createClient();
   const [rol, setRol] = useState<string | null>(null);
 
+  // --- ESTADOS PARA LA TASA ---
+  const [tasa, setTasa] = useState<number | null>(null);
+  const [cargandoTasa, setCargandoTasa] = useState(false);
+
+  const obtenerTasa = async () => {
+    setCargandoTasa(true);
+    try {
+      // Usando dolarapi.com para BCV
+      const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+      const data = await res.json();
+      if (data && data.promedio) {
+        setTasa(data.promedio);
+      }
+    } catch (error) {
+      console.error('Error al obtener tasa:', error);
+    } finally {
+      setCargandoTasa(false);
+    }
+  };
+
   useEffect(() => {
+    obtenerTasa(); // Carga inicial
+
     async function getUserData() {
       const {
         data: { user },
@@ -75,7 +98,7 @@ export default function Navbar() {
               </span>
             </Link>
 
-            {/* Links Centrados - Ahora en Naranja */}
+            {/* Links Centrados */}
             <div className="flex items-center gap-1 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
               {links.map((link) => {
                 const isActive = pathname === link.href;
@@ -96,8 +119,32 @@ export default function Navbar() {
               })}
             </div>
 
-            {/* Acciones Finales */}
-            <div className="flex items-center gap-2">
+            {/* Acciones Finales + TASA BCV */}
+            <div className="flex items-center gap-3">
+              {/* Widget de Tasa BCV */}
+              <div className="flex items-center gap-3 bg-orange-50 px-4 py-2 rounded-2xl border border-orange-100 shadow-sm">
+                <div className="flex flex-col items-end">
+                  <span className="text-[8px] font-black text-orange-400 uppercase leading-none tracking-widest">
+                    Tasa BCV
+                  </span>
+                  <span className="text-sm font-black text-slate-800">
+                    {tasa ? `Bs. ${tasa.toFixed(2)}` : '---'}
+                  </span>
+                </div>
+                <button
+                  onClick={obtenerTasa}
+                  disabled={cargandoTasa}
+                  className="p-1.5 hover:bg-white rounded-lg transition-all text-orange-500 disabled:opacity-50"
+                >
+                  <RefreshCw
+                    size={14}
+                    className={cargandoTasa ? 'animate-spin' : ''}
+                  />
+                </button>
+              </div>
+
+              <div className="h-8 w-[1px] bg-slate-200 mx-1" />
+
               <Link
                 href="/configuracion"
                 className={`p-3 rounded-2xl transition-all ${
@@ -108,7 +155,7 @@ export default function Navbar() {
               >
                 <Settings size={22} />
               </Link>
-              <div className="h-8 w-[1px] bg-slate-200 mx-2" />
+
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-2 px-4 py-3 rounded-2xl text-red-500 font-black text-xs hover:bg-red-50 transition-all"
@@ -120,6 +167,19 @@ export default function Navbar() {
           </div>
         </div>
       </nav>
+
+      {/* --- DISEÑO MOBILE --- */}
+      {/* Añadimos la tasa flotante en mobile para que no ocupe espacio en el tab bar */}
+      <div className="md:hidden fixed top-4 right-4 z-[60]">
+        <div className="bg-[#1A1D23] text-white px-3 py-1.5 rounded-full flex items-center gap-2 shadow-xl border border-white/10">
+          <span className="text-[7px] font-black text-[#FF9800] uppercase tracking-tighter">
+            BCV
+          </span>
+          <span className="text-xs font-bold">
+            {tasa ? tasa.toFixed(2) : '...'}
+          </span>
+        </div>
+      </div>
 
       {/* --- DISEÑO MOBILE (TAB BAR) --- */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#1A1D23] border-t border-white/5 z-[100] pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
