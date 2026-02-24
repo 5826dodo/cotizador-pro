@@ -42,6 +42,20 @@ export default function CotizarPage() {
 
   useEffect(() => {
     const cargarDatos = async () => {
+      // --- NUEVO: Obtener Tasa BCV Automática ---
+      try {
+        const resTasa = await fetch(
+          'https://ve.dolarapi.com/v1/dolares/oficial',
+        );
+        const dataTasa = await resTasa.json();
+        if (dataTasa && dataTasa.promedio) {
+          setTasaBCV(dataTasa.promedio);
+        }
+      } catch (e) {
+        console.error('No se pudo obtener la tasa automáticamente', e);
+        // Mantiene el valor por defecto si falla
+      }
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
