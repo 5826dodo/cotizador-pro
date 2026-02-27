@@ -26,6 +26,7 @@ export default function PerfilEmpresa() {
     notificaciones_stock: true,
     mostrar_bcv: true,
     permitir_ventas_sin_stock: false,
+    moneda_secundaria: 'BS',
   });
 
   useEffect(() => {
