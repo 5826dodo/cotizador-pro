@@ -71,12 +71,11 @@ export default function PerfilEmpresa() {
 
     try {
       let finalLogoUrl = empresa.logo_url;
-
-      // Si hay un nuevo archivo seleccionado, lo subimos primero
       if (file) {
         finalLogoUrl = await subirLogo(file, empresa.id);
       }
 
+      // ACTUALIZACIÓN CON LAS NUEVAS COLUMNAS
       const { error } = await supabase
         .from('empresas')
         .update({
@@ -85,14 +84,21 @@ export default function PerfilEmpresa() {
           telefono: empresa.telefono,
           direccion: empresa.direccion,
           logo_url: finalLogoUrl,
+          // Aquí enviamos los valores de los botones/switches
+          notificaciones_stock: configGlobal.notificaciones_stock,
+          moneda_secundaria: configGlobal.moneda_secundaria,
+          configuracion_inicial: true, // Al guardar, marcamos que ya completó el onboarding
         })
         .eq('id', empresa.id);
 
       if (error) throw error;
 
-      setEmpresa({ ...empresa, logo_url: finalLogoUrl });
-      setFile(null); // Limpiamos el archivo temporal
-      alert('✅ Datos de empresa actualizados');
+      setEmpresa({
+        ...empresa,
+        logo_url: finalLogoUrl,
+        configuracion_inicial: true,
+      });
+      alert('✅ Configuración y preferencias guardadas');
     } catch (error: any) {
       alert('Error: ' + error.message);
     } finally {

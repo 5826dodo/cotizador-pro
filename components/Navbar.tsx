@@ -1,4 +1,5 @@
 'use client';
+
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -12,25 +13,31 @@ import {
   BadgeDollarSign,
   LogOut,
   Power,
-  RefreshCw, // Nuevo icono para refrescar
+  RefreshCw,
 } from 'lucide-react';
 
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
-  const [rol, setRol] = useState<string | null>(null);
 
-  // --- ESTADOS PARA LA TASA ---
+  const [rol, setRol] = useState<string | null>(null);
   const [tasa, setTasa] = useState<number | null>(null);
   const [cargandoTasa, setCargandoTasa] = useState(false);
 
-  const obtenerTasa = async () => {
+  // Estados para la configuración de la empresa
+  const [monedaConfig, setMonedaConfig] = useState<'BS' | 'EUR'>('BS');
+  const [configIncompleta, setConfigIncompleta] = useState(false);
+
+  // Función para obtener la tasa según la moneda (USD o EUR)
+  const obtenerTasa = async (moneda: string) => {
     setCargandoTasa(true);
     try {
-      // Usando dolarapi.com para BCV
-      const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+      // Si la moneda secundaria es EUR, consultamos la tasa del Euro en dolarapi
+      const endpoint = moneda === 'EUR' ? 'euro' : 'oficial';
+      const res = await fetch(`https://ve.dolarapi.com/v1/dolares/${endpoint}`);
       const data = await res.json();
+
       if (data && data.promedio) {
         setTasa(data.promedio);
       }
@@ -42,23 +49,58 @@ export default function Navbar() {
   };
 
   useEffect(() => {
-    obtenerTasa(); // Carga inicial
-
     async function getUserData() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
       if (user) {
-        const { data } = await supabase
+        const { data: perfil } = await supabase
           .from('perfiles')
-          .select('rol')
+          .select(
+            `
+        rol, 
+        empresas (
+          nombre, 
+          rif, 
+          moneda_secundaria, 
+          configuracion_inicial
+        )
+      `,
+          )
           .eq('id', user.id)
           .single();
-        setRol(data?.rol || null);
+
+        if (perfil && perfil.empresas) {
+          setRol(perfil.rol);
+
+          // EXPLICACIÓN: Supabase devuelve empresas como un array.
+          // Usamos type casting (as any) o accedemos al índice [0]
+          const datosEmpresa = Array.isArray(perfil.empresas)
+            ? perfil.empresas[0]
+            : perfil.empresas;
+
+          if (datosEmpresa) {
+            // 1. Detectar moneda
+            const moneda = datosEmpresa.moneda_secundaria || 'BS';
+            setMonedaConfig(moneda as 'BS' | 'EUR');
+
+            // 2. Cargar la tasa correspondiente
+            obtenerTasa(moneda);
+
+            // 3. Verificar si falta configuración básica
+            const incompleto =
+              !datosEmpresa.nombre ||
+              !datosEmpresa.rif ||
+              !datosEmpresa.configuracion_inicial;
+
+            setConfigIncompleta(incompleto);
+          }
+        }
       }
     }
     getUserData();
-  }, [supabase]);
+  }, [supabase, pathname]); // Re-validamos al cambiar de ruta para actualizar el punto rojo
 
   const handleLogout = async () => {
     if (confirm('¿Cerrar sesión ahora?')) {
@@ -119,20 +161,20 @@ export default function Navbar() {
               })}
             </div>
 
-            {/* Acciones Finales + TASA BCV */}
+            {/* Acciones Finales + TASA DINÁMICA */}
             <div className="flex items-center gap-3">
-              {/* Widget de Tasa BCV */}
+              {/* Widget de Tasa */}
               <div className="flex items-center gap-3 bg-orange-50 px-4 py-2 rounded-2xl border border-orange-100 shadow-sm">
                 <div className="flex flex-col items-end">
                   <span className="text-[8px] font-black text-orange-400 uppercase leading-none tracking-widest">
-                    Tasa BCV
+                    Tasa {monedaConfig === 'EUR' ? 'EUR BCV' : 'USD BCV'}
                   </span>
                   <span className="text-sm font-black text-slate-800">
                     {tasa ? `Bs. ${tasa.toFixed(2)}` : '---'}
                   </span>
                 </div>
                 <button
-                  onClick={obtenerTasa}
+                  onClick={() => obtenerTasa(monedaConfig)}
                   disabled={cargandoTasa}
                   className="p-1.5 hover:bg-white rounded-lg transition-all text-orange-500 disabled:opacity-50"
                 >
@@ -145,15 +187,22 @@ export default function Navbar() {
 
               <div className="h-8 w-[1px] bg-slate-200 mx-1" />
 
+              {/* Botón Configuración con Notificación */}
               <Link
                 href="/configuracion"
-                className={`p-3 rounded-2xl transition-all ${
+                className={`p-3 rounded-2xl transition-all relative ${
                   pathname === '/configuracion'
                     ? 'bg-[#FF9800] text-white shadow-lg shadow-orange-200'
                     : 'text-slate-400 hover:bg-slate-100'
                 }`}
               >
                 <Settings size={22} />
+                {configIncompleta && (
+                  <span className="absolute top-2 right-2 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                  </span>
+                )}
               </Link>
 
               <button
@@ -168,12 +217,11 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* --- DISEÑO MOBILE --- */}
-      {/* Añadimos la tasa flotante en mobile para que no ocupe espacio en el tab bar */}
+      {/* --- DISEÑO MOBILE (Tasa flotante) --- */}
       <div className="md:hidden fixed top-4 right-4 z-[60]">
         <div className="bg-[#1A1D23] text-white px-3 py-1.5 rounded-full flex items-center gap-2 shadow-xl border border-white/10">
           <span className="text-[7px] font-black text-[#FF9800] uppercase tracking-tighter">
-            BCV
+            {monedaConfig === 'EUR' ? 'EUR' : 'BCV'}
           </span>
           <span className="text-xs font-bold">
             {tasa ? tasa.toFixed(2) : '...'}
@@ -208,6 +256,29 @@ export default function Navbar() {
               </Link>
             );
           })}
+
+          {/* Botón Configuración en Mobile */}
+          <Link
+            href="/configuracion"
+            className="relative flex flex-col items-center justify-center min-w-[64px] h-full active:scale-90"
+          >
+            <Settings
+              size={24}
+              className={
+                pathname === '/configuracion'
+                  ? 'text-[#FF9800]'
+                  : 'text-slate-500'
+              }
+            />
+            <span
+              className={`text-[8px] font-black mt-1.5 uppercase ${pathname === '/configuracion' ? 'text-white' : 'text-slate-500'}`}
+            >
+              Config
+            </span>
+            {configIncompleta && (
+              <span className="absolute top-2 right-4 w-2 h-2 bg-red-500 rounded-full"></span>
+            )}
+          </Link>
 
           <button
             onClick={handleLogout}
