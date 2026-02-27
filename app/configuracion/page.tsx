@@ -41,6 +41,7 @@ export default function PerfilEmpresa() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
       if (user) {
         const { data: perfil } = await supabase
           .from('perfiles')
@@ -48,16 +49,25 @@ export default function PerfilEmpresa() {
           .eq('id', user.id)
           .single();
 
+        // EXPLICACIÓN: Accedemos al primer elemento del array de empresas
         if (perfil?.empresas) {
-          setEmpresa(perfil.empresas);
-          // Sincronizamos los switches con lo que viene de la base de datos
-          setConfigGlobal({
-            notificaciones_stock: perfil.empresas.notificaciones_stock ?? true,
-            mostrar_bcv: perfil.empresas.mostrar_bcv ?? true,
-            permitir_ventas_sin_stock:
-              perfil.empresas.permitir_ventas_sin_stock ?? false,
-            moneda_secundaria: perfil.empresas.moneda_secundaria || 'BS',
-          });
+          // Si empresas es un array, tomamos el índice 0, si no, tomamos el objeto directo
+          const datosDB = Array.isArray(perfil.empresas)
+            ? perfil.empresas[0]
+            : perfil.empresas;
+
+          if (datosDB) {
+            setEmpresa(datosDB);
+
+            // Sincronizamos las preferencias usando el objeto extraído
+            setConfigGlobal({
+              notificaciones_stock: datosDB.notificaciones_stock ?? true,
+              mostrar_bcv: datosDB.mostrar_bcv ?? true,
+              permitir_ventas_sin_stock:
+                datosDB.permitir_ventas_sin_stock ?? false,
+              moneda_secundaria: datosDB.moneda_secundaria || 'BS',
+            });
+          }
         }
       }
       setLoading(false);
