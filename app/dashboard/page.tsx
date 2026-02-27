@@ -329,55 +329,65 @@ export default function InventarioPage() {
 
         {/* LISTADO */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {productos.map((prod) => (
-            <div
-              key={prod.id}
-              className={`bg-white p-4 rounded-[2.5rem] shadow-sm border-2 flex flex-col gap-4 ${prod.stock <= 5 ? 'border-red-100' : 'border-white'}`}
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-20 h-20 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-100">
-                  {prod.imagen_url ? (
-                    <img
-                      src={prod.imagen_url}
-                      className="w-full h-full object-cover"
-                      alt=""
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-200">
-                      <Package size={24} />
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-black text-slate-800 text-sm uppercase truncate">
-                    {prod.nombre}
-                  </h3>
-                  <p className="text-orange-500 font-black text-lg">
-                    ${prod.precio.toFixed(2)}
-                  </p>
-                  <span
-                    className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${prod.stock <= 5 ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-400'}`}
-                  >
-                    Stock: {prod.stock} {prod.unidad_medida.slice(0, 3)}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={() => prepararEdicion(prod)}
-                    className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-orange-500 transition-all"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    onClick={() => eliminarProducto(prod.id)}
-                    className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-red-500 transition-all"
-                  >
-                    🗑️
-                  </button>
+          {productos?.map((prod) => {
+            // Seguridad: Si por error un producto no tiene precio o stock, evitamos el crash
+            const precioSeguro = prod.precio ? Number(prod.precio) : 0;
+            const stockSeguro = prod.stock ? Number(prod.stock) : 0;
+            const unidadSegura = prod.unidad_medida || 'UNIDADES';
+            const esStockCritico = stockSeguro <= 5;
+
+            return (
+              <div
+                key={prod.id}
+                className={`bg-white p-4 rounded-[2.5rem] shadow-sm border-2 flex flex-col gap-4 ${esStockCritico ? 'border-red-100' : 'border-white'}`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-100">
+                    {prod.imagen_url ? (
+                      <img
+                        src={prod.imagen_url}
+                        className="w-full h-full object-cover"
+                        alt={prod.nombre}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-200">
+                        <Package size={24} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-black text-slate-800 text-sm uppercase truncate">
+                      {prod.nombre || 'Sin nombre'}
+                    </h3>
+                    <p className="text-orange-500 font-black text-lg">
+                      ${precioSeguro.toFixed(2)}
+                    </p>
+                    <span
+                      className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${esStockCritico ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-400'}`}
+                    >
+                      Stock: {stockSeguro} {unidadSegura.slice(0, 3)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => prepararEdicion(prod)}
+                      className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-orange-500 transition-all"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => eliminarProducto(prod.id)}
+                      className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-red-500 transition-all"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </main>
