@@ -327,6 +327,40 @@ export default function InventarioPage() {
           </form>
         </section>
 
+        {/* SECCIÓN DE COMPARTIR CATÁLOGO */}
+        <div className="mb-8 bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-[2.5rem] text-white shadow-xl">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="text-center md:text-left">
+              <h2 className="text-xl font-black uppercase tracking-tighter">
+                Tu Vitrina Online
+              </h2>
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em] mt-1">
+                Comparte este enlace con tus clientes
+              </p>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                onClick={() => {
+                  const url = `${window.location.origin}/catalogo/${empresaId}`;
+                  navigator.clipboard.writeText(url);
+                  alert('¡Enlace copiado al portapapeles! 📋');
+                }}
+                className="px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10"
+              >
+                Copiar Link
+              </button>
+
+              <button
+                onClick={() => window.open(`/catalogo/${empresaId}`, '_blank')}
+                className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-orange-900/20"
+              >
+                Abrir Mi Catálogo 🚀
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* LISTADO */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {productos?.map((prod) => {
