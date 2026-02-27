@@ -7,7 +7,7 @@ import {
   MessageCircle,
   Building2,
   Package,
-  X,
+  AlertCircle,
 } from 'lucide-react';
 
 export default function CatalogoPublico({
@@ -21,32 +21,75 @@ export default function CatalogoPublico({
   const [filtro, setFiltro] = useState('');
   const [carrito, setCarrito] = useState<any[]>([]);
   const [tasa, setTasa] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const cargarDatos = async () => {
-      const { data: emp } = await supabase
-        .from('empresas')
-        .select('*')
-        .eq('id', params.id)
-        .single();
-      if (emp) {
+      try {
+        setLoading(true);
+
+        // 1. Validar que el ID existe
+        if (!params.id) throw new Error('ID de empresa no proporcionado');
+
+        // 2. Obtener Empresa
+        const { data: emp, error: empError } = await supabase
+          .from('empresas')
+          .select('*')
+          .eq('id', params.id)
+          .single();
+
+        if (empError || !emp) throw new Error('Empresa no encontrada');
         setEmpresa(emp);
-        const { data: prod } = await supabase
+
+        // 3. Obtener Productos
+        const { data: prod, error: prodError } = await supabase
           .from('productos')
           .select('*')
           .eq('empresa_id', params.id)
-          .gt('stock', 0);
+          .gt('stock', 0); // Solo los que tienen existencia
+
+        if (prodError) console.error('Error productos:', prodError);
         setProductos(prod || []);
 
-        const endpoint =
-          emp.moneda_secundaria === 'EUR' ? 'euros/oficial' : 'dolares/oficial';
-        const res = await fetch(`https://ve.dolarapi.com/v1/${endpoint}`);
-        const data = await res.json();
-        setTasa(data.promedio || 0);
+        // 4. Obtener Tasa (Corregido el endpoint para evitar el 400)
+        try {
+          // Usamos el endpoint general que es más estable
+          const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+          const data = await res.json();
+
+          // Si la empresa prefiere Euro, buscamos el Euro
+          if (emp.moneda_secundaria === 'EUR') {
+            const resEuro = await fetch(
+              'https://ve.dolarapi.com/v1/euros/oficial',
+            );
+            const dataEuro = await resEuro.json();
+            setTasa(dataEuro.promedio || 0);
+          } else {
+            setTasa(data.promedio || 0);
+          }
+        } catch (apiErr) {
+          console.warn('Fallo DolarAPI, usando tasa 0');
+          setTasa(0);
+        }
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
     };
+
     cargarDatos();
-  }, [params.id, supabase]);
+  }, [params.id]);
+
+  // Ocultar Navbar Global
+  useEffect(() => {
+    const nav = document.querySelector('nav');
+    if (nav) nav.style.display = 'none';
+    return () => {
+      if (nav) nav.style.display = 'flex';
+    };
+  }, []);
 
   const agregarAlCarrito = (p: any) => {
     setCarrito((prev) => {
@@ -59,152 +102,140 @@ export default function CatalogoPublico({
     });
   };
 
-  const quitarDelCarrito = (id: string) => {
-    setCarrito((prev) => prev.filter((item) => item.id !== id));
-  };
-
   const enviarPedido = () => {
     const totalDolar = carrito.reduce((acc, p) => acc + p.precio * p.cant, 0);
     const totalBs = totalDolar * tasa;
-
-    let mensaje = `*NUEVO PEDIDO - VENTIQ*%0A%0A`;
-    mensaje += `*Cliente:* _Vía Catálogo Público_%0A%0A`;
+    let mensaje = `*NUEVO PEDIDO - ${empresa.nombre?.toUpperCase()}*%0A%0A`;
     carrito.forEach((p) => {
       mensaje += `• ${p.cant}x ${p.nombre} ($${(p.precio * p.cant).toFixed(2)})%0A`;
     });
-    mensaje += `%0A*TOTAL: $${totalDolar.toFixed(2)}*%0A*Ref. Tasa: Bs. ${totalBs.toFixed(2)}*%0A%0A_¿Me podrían confirmar disponibilidad?_`;
-
-    // Limpiamos el número por si acaso
-    const telf = empresa.telefono?.replace(/\D/g, '');
-    window.open(`https://wa.me/${telf}?text=${mensaje}`, '_blank');
+    mensaje += `%0A*TOTAL: $${totalDolar.toFixed(2)}*%0A*BS. ${totalBs.toFixed(2)}*%0A%0A_Enviado desde Ventiq_`;
+    window.open(
+      `https://wa.me/${empresa.telefono?.replace(/\D/g, '')}?text=${mensaje}`,
+      '_blank',
+    );
   };
 
-  if (!empresa)
+  if (loading)
     return (
-      <div className="h-screen flex items-center justify-center font-black animate-pulse">
-        CARGANDO CATÁLOGO...
+      <div className="h-screen flex flex-col items-center justify-center bg-white">
+        <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
+          Cargando Vitrina...
+        </p>
+      </div>
+    );
+
+  if (error)
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-10 text-center">
+        <AlertCircle size={40} className="text-red-500 mb-4" />
+        <h1 className="font-black uppercase text-slate-800">
+          Ups, algo salió mal
+        </h1>
+        <p className="text-slate-500 text-xs mt-2">{error}</p>
       </div>
     );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-32">
-      {/* Header Estilo App */}
-      <div className="bg-white p-8 rounded-b-[3.5rem] shadow-sm text-center border-b border-slate-100">
-        <div className="w-24 h-24 mx-auto mb-4 bg-slate-50 rounded-[2.5rem] flex items-center justify-center overflow-hidden border-4 border-white shadow-md">
-          {empresa.logo_url ? (
+    <div className="min-h-screen bg-slate-50 pb-32">
+      {/* Header */}
+      <div className="bg-white p-8 rounded-b-[3rem] shadow-sm border-b border-slate-100 text-center">
+        <div className="w-20 h-20 bg-slate-100 rounded-[2rem] mx-auto mb-4 flex items-center justify-center overflow-hidden">
+          {empresa?.logo_url ? (
             <img
               src={empresa.logo_url}
-              className="w-full h-full object-contain p-2"
-              alt="Logo"
+              className="w-full h-full object-contain"
             />
           ) : (
-            <Building2 className="text-slate-300" size={40} />
+            <Building2 className="text-slate-300" />
           )}
         </div>
-        <h1 className="text-2xl font-black text-slate-800 tracking-tighter uppercase leading-tight">
-          {empresa.nombre}
+        <h1 className="font-black text-xl uppercase tracking-tighter text-slate-800">
+          {empresa?.nombre}
         </h1>
-        <div className="inline-block mt-3 px-4 py-1.5 bg-emerald-50 rounded-full border border-emerald-100">
-          <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">
-            Tasa {empresa.moneda_secundaria === 'EUR' ? 'Euro' : 'Dólar'}: Bs.{' '}
-            {tasa.toFixed(2)}
+        <div className="inline-block px-4 py-1 bg-emerald-50 border border-emerald-100 rounded-full mt-2">
+          <p className="text-[9px] font-black text-emerald-600 uppercase">
+            Tasa: Bs. {tasa.toFixed(2)}
           </p>
         </div>
       </div>
 
-      {/* Buscador Pegajoso */}
-      <div className="px-6 -mt-6 sticky top-4 z-40">
-        <div className="relative group">
+      {/* Buscador */}
+      <div className="px-6 -mt-6">
+        <div className="relative">
           <Search
-            className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-orange-500 transition-colors"
-            size={20}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+            size={18}
           />
           <input
             type="text"
             placeholder="Buscar productos..."
-            className="w-full pl-14 pr-6 py-5 bg-white rounded-[2rem] shadow-xl outline-none font-bold text-slate-700 border-2 border-transparent focus:border-orange-100"
+            className="w-full pl-12 pr-4 py-5 bg-white rounded-2xl shadow-xl outline-none font-bold text-sm"
             onChange={(e) => setFiltro(e.target.value)}
           />
         </div>
       </div>
 
-      {/* Grid de Productos */}
-      <div className="px-6 mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Lista */}
+      <div className="px-6 mt-8 space-y-4">
         {productos
           .filter((p) => p.nombre.toLowerCase().includes(filtro.toLowerCase()))
           .map((p) => (
             <div
               key={p.id}
-              className="bg-white p-5 rounded-[2.5rem] shadow-sm flex items-center gap-4 border border-transparent hover:border-orange-100 hover:shadow-md transition-all"
+              className="bg-white p-4 rounded-[2rem] shadow-sm flex items-center gap-4"
             >
-              {/* Espacio para la Imagen */}
-              <div className="w-24 h-24 bg-slate-50 rounded-[1.8rem] flex-shrink-0 flex items-center justify-center overflow-hidden border border-slate-100">
+              <div className="w-16 h-16 bg-slate-50 rounded-2xl flex-shrink-0 flex items-center justify-center overflow-hidden border border-slate-100">
                 {p.imagen_url ? (
                   <img
                     src={p.imagen_url}
-                    alt={p.nombre}
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <Package className="text-slate-200" size={32} />
+                  <Package className="text-slate-200" />
                 )}
               </div>
-
               <div className="flex-1">
-                <h3 className="font-black text-slate-800 text-sm uppercase leading-tight mb-1">
+                <h3 className="font-black text-slate-800 text-xs uppercase">
                   {p.nombre}
                 </h3>
-                <div className="flex flex-col">
-                  <span className="text-orange-500 font-black text-lg">
-                    ${p.precio.toFixed(2)}
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
-                    Ref. Bs. {(p.precio * tasa).toFixed(2)}
-                  </span>
-                </div>
+                <p className="text-orange-500 font-black text-base">
+                  ${p.precio.toFixed(2)}
+                </p>
               </div>
-
               <button
                 onClick={() => agregarAlCarrito(p)}
-                className="bg-[#1A1D23] text-white w-12 h-12 rounded-2xl flex items-center justify-center active:scale-90 transition-transform shadow-lg shadow-slate-200"
+                className="bg-slate-900 text-white p-3 rounded-xl active:scale-90 transition-all"
               >
-                <ShoppingCart size={20} />
+                <ShoppingCart size={18} />
               </button>
             </div>
           ))}
       </div>
 
-      {/* Footer / Carrito */}
+      {/* Carrito Flotante */}
       {carrito.length > 0 && (
-        <div className="fixed bottom-8 left-6 right-6 z-50 animate-in slide-in-from-bottom-10 duration-500">
+        <div className="fixed bottom-6 left-6 right-6">
           <button
             onClick={enviarPedido}
-            className="w-full bg-[#1A1D23] text-white p-6 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between hover:bg-black transition-all"
+            className="w-full bg-[#1A1D23] text-white p-6 rounded-[2.5rem] shadow-2xl flex items-center justify-between"
           >
-            <div className="flex items-center gap-4">
-              <div className="bg-[#FF9800] p-3 rounded-2xl text-white">
-                <MessageCircle size={24} strokeWidth={2.5} />
-              </div>
+            <div className="flex items-center gap-3">
+              <MessageCircle className="text-emerald-400" />
               <div className="text-left">
-                <p className="text-[10px] font-black uppercase text-[#FF9800] leading-none tracking-widest mb-1">
-                  Enviar por WhatsApp
+                <p className="text-[10px] font-black text-emerald-400 leading-none">
+                  PEDIR POR WHATSAPP
                 </p>
-                <p className="text-lg font-black leading-none">
-                  {carrito.length} Items en el carrito
-                </p>
+                <p className="text-sm font-black">{carrito.length} PRODUCTOS</p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-xl font-black">
-                $
-                {carrito
-                  .reduce((acc, p) => acc + p.precio * p.cant, 0)
-                  .toFixed(2)}
-              </p>
-              <p className="text-[9px] font-bold opacity-60 uppercase">
-                Finalizar Pedido
-              </p>
-            </div>
+            <p className="text-xl font-black">
+              $
+              {carrito
+                .reduce((acc, p) => acc + p.precio * p.cant, 0)
+                .toFixed(2)}
+            </p>
           </button>
         </div>
       )}
