@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/utils/supabase/client'; // Asegúrate de que esta ruta sea la correcta en tu proyecto
 import {
   Building2,
   Save,
@@ -14,14 +15,20 @@ import {
   Settings,
   Info,
   CheckCircle2,
+  ArrowRight,
 } from 'lucide-react';
 
 export default function PerfilEmpresa() {
+  const router = useRouter();
+  const supabase = createClient();
+
   const [empresa, setEmpresa] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [exito, setExito] = useState(false);
 
+  // Estado para las preferencias
   const [configGlobal, setConfigGlobal] = useState({
     notificaciones_stock: true,
     mostrar_bcv: true,
@@ -43,14 +50,21 @@ export default function PerfilEmpresa() {
 
         if (perfil?.empresas) {
           setEmpresa(perfil.empresas);
+          // Sincronizamos los switches con lo que viene de la base de datos
+          setConfigGlobal({
+            notificaciones_stock: perfil.empresas.notificaciones_stock ?? true,
+            mostrar_bcv: perfil.empresas.mostrar_bcv ?? true,
+            permitir_ventas_sin_stock:
+              perfil.empresas.permitir_ventas_sin_stock ?? false,
+            moneda_secundaria: perfil.empresas.moneda_secundaria || 'BS',
+          });
         }
       }
       setLoading(false);
     };
     cargarDatosEmpresa();
-  }, []);
+  }, [supabase]);
 
-  // Función para manejar la subida del logo a Storage
   const subirLogo = async (file: File, empresaId: string) => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${empresaId}-${Math.random()}.${fileExt}`;
@@ -76,7 +90,6 @@ export default function PerfilEmpresa() {
         finalLogoUrl = await subirLogo(file, empresa.id);
       }
 
-      // ACTUALIZACIÓN CON LAS NUEVAS COLUMNAS
       const { error } = await supabase
         .from('empresas')
         .update({
@@ -85,21 +98,21 @@ export default function PerfilEmpresa() {
           telefono: empresa.telefono,
           direccion: empresa.direccion,
           logo_url: finalLogoUrl,
-          // Aquí enviamos los valores de los botones/switches
           notificaciones_stock: configGlobal.notificaciones_stock,
           moneda_secundaria: configGlobal.moneda_secundaria,
-          configuracion_inicial: true, // Al guardar, marcamos que ya completó el onboarding
+          configuracion_inicial: true,
         })
         .eq('id', empresa.id);
 
       if (error) throw error;
 
-      setEmpresa({
-        ...empresa,
-        logo_url: finalLogoUrl,
-        configuracion_inicial: true,
-      });
-      alert('✅ Configuración y preferencias guardadas');
+      setExito(true);
+
+      // Pequeña pausa para que el usuario vea el éxito antes de redirigir
+      setTimeout(() => {
+        router.push('/'); // Redirige al Inventario (Stock)
+        router.refresh();
+      }, 2000);
     } catch (error: any) {
       alert('Error: ' + error.message);
     } finally {
@@ -109,69 +122,87 @@ export default function PerfilEmpresa() {
 
   if (loading)
     return (
-      <p className="p-10 text-center font-bold">Cargando configuración...</p>
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="animate-spin text-blue-600" size={40} />
+          <p className="font-black text-slate-400 uppercase tracking-widest text-xs">
+            Cargando Configuración...
+          </p>
+        </div>
+      </div>
     );
 
   return (
-    <main className="min-h-screen bg-slate-50 p-8">
+    <main className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-3xl mx-auto">
         <header className="mb-8">
-          <h1 className="text-3xl font-black text-slate-800">Mi Empresa</h1>
+          <h1 className="text-3xl font-black text-slate-800 tracking-tighter">
+            Mi Empresa
+          </h1>
           <p className="text-slate-500 font-medium">
-            Personaliza la información que aparece en tus PDFs
+            Configura los detalles de tu negocio y preferencias
           </p>
         </header>
 
-        {!empresa?.nombre || !empresa?.rif ? (
-          <div className="bg-orange-500 text-white p-6 rounded-[2rem] mb-8 flex items-center gap-4 shadow-lg animate-in fade-in slide-in-from-top-4">
-            <div className="bg-white/20 p-3 rounded-2xl">
-              <Info size={24} />
+        {/* MODO ONBOARDING / ÉXITO */}
+        {exito ? (
+          <div className="bg-emerald-500 text-white p-6 rounded-[2rem] mb-8 flex items-center justify-between shadow-lg animate-in zoom-in-95 duration-300">
+            <div className="flex items-center gap-4">
+              <CheckCircle2 size={32} />
+              <div>
+                <h3 className="font-black uppercase text-sm leading-none">
+                  ¡Configuración Guardada!
+                </h3>
+                <p className="text-xs opacity-90 font-bold">
+                  Redirigiendo al inventario...
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-black uppercase text-sm tracking-tighter text-white">
-                Paso 1: Configura tu negocio
-              </h3>
-              <p className="text-xs opacity-90 font-bold text-white/90">
-                Completa el nombre y RIF para que tus facturas salgan
-                profesionales.
-              </p>
-            </div>
+            <Loader2 className="animate-spin opacity-50" size={20} />
           </div>
         ) : (
-          <div className="bg-emerald-50 text-emerald-600 p-4 rounded-[1.5rem] mb-8 flex items-center gap-3 border border-emerald-100">
-            <CheckCircle2 size={20} />
-            <span className="text-[10px] font-black uppercase">
-              ¡Tu cuenta está configurada y lista para vender!
-            </span>
-          </div>
+          (!empresa?.nombre || !empresa?.rif) && (
+            <div className="bg-orange-500 text-white p-6 rounded-[2rem] mb-8 flex items-center gap-4 shadow-lg animate-in slide-in-from-top-4">
+              <div className="bg-white/20 p-3 rounded-2xl">
+                <Info size={24} />
+              </div>
+              <div>
+                <h3 className="font-black uppercase text-sm tracking-tighter">
+                  Paso 1: Configura tu negocio
+                </h3>
+                <p className="text-xs opacity-90 font-bold">
+                  Completa el nombre y RIF para empezar a usar Ventiq.
+                </p>
+              </div>
+            </div>
+          )
         )}
 
         <form
           onSubmit={handleUpdate}
-          className="bg-white p-8 rounded-[2.5rem] shadow-xl space-y-6"
+          className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-xl space-y-8"
         >
-          {/* SECCIÓN LOGO MEJORADA */}
-          <div className="flex flex-col items-center mb-6">
-            <div className="relative w-40 h-40 bg-slate-100 rounded-3xl overflow-hidden border-2 border-dashed border-slate-200 flex items-center justify-center mb-4">
+          {/* SECCIÓN LOGO */}
+          <div className="flex flex-col items-center">
+            <div className="relative w-32 h-32 bg-slate-50 rounded-[2.5rem] overflow-hidden border-2 border-dashed border-slate-200 flex items-center justify-center mb-4 transition-all hover:border-blue-400">
               {file ? (
                 <img
                   src={URL.createObjectURL(file)}
                   alt="Preview"
-                  className="w-full h-full object-contain p-2"
+                  className="w-full h-full object-contain p-4"
                 />
               ) : empresa.logo_url ? (
                 <img
                   src={empresa.logo_url}
                   alt="Logo"
-                  className="w-full h-full object-contain p-2"
+                  className="w-full h-full object-contain p-4"
                 />
               ) : (
-                <Building2 size={40} className="text-slate-300" />
+                <Building2 size={32} className="text-slate-300" />
               )}
             </div>
-
-            <label className="cursor-pointer bg-slate-100 px-6 py-2 rounded-full font-bold text-sm hover:bg-slate-200 transition-all flex items-center gap-2 text-slate-600">
-              <Upload size={16} />
+            <label className="cursor-pointer bg-slate-100 px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2 text-slate-500">
+              <Upload size={14} />
               {empresa.logo_url || file ? 'Cambiar Logo' : 'Subir Logo'}
               <input
                 type="file"
@@ -182,18 +213,20 @@ export default function PerfilEmpresa() {
             </label>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* DATOS BÁSICOS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-xs font-black text-slate-400 uppercase ml-2">
-                Nombre Comercial
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                Nombre del Negocio
               </label>
               <div className="relative">
                 <Building2
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={20}
+                  size={18}
                 />
                 <input
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold"
+                  required
+                  className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold text-sm"
                   value={empresa.nombre || ''}
                   onChange={(e) =>
                     setEmpresa({ ...empresa, nombre: e.target.value })
@@ -203,16 +236,17 @@ export default function PerfilEmpresa() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-black text-slate-400 uppercase ml-2">
-                RIF / Identificación
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                RIF / ID Fiscal
               </label>
               <div className="relative">
                 <Hash
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={20}
+                  size={18}
                 />
                 <input
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold"
+                  required
+                  className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold text-sm"
                   value={empresa.rif || ''}
                   onChange={(e) =>
                     setEmpresa({ ...empresa, rif: e.target.value })
@@ -220,62 +254,65 @@ export default function PerfilEmpresa() {
                 />
               </div>
             </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-black text-slate-400 uppercase ml-2">
-                Teléfono de Contacto
-              </label>
-              <div className="relative">
-                <Phone
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={20}
-                />
-                <input
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold"
-                  value={empresa.telefono || ''}
-                  onChange={(e) =>
-                    setEmpresa({ ...empresa, telefono: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-
-            {/* Dirección a ancho completo */}
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-xs font-black text-slate-400 uppercase ml-2">
-                Dirección Física
-              </label>
-              <div className="relative">
-                <MapPin
-                  className="absolute left-4 top-4 text-slate-400"
-                  size={20}
-                />
-                <textarea
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold h-24"
-                  value={empresa.direccion || ''}
-                  onChange={(e) =>
-                    setEmpresa({ ...empresa, direccion: e.target.value })
-                  }
-                />
-              </div>
-            </div>
           </div>
-          <div className="md:col-span-2 mt-8">
-            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Settings size={16} /> Preferencias del Sistema
+
+          {/* PREFERENCIAS */}
+          <div className="pt-4 border-t border-slate-100">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+              <Settings size={14} /> Configuración del Sistema
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Ejemplo de Switch para activar/desactivar función */}
+            <div className="grid grid-cols-1 gap-3">
+              {/* Selector de Moneda */}
               <div
-                className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-between ${configGlobal.notificaciones_stock ? 'border-orange-100 bg-orange-50/30' : 'border-slate-100 bg-white'}`}
+                className={`p-5 rounded-[2rem] border-2 transition-all flex flex-col md:flex-row items-center justify-between gap-4 ${configGlobal.moneda_secundaria === 'EUR' ? 'border-blue-100 bg-blue-50/20' : 'border-emerald-100 bg-emerald-50/20'}`}
               >
                 <div>
-                  <p className="text-xs font-black uppercase tracking-tighter text-slate-700">
-                    Alertas de Inventario
+                  <p className="text-[11px] font-black uppercase text-slate-700 leading-none">
+                    Moneda Secundaria
                   </p>
-                  <p className="text-[10px] text-slate-500">
-                    Notificar cuando el stock sea bajo
+                  <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                    ¿Qué tasa quieres ver en tus ventas?
+                  </p>
+                </div>
+                <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100 w-full md:w-auto">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConfigGlobal({
+                        ...configGlobal,
+                        moneda_secundaria: 'BS',
+                      })
+                    }
+                    className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-[10px] font-black transition-all ${configGlobal.moneda_secundaria === 'BS' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}
+                  >
+                    BOLÍVARES
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConfigGlobal({
+                        ...configGlobal,
+                        moneda_secundaria: 'EUR',
+                      })
+                    }
+                    className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-[10px] font-black transition-all ${configGlobal.moneda_secundaria === 'EUR' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}
+                  >
+                    EUROS
+                  </button>
+                </div>
+              </div>
+
+              {/* Switch Alertas */}
+              <div
+                className={`p-5 rounded-[2rem] border-2 transition-all flex items-center justify-between ${configGlobal.notificaciones_stock ? 'border-orange-100 bg-orange-50/20' : 'border-slate-100 bg-white'}`}
+              >
+                <div>
+                  <p className="text-[11px] font-black uppercase text-slate-700 leading-none">
+                    Alertas de Stock
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                    Resaltar productos con bajo inventario
                   </p>
                 </div>
                 <button
@@ -286,41 +323,12 @@ export default function PerfilEmpresa() {
                       notificaciones_stock: !configGlobal.notificaciones_stock,
                     })
                   }
-                  className={`transition-colors ${configGlobal.notificaciones_stock ? 'text-orange-500' : 'text-slate-300'}`}
+                  className={`transition-all ${configGlobal.notificaciones_stock ? 'text-orange-500' : 'text-slate-300'}`}
                 >
                   {configGlobal.notificaciones_stock ? (
-                    <ToggleRight size={32} />
+                    <ToggleRight size={36} />
                   ) : (
-                    <ToggleLeft size={32} />
-                  )}
-                </button>
-              </div>
-
-              <div
-                className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-between ${configGlobal.mostrar_bcv ? 'border-orange-100 bg-orange-50/30' : 'border-slate-100 bg-white'}`}
-              >
-                <div>
-                  <p className="text-xs font-black uppercase tracking-tighter text-slate-700">
-                    Tasa BCV Automática
-                  </p>
-                  <p className="text-[10px] text-slate-500">
-                    Mostrar conversión en el punto de venta
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setConfigGlobal({
-                      ...configGlobal,
-                      mostrar_bcv: !configGlobal.mostrar_bcv,
-                    })
-                  }
-                  className={`transition-colors ${configGlobal.mostrar_bcv ? 'text-orange-500' : 'text-slate-300'}`}
-                >
-                  {configGlobal.mostrar_bcv ? (
-                    <ToggleRight size={32} />
-                  ) : (
-                    <ToggleLeft size={32} />
+                    <ToggleLeft size={36} />
                   )}
                 </button>
               </div>
@@ -328,11 +336,21 @@ export default function PerfilEmpresa() {
           </div>
 
           <button
-            disabled={subiendo}
-            className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-xl flex items-center justify-center gap-3 shadow-xl hover:bg-blue-700 transition-all disabled:opacity-50"
+            disabled={subiendo || exito}
+            className="w-full bg-[#1A1D23] text-white py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl hover:bg-black transition-all disabled:opacity-50"
           >
-            {subiendo ? <Loader2 className="animate-spin" /> : <Save />}
-            {subiendo ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
+            {subiendo ? (
+              <Loader2 className="animate-spin" />
+            ) : exito ? (
+              <CheckCircle2 />
+            ) : (
+              <Save size={18} />
+            )}
+            {subiendo
+              ? 'Guardando...'
+              : exito
+                ? '¡Listo!'
+                : 'Guardar Configuración'}
           </button>
         </form>
       </div>
