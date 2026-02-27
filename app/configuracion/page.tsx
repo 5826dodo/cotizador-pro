@@ -264,6 +264,45 @@ export default function PerfilEmpresa() {
                 />
               </div>
             </div>
+            {/* TELÉFONO - Agregado */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                Teléfono
+              </label>
+              <div className="relative">
+                <Phone
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={18}
+                />
+                <input
+                  className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold"
+                  value={empresa?.telefono || ''}
+                  onChange={(e) =>
+                    setEmpresa({ ...empresa, telefono: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            {/* DIRECCIÓN - Agregada */}
+            <div className="md:col-span-2 space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                Dirección Física
+              </label>
+              <div className="relative">
+                <MapPin
+                  className="absolute left-4 top-4 text-slate-400"
+                  size={18}
+                />
+                <textarea
+                  className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold h-24"
+                  value={empresa?.direccion || ''}
+                  onChange={(e) =>
+                    setEmpresa({ ...empresa, direccion: e.target.value })
+                  }
+                />
+              </div>
+            </div>
           </div>
 
           {/* PREFERENCIAS */}

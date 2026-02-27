@@ -33,11 +33,16 @@ export default function Navbar() {
   const obtenerTasa = async (moneda: string) => {
     setCargandoTasa(true);
     try {
-      // Si la moneda secundaria es EUR, consultamos la tasa del Euro en dolarapi
-      const endpoint = moneda === 'EUR' ? 'euro' : 'oficial';
-      const res = await fetch(`https://ve.dolarapi.com/v1/dolares/${endpoint}`);
+      // CAMBIO AQUÍ: Endpoint diferente para Euro y Dólar
+      const url =
+        moneda === 'EUR'
+          ? 'https://ve.dolarapi.com/v1/euros/oficial'
+          : 'https://ve.dolarapi.com/v1/dolares/oficial';
+
+      const res = await fetch(url);
       const data = await res.json();
 
+      // Ambas devuelven el campo 'promedio'
       if (data && data.promedio) {
         setTasa(data.promedio);
       }
