@@ -8,7 +8,10 @@ import {
   Building2,
   Package,
   AlertCircle,
-  ChevronRight,
+  X,
+  Plus,
+  Minus,
+  Trash2,
 } from 'lucide-react';
 
 export default function CatalogoPublico({
@@ -27,6 +30,7 @@ export default function CatalogoPublico({
   const [tasa, setTasa] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   useEffect(() => {
     const cargarTodo = async () => {
@@ -59,7 +63,6 @@ export default function CatalogoPublico({
     cargarTodo();
   }, [empresaId]);
 
-  // Bloqueador de Navbar
   useEffect(() => {
     const nav = document.querySelector('nav');
     if (nav) nav.style.display = 'none';
@@ -68,6 +71,7 @@ export default function CatalogoPublico({
     };
   }, []);
 
+  // LÓGICA DEL CARRITO MEJORADA
   const agregarAlCarrito = (p: any) => {
     setCarrito((prev) => {
       const ex = prev.find((i) => i.id === p.id);
@@ -77,6 +81,32 @@ export default function CatalogoPublico({
         );
       return [...prev, { ...p, cant: 1 }];
     });
+  };
+
+  const actualizarCant = (id: string, delta: number) => {
+    setCarrito(
+      (prev) =>
+        prev
+          .map((item) => {
+            if (item.id === id) {
+              const nuevaCant = Math.max(0, item.cant + delta);
+              return nuevaCant === 0 ? null : { ...item, cant: nuevaCant };
+            }
+            return item;
+          })
+          .filter(Boolean) as any[],
+    );
+  };
+
+  const totalDolar = carrito.reduce((acc, p) => acc + p.precio * p.cant, 0);
+
+  const enviarPedido = () => {
+    let mensaje = `*NUEVO PEDIDO - ${empresa.nombre.toUpperCase()}*%0A%0A`;
+    carrito.forEach((i) => {
+      mensaje += `• ${i.cant}x ${i.nombre} ($${(i.precio * i.cant).toFixed(2)})%0A`;
+    });
+    mensaje += `%0A*TOTAL A PAGAR:*%0A💵 *$${totalDolar.toFixed(2)}*%0A🇻🇪 *Bs. ${(totalDolar * tasa).toFixed(2)}*%0A%0A_Enviado desde Ventiq_`;
+    window.open(`https://wa.me/${empresa.telefono}?text=${mensaje}`, '_blank');
   };
 
   if (loading)
@@ -90,135 +120,206 @@ export default function CatalogoPublico({
     );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-40">
-      {/* HEADER PC & MÓVIL */}
-      <div className="bg-white px-6 py-12 rounded-b-[4rem] shadow-sm border-b border-slate-100 text-center mb-10">
-        <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] mx-auto mb-4 flex items-center justify-center overflow-hidden border-2 border-slate-100 p-2">
+    <div className="min-h-screen bg-[#F8FAFC] pb-24">
+      {/* HEADER */}
+      <div className="bg-white px-6 py-10 rounded-b-[3.5rem] shadow-sm text-center mb-8 border-b border-slate-100">
+        <div className="w-20 h-20 bg-slate-50 rounded-[2rem] mx-auto mb-4 flex items-center justify-center overflow-hidden border border-slate-100">
           {empresa?.logo_url ? (
             <img
               src={empresa.logo_url}
-              className="w-full h-full object-contain"
+              className="w-full h-full object-contain p-2"
             />
           ) : (
-            <Building2 className="text-slate-200" size={40} />
+            <Building2 className="text-slate-200" size={32} />
           )}
         </div>
-        <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tighter leading-none">
+        <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">
           {empresa?.nombre}
         </h1>
-        <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-[0.3em]">
-          Catálogo Digital
-        </p>
-
-        <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-2 rounded-full mt-6 border border-emerald-100">
-          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-          <span className="text-[10px] font-black uppercase">
+        <div className="flex justify-center gap-2 mt-4">
+          <div className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100 text-[9px] font-black uppercase tracking-widest">
             Tasa: Bs. {tasa.toFixed(2)}
-          </span>
+          </div>
         </div>
       </div>
 
-      {/* BUSCADOR */}
-      <div className="max-w-xl mx-auto px-6 mb-12">
-        <div className="relative group">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors" />
+      {/* BUSCADOR STICKY */}
+      <div className="sticky top-4 z-40 px-6 mb-8">
+        <div className="relative max-w-xl mx-auto group">
+          <Search
+            className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-orange-500 transition-colors"
+            size={20}
+          />
           <input
             type="text"
-            placeholder="¿Qué estás buscando?"
-            className="w-full bg-white py-6 pl-14 pr-6 rounded-[2rem] shadow-xl outline-none font-bold text-sm border-2 border-transparent focus:border-orange-100 transition-all"
+            placeholder="Buscar productos..."
+            className="w-full bg-white/80 backdrop-blur-xl py-5 pl-14 pr-6 rounded-3xl shadow-xl outline-none font-bold text-sm border-2 border-transparent focus:border-orange-200 transition-all"
             onChange={(e) => setFiltro(e.target.value)}
           />
         </div>
       </div>
 
-      {/* GRILLA RESPONSIVA: 1 col móvil, 2 tablet, 3 PC */}
-      <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* PRODUCTOS */}
+      <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {productos
           .filter((p) => p.nombre.toLowerCase().includes(filtro.toLowerCase()))
           .map((p) => (
             <div
               key={p.id}
-              className="bg-white p-5 rounded-[2.5rem] flex flex-row sm:flex-col items-center gap-5 border border-white hover:border-orange-200 hover:shadow-2xl transition-all duration-300 group"
+              className="bg-white p-4 rounded-[2.5rem] flex items-center gap-4 border border-white hover:border-orange-100 hover:shadow-xl transition-all group"
             >
-              <div className="w-24 h-24 sm:w-full sm:h-52 bg-slate-50 rounded-[2rem] overflow-hidden flex-shrink-0">
+              <div className="w-20 h-20 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0">
                 {p.imagen_url ? (
                   <img
                     src={p.imagen_url}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    className="w-full h-full object-cover"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-slate-200">
-                    <Package size={48} />
+                    <Package size={30} />
                   </div>
                 )}
               </div>
-
-              <div className="flex-1 w-full flex flex-col justify-between h-full">
-                <div>
-                  <h3 className="font-black text-slate-800 text-sm uppercase leading-tight line-clamp-2 mb-1">
-                    {p.nombre}
-                  </h3>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-black text-orange-500">
-                      ${p.precio.toFixed(2)}
-                    </span>
-                  </div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                    Bs. {(p.precio * tasa).toFixed(2)}
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => agregarAlCarrito(p)}
-                  className="mt-4 w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-orange-500 transition-colors"
-                >
-                  <ShoppingCart size={14} /> Agregar
-                </button>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-black text-slate-800 text-xs uppercase truncate">
+                  {p.nombre}
+                </h3>
+                <p className="text-orange-500 font-black text-lg leading-none mt-1">
+                  ${p.precio.toFixed(2)}
+                </p>
+                <p className="text-[9px] font-bold text-slate-300 uppercase mt-1">
+                  Ref: Bs. {(p.precio * tasa).toFixed(2)}
+                </p>
               </div>
+              <button
+                onClick={() => agregarAlCarrito(p)}
+                className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center active:scale-90 hover:bg-orange-500 transition-all shadow-lg"
+              >
+                <Plus size={20} />
+              </button>
             </div>
           ))}
       </div>
 
-      {/* FOOTER CARRITO (ANCHO CONTROLADO EN PC) */}
+      {/* BOTÓN FLOTANTE CARRITO */}
       {carrito.length > 0 && (
-        <div className="fixed bottom-8 left-0 right-0 px-6 z-[100]">
-          <div className="max-w-md mx-auto">
-            <button
-              onClick={() => {
-                const totalDolar = carrito.reduce(
-                  (acc, p) => acc + p.precio * p.cant,
-                  0,
-                );
-                const msg = `*PEDIDO:*%0A${carrito.map((i) => `• ${i.cant}x ${i.nombre}`).join('%0A')}%0A%0A*TOTAL: $${totalDolar.toFixed(2)}*`;
-                window.open(
-                  `https://wa.me/${empresa.telefono}?text=${msg}`,
-                  '_blank',
-                );
-              }}
-              className="w-full bg-slate-900 text-white p-6 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.4)] flex items-center justify-between border-2 border-white/10 group active:scale-95 transition-all"
-            >
-              <div className="flex items-center gap-4">
-                <div className="bg-emerald-500 p-3 rounded-2xl group-hover:rotate-12 transition-transform">
-                  <MessageCircle size={24} />
-                </div>
-                <div className="text-left leading-none">
-                  <p className="text-[10px] font-black text-emerald-400 uppercase mb-1">
-                    Enviar Pedido
-                  </p>
-                  <p className="text-lg font-black">
-                    {carrito.length} Productos
-                  </p>
-                </div>
+        <div className="fixed bottom-6 left-0 right-0 px-6 z-50 animate-in slide-in-from-bottom-5">
+          <button
+            onClick={() => setIsCartOpen(true)}
+            className="max-w-md mx-auto w-full bg-slate-900 text-white p-5 rounded-[2.5rem] shadow-2xl flex items-center justify-between border-2 border-white/10"
+          >
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <ShoppingCart size={24} />
+                <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-slate-900">
+                  {carrito.reduce((acc, i) => acc + i.cant, 0)}
+                </span>
               </div>
-              <div className="text-right">
-                <p className="text-2xl font-black tracking-tighter">
-                  $
-                  {carrito
-                    .reduce((acc, p) => acc + p.precio * p.cant, 0)
-                    .toFixed(2)}
+              <div className="text-left">
+                <p className="text-[10px] font-black text-slate-400 uppercase leading-none">
+                  Ver Pedido
+                </p>
+                <p className="text-sm font-black uppercase tracking-tighter">
+                  Mi Carrito
                 </p>
               </div>
-            </button>
+            </div>
+            <p className="text-xl font-black">${totalDolar.toFixed(2)}</p>
+          </button>
+        </div>
+      )}
+
+      {/* DRAWER DEL CARRITO (SIDEBAR MODAL) */}
+      {isCartOpen && (
+        <div className="fixed inset-0 z-[100] flex justify-end">
+          <div
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            onClick={() => setIsCartOpen(false)}
+          />
+          <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+            {/* Header Drawer */}
+            <div className="p-6 border-b flex items-center justify-between bg-slate-50">
+              <h2 className="font-black uppercase text-lg tracking-tighter">
+                Tu Pedido
+              </h2>
+              <button
+                onClick={() => setIsCartOpen(false)}
+                className="p-2 bg-white rounded-xl shadow-sm"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Lista Drawer */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {carrito.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-4 bg-slate-50 p-4 rounded-3xl border border-slate-100"
+                >
+                  <div className="w-14 h-14 bg-white rounded-xl flex-shrink-0 overflow-hidden border border-slate-200">
+                    {item.imagen_url ? (
+                      <img
+                        src={item.imagen_url}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Package
+                        size={20}
+                        className="m-auto mt-4 text-slate-200"
+                      />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-[10px] uppercase truncate">
+                      {item.nombre}
+                    </p>
+                    <p className="text-orange-500 font-black text-sm">
+                      ${(item.precio * item.cant).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="flex items-center bg-white rounded-xl p-1 shadow-sm border border-slate-100">
+                    <button
+                      onClick={() => actualizarCant(item.id, -1)}
+                      className="p-1 text-slate-400 hover:text-red-500"
+                    >
+                      <Minus size={16} />
+                    </button>
+                    <span className="px-3 font-black text-xs">{item.cant}</span>
+                    <button
+                      onClick={() => actualizarCant(item.id, 1)}
+                      className="p-1 text-slate-400 hover:text-emerald-500"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer Drawer */}
+            <div className="p-8 border-t bg-white space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="font-bold text-slate-400 uppercase text-[10px] tracking-widest">
+                  Total Estimado
+                </p>
+                <div className="text-right">
+                  <p className="text-3xl font-black text-slate-900 leading-none">
+                    ${totalDolar.toFixed(2)}
+                  </p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">
+                    Bs. {(totalDolar * tasa).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={enviarPedido}
+                className="w-full bg-[#25D366] text-white py-6 rounded-[2rem] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl hover:brightness-110 active:scale-95 transition-all"
+              >
+                <MessageCircle size={20} strokeWidth={3} />
+                Enviar a WhatsApp
+              </button>
+            </div>
           </div>
         </div>
       )}
