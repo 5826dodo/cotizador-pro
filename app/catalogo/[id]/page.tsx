@@ -12,6 +12,7 @@ import {
   Plus,
   Minus,
   Trash2,
+  CheckCircle2,
 } from 'lucide-react';
 
 export default function CatalogoPublico({
@@ -29,33 +30,30 @@ export default function CatalogoPublico({
   const [carrito, setCarrito] = useState<any[]>([]);
   const [tasa, setTasa] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [pedidoEnviado, setPedidoEnviado] = useState(false);
 
   useEffect(() => {
     const cargarTodo = async () => {
       try {
         if (!empresaId) return;
-        const { data: emp, error: empErr } = await supabase
+        const { data: emp } = await supabase
           .from('empresas')
           .select('*')
           .eq('id', empresaId)
           .single();
-        if (empErr) throw empErr;
         setEmpresa(emp);
-
         const { data: prods } = await supabase
           .from('productos')
           .select('*')
           .eq('empresa_id', empresaId)
           .gt('stock', 0);
         setProductos(prods || []);
-
         const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
         const d = await res.json();
         setTasa(d.promedio || 0);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err) {
+        console.error(err);
       } finally {
         setLoading(false);
       }
@@ -71,7 +69,7 @@ export default function CatalogoPublico({
     };
   }, []);
 
-  // --- LÓGICA DEL CARRITO CENTRALIZADA ---
+  // --- LÓGICA DE CARRITO ---
   const agregarAlCarrito = (p: any) => {
     setCarrito((prev) => {
       const ex = prev.find((i) => i.id === p.id);
@@ -83,14 +81,14 @@ export default function CatalogoPublico({
     });
   };
 
-  const actualizarCant = (id: string, delta: number) => {
+  const actualizarCant = (id: string, nuevaCant: number) => {
     setCarrito(
       (prev) =>
         prev
           .map((item) => {
             if (item.id === id) {
-              const nuevaCant = Math.max(0, item.cant + delta);
-              return nuevaCant === 0 ? null : { ...item, cant: nuevaCant };
+              if (nuevaCant <= 0) return null;
+              return { ...item, cant: nuevaCant };
             }
             return item;
           })
@@ -98,12 +96,24 @@ export default function CatalogoPublico({
     );
   };
 
-  const eliminarDelCarrito = (id: string) => {
-    setCarrito((prev) => prev.filter((item) => item.id !== id));
+  const manejarInputCant = (id: string, valor: string) => {
+    const num = parseInt(valor);
+    if (!isNaN(num)) {
+      actualizarCant(id, num);
+    } else if (valor === '') {
+      // Permitir temporalmente el campo vacío mientras el usuario borra
+      setCarrito((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, cant: '' as any } : item,
+        ),
+      );
+    }
   };
 
-  const obtenerCantEnCarrito = (id: string) => {
-    return carrito.find((item) => item.id === id)?.cant || 0;
+  const validarInputBlur = (id: string, cantActual: any) => {
+    if (cantActual === '' || isNaN(cantActual) || cantActual < 1) {
+      actualizarCant(id, 1);
+    }
   };
 
   const totalDolar = carrito.reduce((acc, p) => acc + p.precio * p.cant, 0);
@@ -113,28 +123,47 @@ export default function CatalogoPublico({
     carrito.forEach((i) => {
       mensaje += `• ${i.cant}x ${i.nombre} ($${(i.precio * i.cant).toFixed(2)})%0A`;
     });
-    mensaje += `%0A*TOTAL A PAGAR:*%0A💵 *$${totalDolar.toFixed(2)}*%0A🇻🇪 *Bs. ${(totalDolar * tasa).toFixed(2)}*%0A%0A_Enviado desde Ventiq_`;
+    mensaje += `%0A*TOTAL:* *$${totalDolar.toFixed(2)}*%0A*Bs. ${(totalDolar * tasa).toFixed(2)}*%0A%0A_Enviado desde Ventiq_`;
+
     window.open(
       `https://wa.me/${empresa.telefono?.replace(/\D/g, '')}?text=${mensaje}`,
       '_blank',
     );
+
+    // Acciones Post-Envío
+    setCarrito([]);
+    setIsCartOpen(false);
+    setPedidoEnviado(true);
+    setTimeout(() => setPedidoEnviado(false), 5000);
   };
 
   if (loading)
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-white">
-        <div className="w-12 h-12 border-4 border-slate-900 border-t-orange-500 rounded-full animate-spin"></div>
-        <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
-          Preparando vitrina...
-        </p>
+      <div className="h-screen flex flex-col items-center justify-center bg-white italic">
+        <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-32 font-sans">
-      {/* HEADER TIPO BANNER */}
-      <div className="bg-white px-6 pt-12 pb-16 rounded-b-[4rem] shadow-sm text-center mb-8 border-b border-slate-100 relative overflow-hidden">
-        <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] mx-auto mb-4 flex items-center justify-center overflow-hidden border-4 border-white shadow-xl relative z-10">
+    <div className="min-h-screen bg-[#F8FAFC] pb-32">
+      {/* MENSAJE DE ÉXITO FLOTANTE */}
+      {pedidoEnviado && (
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm bg-emerald-600 text-white p-6 rounded-[2rem] shadow-2xl flex items-center gap-4 animate-in fade-in zoom-in slide-in-from-top-10 duration-500">
+          <CheckCircle2 size={40} className="flex-shrink-0" />
+          <div>
+            <p className="font-black uppercase text-xs tracking-widest">
+              ¡Pedido Enviado!
+            </p>
+            <p className="text-[10px] opacity-90 font-bold">
+              Hemos vaciado tu carrito. Revisa tu WhatsApp para finalizar.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* HEADER */}
+      <div className="bg-white px-6 py-10 rounded-b-[4rem] shadow-sm text-center mb-8 border-b border-slate-100">
+        <div className="w-20 h-20 bg-slate-50 rounded-[2rem] mx-auto mb-4 flex items-center justify-center overflow-hidden border border-slate-100">
           {empresa?.logo_url ? (
             <img
               src={empresa.logo_url}
@@ -144,88 +173,79 @@ export default function CatalogoPublico({
             <Building2 className="text-slate-200" size={32} />
           )}
         </div>
-        <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none relative z-10">
+        <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">
           {empresa?.nombre}
         </h1>
-        <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-600 px-4 py-1.5 rounded-full mt-4 border border-emerald-100 relative z-10">
-          <span className="text-[10px] font-black uppercase tracking-widest">
-            Tasa: Bs. {tasa.toFixed(2)}
-          </span>
+        <div className="mt-4 px-4 py-1.5 bg-emerald-50 text-emerald-600 rounded-full inline-block border border-emerald-100 text-[9px] font-black uppercase">
+          Tasa: Bs. {tasa.toFixed(2)}
         </div>
-        {/* Decoración de fondo */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 rounded-full -mr-16 -mt-16 animate-pulse"></div>
       </div>
 
       {/* BUSCADOR */}
-      <div className="sticky top-6 z-40 px-6 mb-10">
-        <div className="relative max-w-xl mx-auto">
+      <div className="sticky top-6 z-40 px-6 mb-10 max-w-xl mx-auto">
+        <div className="relative">
           <Search
             className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400"
             size={18}
           />
           <input
             type="text"
-            placeholder="¿Qué te provoca hoy?"
-            className="w-full bg-white/90 backdrop-blur-xl py-6 pl-14 pr-6 rounded-[2.2rem] shadow-2xl outline-none font-bold text-sm border-2 border-transparent focus:border-orange-200 transition-all placeholder:text-slate-300"
+            placeholder="¿Qué deseas pedir?"
+            className="w-full bg-white/90 backdrop-blur-xl py-6 pl-14 pr-6 rounded-[2.2rem] shadow-2xl outline-none font-bold text-sm border-2 border-transparent focus:border-orange-200 transition-all"
             onChange={(e) => setFiltro(e.target.value)}
           />
         </div>
       </div>
 
-      {/* LISTA DE PRODUCTOS */}
+      {/* GRID PRODUCTOS */}
       <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {productos
           .filter((p) => p.nombre.toLowerCase().includes(filtro.toLowerCase()))
           .map((p) => {
-            const cant = obtenerCantEnCarrito(p.id);
+            const itemEnCarrito = carrito.find((i) => i.id === p.id);
+            const cant = itemEnCarrito?.cant || 0;
             return (
               <div
                 key={p.id}
-                className={`bg-white p-5 rounded-[2.8rem] flex flex-row items-center gap-5 border-2 transition-all duration-300 ${cant > 0 ? 'border-orange-500 shadow-orange-100 shadow-xl' : 'border-transparent shadow-sm'}`}
+                className={`bg-white p-5 rounded-[2.8rem] flex flex-row items-center gap-5 border-2 transition-all duration-300 ${cant > 0 ? 'border-orange-500 shadow-xl shadow-orange-50' : 'border-transparent shadow-sm'}`}
               >
-                {/* Imagen con badge de cantidad */}
                 <div className="relative w-24 h-24 flex-shrink-0">
-                  <div className="w-full h-full bg-slate-50 rounded-3xl overflow-hidden border border-slate-50">
+                  <div className="w-full h-full bg-slate-50 rounded-3xl overflow-hidden">
                     {p.imagen_url ? (
                       <img
                         src={p.imagen_url}
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-200">
-                        <Package size={30} />
-                      </div>
+                      <Package
+                        className="m-auto mt-6 text-slate-200"
+                        size={30}
+                      />
                     )}
                   </div>
-                  {cant > 0 && (
-                    <div className="absolute -top-2 -right-2 bg-orange-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-xs border-4 border-white shadow-lg animate-in zoom-in">
-                      {cant}
-                    </div>
-                  )}
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-black text-slate-800 text-xs uppercase leading-tight mb-1">
+                  <h3 className="font-black text-slate-800 text-xs uppercase leading-tight mb-1 truncate">
                     {p.nombre}
                   </h3>
                   <p className="text-orange-500 font-black text-xl leading-none">
                     ${p.precio.toFixed(2)}
                   </p>
 
-                  {/* CONTROLES DE CANTIDAD EN LA CARD */}
-                  <div className="mt-3 flex items-center gap-2">
+                  <div className="mt-4 flex items-center gap-2">
                     {cant === 0 ? (
                       <button
                         onClick={() => agregarAlCarrito(p)}
-                        className="bg-slate-900 text-white px-4 py-2.5 rounded-2xl flex items-center gap-2 active:scale-95 transition-all text-[10px] font-black uppercase tracking-widest shadow-md"
+                        className="bg-slate-900 text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 active:scale-95 transition-all text-[10px] font-black uppercase tracking-widest"
                       >
                         <Plus size={14} /> Añadir
                       </button>
                     ) : (
-                      <div className="flex items-center bg-slate-100 rounded-2xl p-1 gap-1 animate-in slide-in-from-left-2">
+                      <div className="flex items-center bg-slate-100 rounded-2xl p-1 gap-1">
                         <button
-                          onClick={() => actualizarCant(p.id, -1)}
-                          className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-600 hover:text-red-500 transition-colors"
+                          onClick={() => actualizarCant(p.id, cant - 1)}
+                          className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-400"
                         >
                           {cant === 1 ? (
                             <Trash2 size={14} />
@@ -233,12 +253,18 @@ export default function CatalogoPublico({
                             <Minus size={14} />
                           )}
                         </button>
-                        <span className="w-6 text-center font-black text-xs text-slate-900">
-                          {cant}
-                        </span>
+                        <input
+                          type="number"
+                          value={cant}
+                          onChange={(e) =>
+                            manejarInputCant(p.id, e.target.value)
+                          }
+                          onBlur={() => validarInputBlur(p.id, cant)}
+                          className="w-10 bg-transparent text-center font-black text-xs text-slate-900 outline-none"
+                        />
                         <button
-                          onClick={() => actualizarCant(p.id, 1)}
-                          className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-600 hover:text-emerald-500 transition-colors"
+                          onClick={() => actualizarCant(p.id, cant + 1)}
+                          className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-400"
                         >
                           <Plus size={14} />
                         </button>
@@ -251,16 +277,16 @@ export default function CatalogoPublico({
           })}
       </div>
 
-      {/* BOTÓN FLOTANTE CARRITO */}
+      {/* BOTÓN FLOTANTE */}
       {carrito.length > 0 && (
-        <div className="fixed bottom-8 left-0 right-0 px-6 z-50 animate-in slide-in-from-bottom-10 duration-500">
+        <div className="fixed bottom-8 left-0 right-0 px-6 z-50">
           <button
             onClick={() => setIsCartOpen(true)}
-            className="max-w-md mx-auto w-full bg-[#1A1D23] text-white p-6 rounded-[2.8rem] shadow-[0_25px_50px_rgba(0,0,0,0.4)] flex items-center justify-between border-t border-white/10 hover:scale-[1.02] transition-transform"
+            className="max-w-md mx-auto w-full bg-[#1A1D23] text-white p-6 rounded-[2.8rem] shadow-2xl flex items-center justify-between border-t border-white/10 active:scale-95 transition-transform"
           >
             <div className="flex items-center gap-4">
               <div className="relative bg-orange-500 p-3 rounded-2xl">
-                <ShoppingCart size={24} strokeWidth={2.5} />
+                <ShoppingCart size={24} />
               </div>
               <div className="text-left">
                 <p className="text-[10px] font-black text-orange-400 uppercase leading-none mb-1">
@@ -271,14 +297,7 @@ export default function CatalogoPublico({
                 </p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-2xl font-black leading-none">
-                ${totalDolar.toFixed(2)}
-              </p>
-              <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">
-                Ver pedido
-              </p>
-            </div>
+            <p className="text-2xl font-black">${totalDolar.toFixed(2)}</p>
           </button>
         </div>
       )}
@@ -290,31 +309,26 @@ export default function CatalogoPublico({
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-md"
             onClick={() => setIsCartOpen(false)}
           />
-          <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-500 ease-out">
-            <div className="p-8 border-b flex items-center justify-between bg-slate-50/50">
-              <div>
-                <h2 className="font-black uppercase text-2xl tracking-tighter text-slate-900 leading-none">
-                  Mi Pedido
-                </h2>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                  Resumen de compra
-                </p>
-              </div>
+          <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-500">
+            <div className="p-8 border-b flex items-center justify-between">
+              <h2 className="font-black uppercase text-2xl tracking-tighter">
+                Mi Pedido
+              </h2>
               <button
                 onClick={() => setIsCartOpen(false)}
-                className="w-12 h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 active:scale-90 transition-all"
+                className="w-12 h-12 flex items-center justify-center bg-slate-50 rounded-2xl"
               >
-                <X size={24} className="text-slate-400" />
+                <X size={24} />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 space-y-5">
+            <div className="flex-1 overflow-y-auto p-8 space-y-4">
               {carrito.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-5 bg-white p-2 rounded-[2rem] animate-in slide-in-from-bottom-2"
+                  className="flex items-center gap-4 bg-slate-50 p-4 rounded-3xl border border-slate-100"
                 >
-                  <div className="w-16 h-16 bg-slate-50 rounded-2xl flex-shrink-0 overflow-hidden border border-slate-100">
+                  <div className="w-14 h-14 bg-white rounded-xl overflow-hidden border">
                     {item.imagen_url ? (
                       <img
                         src={item.imagen_url}
@@ -322,23 +336,23 @@ export default function CatalogoPublico({
                       />
                     ) : (
                       <Package
-                        size={20}
-                        className="m-auto mt-5 text-slate-200"
+                        size={16}
+                        className="m-auto mt-4 text-slate-200"
                       />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-black text-xs uppercase text-slate-800 leading-tight">
+                    <p className="font-black text-[10px] uppercase text-slate-800 truncate">
                       {item.nombre}
                     </p>
-                    <p className="text-orange-500 font-black text-sm mt-0.5">
+                    <p className="text-orange-500 font-black text-sm">
                       ${(item.precio * item.cant).toFixed(2)}
                     </p>
                   </div>
-                  <div className="flex items-center bg-slate-50 rounded-2xl p-1 gap-1 border border-slate-100 shadow-inner">
+                  <div className="flex items-center bg-white rounded-xl p-1 gap-1 border shadow-sm">
                     <button
-                      onClick={() => actualizarCant(item.id, -1)}
-                      className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-400 hover:text-red-500"
+                      onClick={() => actualizarCant(item.id, item.cant - 1)}
+                      className="w-8 h-8 flex items-center justify-center text-slate-400"
                     >
                       {item.cant === 1 ? (
                         <Trash2 size={14} />
@@ -346,52 +360,40 @@ export default function CatalogoPublico({
                         <Minus size={14} />
                       )}
                     </button>
-                    <span className="w-6 text-center font-black text-xs text-slate-900">
-                      {item.cant}
-                    </span>
+                    <input
+                      type="number"
+                      value={item.cant}
+                      onChange={(e) =>
+                        manejarInputCant(item.id, e.target.value)
+                      }
+                      onBlur={() => validarInputBlur(item.id, item.cant)}
+                      className="w-8 bg-transparent text-center font-black text-xs outline-none"
+                    />
                     <button
-                      onClick={() => actualizarCant(item.id, 1)}
-                      className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-400 hover:text-emerald-500"
+                      onClick={() => actualizarCant(item.id, item.cant + 1)}
+                      className="w-8 h-8 flex items-center justify-center text-slate-400"
                     >
                       <Plus size={14} />
                     </button>
                   </div>
                 </div>
               ))}
-              {carrito.length === 0 && (
-                <div className="text-center py-20 opacity-20">
-                  <ShoppingCart size={60} className="mx-auto mb-4" />
-                  <p className="font-black uppercase tracking-widest text-xs">
-                    Tu carrito está vacío
-                  </p>
-                </div>
-              )}
             </div>
 
             <div className="p-8 border-t bg-slate-50/50 space-y-6">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-black text-slate-900 text-3xl leading-none tracking-tighter">
-                    ${totalDolar.toFixed(2)}
-                  </p>
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                    Total en Bs. {(totalDolar * tasa).toFixed(2)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
-                    Checkout Seguro
-                  </p>
-                </div>
+                <p className="font-black text-slate-900 text-3xl tracking-tighter">
+                  ${totalDolar.toFixed(2)}
+                </p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-white px-3 py-1 rounded-full border">
+                  Bs. {(totalDolar * tasa).toFixed(2)}
+                </p>
               </div>
-
               <button
                 onClick={enviarPedido}
-                disabled={carrito.length === 0}
-                className="w-full bg-[#25D366] text-white py-6 rounded-[2.2rem] font-black uppercase text-sm tracking-widest flex items-center justify-center gap-3 shadow-xl shadow-emerald-200 hover:brightness-105 active:scale-[0.98] transition-all disabled:grayscale disabled:opacity-50"
+                className="w-full bg-[#25D366] text-white py-6 rounded-[2.2rem] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl hover:brightness-105 active:scale-[0.98] transition-all"
               >
-                <MessageCircle size={22} strokeWidth={3} />
-                Confirmar por WhatsApp
+                <MessageCircle size={22} strokeWidth={3} /> Enviar Pedido
               </button>
             </div>
           </div>
