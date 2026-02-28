@@ -33,6 +33,10 @@ export default function CatalogoPublico({
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [pedidoEnviado, setPedidoEnviado] = useState(false);
 
+  const eliminarDelCarrito = (id: string) => {
+    setCarrito((prev) => prev.filter((item) => item.id !== id));
+  };
+
   useEffect(() => {
     const cargarTodo = async () => {
       try {
@@ -232,7 +236,6 @@ export default function CatalogoPublico({
                   <p className="text-orange-500 font-black text-xl leading-none">
                     ${p.precio.toFixed(2)}
                   </p>
-
                   <div className="mt-4 flex items-center gap-2">
                     {cant === 0 ? (
                       <button
@@ -242,10 +245,13 @@ export default function CatalogoPublico({
                         <Plus size={14} /> Añadir
                       </button>
                     ) : (
-                      <div className="flex items-center bg-slate-100 rounded-2xl p-1 gap-1">
+                      <div className="flex items-center bg-slate-100 rounded-2xl p-1 gap-1 animate-in slide-in-from-left-2">
                         <button
-                          onClick={() => actualizarCant(p.id, cant - 1)}
-                          className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-400"
+                          onClick={() => {
+                            if (cant === 1) eliminarDelCarrito(p.id);
+                            else actualizarCant(p.id, cant - 1);
+                          }}
+                          className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-400 hover:text-red-500 transition-colors"
                         >
                           {cant === 1 ? (
                             <Trash2 size={14} />
@@ -253,6 +259,7 @@ export default function CatalogoPublico({
                             <Minus size={14} />
                           )}
                         </button>
+
                         <input
                           type="number"
                           value={cant}
@@ -262,9 +269,10 @@ export default function CatalogoPublico({
                           onBlur={() => validarInputBlur(p.id, cant)}
                           className="w-10 bg-transparent text-center font-black text-xs text-slate-900 outline-none"
                         />
+
                         <button
                           onClick={() => actualizarCant(p.id, cant + 1)}
-                          className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-400"
+                          className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-400 hover:text-emerald-500"
                         >
                           <Plus size={14} />
                         </button>
@@ -323,12 +331,21 @@ export default function CatalogoPublico({
             </div>
 
             <div className="flex-1 overflow-y-auto p-8 space-y-4">
+              {/* Dentro del mapeo del carrito en el Drawer */}
               {carrito.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-4 bg-slate-50 p-4 rounded-3xl border border-slate-100"
+                  className="group relative flex items-center gap-4 bg-white p-4 rounded-[2rem] border border-slate-100 shadow-sm"
                 >
-                  <div className="w-14 h-14 bg-white rounded-xl overflow-hidden border">
+                  {/* Botón de eliminar absoluto (fácil de tocar) */}
+                  <button
+                    onClick={() => eliminarDelCarrito(item.id)}
+                    className="absolute -top-1 -right-1 bg-red-50 text-red-500 p-2 rounded-full border border-red-100 shadow-sm opacity-0 group-hover:opacity-100 md:opacity-100 transition-opacity"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+
+                  <div className="w-16 h-16 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0">
                     {item.imagen_url ? (
                       <img
                         src={item.imagen_url}
@@ -336,29 +353,28 @@ export default function CatalogoPublico({
                       />
                     ) : (
                       <Package
-                        size={16}
-                        className="m-auto mt-4 text-slate-200"
+                        size={20}
+                        className="m-auto mt-5 text-slate-200"
                       />
                     )}
                   </div>
+
                   <div className="flex-1 min-w-0">
-                    <p className="font-black text-[10px] uppercase text-slate-800 truncate">
+                    <p className="font-black text-[10px] uppercase text-slate-800 truncate pr-4">
                       {item.nombre}
                     </p>
                     <p className="text-orange-500 font-black text-sm">
                       ${(item.precio * item.cant).toFixed(2)}
                     </p>
                   </div>
-                  <div className="flex items-center bg-white rounded-xl p-1 gap-1 border shadow-sm">
+
+                  {/* Controles de cantidad */}
+                  <div className="flex items-center bg-slate-50 rounded-2xl p-1 gap-1 border">
                     <button
                       onClick={() => actualizarCant(item.id, item.cant - 1)}
                       className="w-8 h-8 flex items-center justify-center text-slate-400"
                     >
-                      {item.cant === 1 ? (
-                        <Trash2 size={14} />
-                      ) : (
-                        <Minus size={14} />
-                      )}
+                      <Minus size={14} />
                     </button>
                     <input
                       type="number"
