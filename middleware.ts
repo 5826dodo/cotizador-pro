@@ -42,9 +42,15 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // 1. Si NO hay usuario y no está en login, redirigir al login
-  if (!user && !url.pathname.startsWith('/login')) {
-    return NextResponse.redirect(new URL('/login', request.url));
+  // 1. Si NO hay usuario
+  if (!user) {
+    // Permitir acceso SIN LOGIN solo a /login y a /catalogo
+    const esRutaPublica =
+      url.pathname.startsWith('/login') || url.pathname.startsWith('/catalogo');
+
+    if (!esRutaPublica) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
   }
 
   // 2. Si HAY usuario, verificamos su rol para redirecciones automáticas
@@ -82,13 +88,10 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  /*
-   * El matcher ahora excluye explícitamente:
-   * - api, _next/static, _next/image, favicon.ico
-   * - Cualquier archivo que termine en extensiones de imagen comunes
-   */
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-    '/((?!api|_next/static|_next/image|favicon.ico|catalogo).*)',
+    /*
+     * Excluimos: api, _next, favicon y catalogo
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico|catalogo|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
