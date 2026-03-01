@@ -214,19 +214,34 @@ export default function CatalogoPublico({
                 className={`bg-white p-5 rounded-[2.8rem] flex flex-row items-center gap-5 border-2 transition-all duration-300 ${cant > 0 ? 'border-orange-500 shadow-xl shadow-orange-50' : 'border-transparent shadow-sm'}`}
               >
                 <div className="relative w-24 h-24 flex-shrink-0">
-                  <div className="w-full h-full bg-slate-50 rounded-3xl overflow-hidden">
+                  <div className="w-full h-full bg-slate-100 rounded-3xl overflow-hidden border border-slate-50 relative">
+                    {/* Placeholder mientras carga */}
+                    <div className="absolute inset-0 flex items-center justify-center text-slate-300 animate-pulse">
+                      <Package size={24} />
+                    </div>
+
                     {p.imagen_url ? (
                       <img
                         src={p.imagen_url}
-                        className="w-full h-full object-cover"
+                        alt={p.nombre}
+                        loading="lazy" // <--- LA MAGIA: El navegador gestiona la carga
+                        decoding="async" // <--- Optimiza el renderizado
+                        className="w-full h-full object-cover relative z-10 transition-opacity duration-500 opacity-0"
+                        onLoad={(e) => (e.currentTarget.style.opacity = '1')} // Aparece suavemente al cargar
                       />
                     ) : (
-                      <Package
-                        className="m-auto mt-6 text-slate-200"
-                        size={30}
-                      />
+                      <div className="w-full h-full flex items-center justify-center text-slate-200 bg-slate-50">
+                        <Package size={30} />
+                      </div>
                     )}
                   </div>
+
+                  {/* Badge de cantidad (se mantiene igual) */}
+                  {cant > 0 && (
+                    <div className="absolute -top-2 -right-2 bg-orange-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-xs border-4 border-white shadow-lg animate-in zoom-in">
+                      {cant}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex-1 min-w-0">
