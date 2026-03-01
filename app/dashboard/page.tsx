@@ -44,6 +44,54 @@ export default function InventarioPage() {
     if (data) setProductos(data);
   };
 
+  // Función para comprimir y redimensionar la imagen antes de subirla
+  const optimizarImagen = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800; // Tamaño máximo suficiente para un catálogo móvil
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          // Mantener proporción
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          // Convertir a WebP (más ligero) o JPEG con calidad 0.7
+          canvas.toBlob(
+            (blob) => {
+              if (blob) resolve(blob);
+              else reject(new Error('Error al comprimir imagen'));
+            },
+            'image/webp', // Formato moderno de alta compresión
+            0.7, // Calidad (70%)
+          );
+        };
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
   useEffect(() => {
     const inicializarDatos = async () => {
       const {
@@ -69,19 +117,24 @@ export default function InventarioPage() {
 
   // Función para subir la imagen al Storage
   const subirImagen = async (file: File) => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${empresaId}/${Math.random()}.${fileExt}`;
+    // 1. Optimizamos el archivo antes de cualquier proceso de subida
+    const imagenOptimizada = await optimizarImagen(file);
 
-    const { error: uploadError, data } = await supabase.storage
+    // 2. Definimos el nombre con extensión .webp ya que forzamos ese formato
+    const fileName = `${empresaId}/${Math.random()}.webp`;
+
+    const { error: uploadError } = await supabase.storage
       .from('productos')
-      .upload(fileName, file);
+      .upload(fileName, imagenOptimizada, {
+        contentType: 'image/webp',
+        upsert: true,
+      });
 
     if (uploadError) throw uploadError;
 
     const {
       data: { publicUrl },
     } = supabase.storage.from('productos').getPublicUrl(fileName);
-
     return publicUrl;
   };
 
