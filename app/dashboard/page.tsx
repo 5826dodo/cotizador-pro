@@ -231,6 +231,13 @@ export default function InventarioPage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+
+      // Si el archivo es mayor a 10MB, ni lo procesamos
+      if (file.size > 10 * 1024 * 1024) {
+        alert('La imagen es demasiado pesada. Intenta con una menor a 10MB.');
+        return;
+      }
+
       setImagenFile(file);
       setPreviewUrl(URL.createObjectURL(file));
     }
