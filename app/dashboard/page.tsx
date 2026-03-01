@@ -41,9 +41,17 @@ export default function InventarioPage() {
   const obtenerProductos = async (idEmpresa: string) => {
     const { data } = await supabase
       .from('productos')
-      .select('*')
+      .select(
+        `
+      *,
+      categorias (
+        nombre
+      )
+    `,
+      )
       .eq('empresa_id', idEmpresa)
       .order('created_at', { ascending: false });
+
     if (data) setProductos(data);
   };
 
@@ -171,6 +179,7 @@ export default function InventarioPage() {
         unidad_medida: unidad,
         empresa_id: empresaId,
         imagen_url: finalImageUrl,
+        categoria_id: categoriaId === '' ? null : categoriaId,
       };
 
       let error;
@@ -227,6 +236,7 @@ export default function InventarioPage() {
     setPrecio(prod.precio.toString());
     setStock(prod.stock.toString());
     setUnidad(prod.unidad_medida || 'UNIDADES');
+    setCategoriaId(prod.categoria_id || '');
     setPreviewUrl(prod.imagen_url);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -237,6 +247,7 @@ export default function InventarioPage() {
     setPrecio('');
     setStock('');
     setUnidad('UNIDADES');
+    setCategoriaId('');
     setImagenFile(null);
     setPreviewUrl(null);
   };
@@ -471,6 +482,18 @@ export default function InventarioPage() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
+                    {/* CATEGORÍA BADGE */}
+                    <div className="flex items-center gap-2 mb-1">
+                      <span
+                        className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                          prod.categorias?.nombre
+                            ? 'bg-orange-100 text-orange-600'
+                            : 'bg-slate-100 text-slate-400'
+                        }`}
+                      >
+                        {prod.categorias?.nombre || 'General'}
+                      </span>
+                    </div>
                     <h3 className="font-black text-slate-800 text-sm uppercase truncate">
                       {prod.nombre || 'Sin nombre'}
                     </h3>
