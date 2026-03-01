@@ -35,6 +35,9 @@ export default function InventarioPage() {
 
   const unidadesMedida = ['UNIDADES', 'LITROS', 'KILOS', 'METROS', 'PAQUETES'];
 
+  const [categorias, setCategorias] = useState<any[]>([]); // Nuevo
+  const [categoriaId, setCategoriaId] = useState(''); // Nuevo
+
   const obtenerProductos = async (idEmpresa: string) => {
     const { data } = await supabase
       .from('productos')
@@ -92,6 +95,7 @@ export default function InventarioPage() {
     });
   };
 
+  // Actualiza inicializarDatos para traer las categorías
   useEffect(() => {
     const inicializarDatos = async () => {
       const {
@@ -107,7 +111,16 @@ export default function InventarioPage() {
         if (perfil) {
           setEmpresaId(perfil.empresa_id);
           setNombreEmpresa((perfil.empresas as any)?.nombre || 'Mi Empresa');
+
+          // CARGAR PRODUCTOS Y CATEGORÍAS
           await obtenerProductos(perfil.empresa_id);
+
+          const { data: cats } = await supabase
+            .from('categorias')
+            .select('*')
+            .eq('empresa_id', perfil.empresa_id)
+            .order('nombre');
+          setCategorias(cats || []);
         }
       }
       setCargando(false);
@@ -304,18 +317,41 @@ export default function InventarioPage() {
             </div>
 
             <div className="md:col-span-2 space-y-4">
+              {/* Nombre con Placeholder */}
               <div className="space-y-1">
                 <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
                   Nombre del Producto
                 </label>
                 <input
+                  placeholder="Ej: Hamburguesa con Queso o Cambio de Aceite"
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
                   required
-                  className="w-full bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-orange-500 font-bold"
+                  className="w-full bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-orange-500 font-bold placeholder:text-slate-300 transition-all"
                 />
               </div>
+
               <div className="grid grid-cols-2 gap-4">
+                {/* Selector de Categoría */}
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
+                    Categoría
+                  </label>
+                  <select
+                    value={categoriaId}
+                    onChange={(e) => setCategoriaId(e.target.value)}
+                    className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold appearance-none text-slate-700 cursor-pointer border-2 border-transparent focus:border-orange-500 transition-all"
+                  >
+                    <option value="">GENERAL / SIN CAT.</option>
+                    {categorias.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Precio con Placeholder */}
                 <div className="space-y-1">
                   <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
                     Precio ($)
@@ -323,27 +359,12 @@ export default function InventarioPage() {
                   <input
                     type="number"
                     step="0.01"
+                    placeholder="0.00"
                     value={precio}
                     onChange={(e) => setPrecio(e.target.value)}
                     required
-                    className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold"
+                    className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold placeholder:text-slate-300 focus:ring-2 ring-orange-500 transition-all"
                   />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
-                    Unidad
-                  </label>
-                  <select
-                    value={unidad}
-                    onChange={(e) => setUnidad(e.target.value)}
-                    className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold appearance-none"
-                  >
-                    {unidadesMedida.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
             </div>
