@@ -14,6 +14,7 @@ import {
   LogOut,
   Power,
   RefreshCw,
+  LayoutGrid,
 } from 'lucide-react';
 
 export default function Navbar() {
@@ -119,6 +120,7 @@ export default function Navbar() {
 
   const links = [
     { name: 'Stock', href: '/', icon: Package },
+    { name: 'Categorías', href: '/categorias', icon: LayoutGrid }, // <-- NUEVO LINK
     { name: 'Clientes', href: '/clientes', icon: Users },
     { name: 'Venta-Cotizar', href: '/cotizar', icon: FileEdit },
     { name: 'Historial', href: '/historial', icon: History },
