@@ -32,6 +32,8 @@ export default function CatalogoPublico({
   const [loading, setLoading] = useState(true);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [pedidoEnviado, setPedidoEnviado] = useState(false);
+  const [categorias, setCategorias] = useState<any[]>([]); // Para guardar la lista de la DB
+  const [catSeleccionada, setCatSeleccionada] = useState('todas'); // Para saber qué filtro aplicó el cliente
 
   const eliminarDelCarrito = (id: string) => {
     setCarrito((prev) => prev.filter((item) => item.id !== id));
@@ -60,6 +62,15 @@ export default function CatalogoPublico({
         console.error(err);
       } finally {
         setLoading(false);
+      }
+      if (empresaId) {
+        const { data: cats } = await supabase
+          .from('categorias')
+          .select('*')
+          .eq('empresa_id', empresaId)
+          .order('nombre', { ascending: true });
+
+        setCategorias(cats || []);
       }
     };
     cargarTodo();
@@ -200,11 +211,51 @@ export default function CatalogoPublico({
           />
         </div>
       </div>
+      {/* BARRA DE CATEGORÍAS (CHIPS) - Solo se muestra si hay más de 0 categorías */}
+      {categorias.length > 0 && (
+        <div className="w-full overflow-x-auto no-scrollbar py-4 px-6 mb-4 flex gap-3 sticky top-[72px] bg-slate-50/80 backdrop-blur-md z-30">
+          <button
+            onClick={() => setCatSeleccionada('todas')}
+            className={`px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${
+              catSeleccionada === 'todas'
+                ? 'bg-[#1A1D23] text-[#FF9800] border-[#1A1D23] shadow-lg shadow-orange-100'
+                : 'bg-white text-slate-400 border-white hover:border-slate-200'
+            }`}
+          >
+            Ver Todo
+          </button>
+
+          {categorias.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setCatSeleccionada(cat.id)}
+              className={`px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${
+                catSeleccionada === cat.id
+                  ? 'bg-[#1A1D23] text-[#FF9800] border-[#1A1D23] shadow-lg shadow-orange-100'
+                  : 'bg-white text-slate-400 border-white hover:border-slate-200'
+              }`}
+            >
+              {cat.nombre}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* GRID PRODUCTOS */}
       <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {productos
-          .filter((p) => p.nombre.toLowerCase().includes(filtro.toLowerCase()))
+          .filter((p) => {
+            // Filtro por buscador de texto
+            const matchBusqueda = p.nombre
+              .toLowerCase()
+              .includes(filtro.toLowerCase());
+
+            // Filtro por Categoría: Si es 'todas' pasa todo, si no, debe coincidir el ID
+            const matchCategoria =
+              catSeleccionada === 'todas' || p.categoria_id === catSeleccionada;
+
+            return matchBusqueda && matchCategoria;
+          })
           .map((p) => {
             const itemEnCarrito = carrito.find((i) => i.id === p.id);
             const cant = itemEnCarrito?.cant || 0;
