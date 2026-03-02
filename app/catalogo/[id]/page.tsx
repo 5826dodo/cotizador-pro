@@ -7,7 +7,6 @@ import {
   MessageCircle,
   Building2,
   Package,
-  AlertCircle,
   X,
   Plus,
   Minus,
@@ -32,13 +31,26 @@ export default function CatalogoPublico({
   const [loading, setLoading] = useState(true);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [pedidoEnviado, setPedidoEnviado] = useState(false);
-  const [categorias, setCategorias] = useState<any[]>([]); // Para guardar la lista de la DB
-  const [catSeleccionada, setCatSeleccionada] = useState('todas'); // Para saber qué filtro aplicó el cliente
+  const [categorias, setCategorias] = useState<any[]>([]);
+  const [catSeleccionada, setCatSeleccionada] = useState('todas');
 
-  const eliminarDelCarrito = (id: string) => {
-    setCarrito((prev) => prev.filter((item) => item.id !== id));
-  };
+  // --- EFECTO AGRESIVO PARA OCULTAR NAVBAR ---
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.id = 'hide-navbar-forced';
+    style.innerHTML = `
+      nav, header, aside, [role="navigation"] { display: none !important; opacity: 0 !important; pointer-events: none !important; }
+      body { padding-top: 0 !important; }
+    `;
+    document.head.appendChild(style);
 
+    return () => {
+      const el = document.getElementById('hide-navbar-forced');
+      if (el) el.remove();
+    };
+  }, []);
+
+  // --- CARGA DE DATOS ---
   useEffect(() => {
     const cargarTodo = async () => {
       try {
@@ -49,12 +61,21 @@ export default function CatalogoPublico({
           .eq('id', empresaId)
           .single();
         setEmpresa(emp);
+
         const { data: prods } = await supabase
           .from('productos')
           .select('*')
           .eq('empresa_id', empresaId)
           .gt('stock', 0);
         setProductos(prods || []);
+
+        const { data: cats } = await supabase
+          .from('categorias')
+          .select('*')
+          .eq('empresa_id', empresaId)
+          .order('nombre');
+        setCategorias(cats || []);
+
         const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
         const d = await res.json();
         setTasa(d.promedio || 0);
@@ -63,26 +84,9 @@ export default function CatalogoPublico({
       } finally {
         setLoading(false);
       }
-      if (empresaId) {
-        const { data: cats } = await supabase
-          .from('categorias')
-          .select('*')
-          .eq('empresa_id', empresaId)
-          .order('nombre', { ascending: true });
-
-        setCategorias(cats || []);
-      }
     };
     cargarTodo();
   }, [empresaId]);
-
-  useEffect(() => {
-    const nav = document.querySelector('nav');
-    if (nav) nav.style.display = 'none';
-    return () => {
-      if (nav) nav.style.display = 'flex';
-    };
-  }, []);
 
   // --- LÓGICA DE CARRITO ---
   const agregarAlCarrito = (p: any) => {
@@ -94,6 +98,10 @@ export default function CatalogoPublico({
         );
       return [...prev, { ...p, cant: 1 }];
     });
+  };
+
+  const eliminarDelCarrito = (id: string) => {
+    setCarrito((prev) => prev.filter((item) => item.id !== id));
   };
 
   const actualizarCant = (id: string, nuevaCant: number) => {
@@ -116,7 +124,6 @@ export default function CatalogoPublico({
     if (!isNaN(num)) {
       actualizarCant(id, num);
     } else if (valor === '') {
-      // Permitir temporalmente el campo vacío mientras el usuario borra
       setCarrito((prev) =>
         prev.map((item) =>
           item.id === id ? { ...item, cant: '' as any } : item,
@@ -144,8 +151,6 @@ export default function CatalogoPublico({
       `https://wa.me/${empresa.telefono?.replace(/\D/g, '')}?text=${mensaje}`,
       '_blank',
     );
-
-    // Acciones Post-Envío
     setCarrito([]);
     setIsCartOpen(false);
     setPedidoEnviado(true);
@@ -154,14 +159,14 @@ export default function CatalogoPublico({
 
   if (loading)
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-white italic">
+      <div className="h-screen flex items-center justify-center bg-white italic">
         <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-32">
-      {/* MENSAJE DE ÉXITO FLOTANTE */}
+      {/* MENSAJE DE ÉXITO */}
       {pedidoEnviado && (
         <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm bg-emerald-600 text-white p-6 rounded-[2rem] shadow-2xl flex items-center gap-4 animate-in fade-in zoom-in slide-in-from-top-10 duration-500">
           <CheckCircle2 size={40} className="flex-shrink-0" />
@@ -170,7 +175,7 @@ export default function CatalogoPublico({
               ¡Pedido Enviado!
             </p>
             <p className="text-[10px] opacity-90 font-bold">
-              Hemos vaciado tu carrito. Revisa tu WhatsApp para finalizar.
+              Hemos vaciado tu carrito. Revisa tu WhatsApp.
             </p>
           </div>
         </div>
@@ -183,6 +188,7 @@ export default function CatalogoPublico({
             <img
               src={empresa.logo_url}
               className="w-full h-full object-contain p-2"
+              alt="Logo"
             />
           ) : (
             <Building2 className="text-slate-200" size={32} />
@@ -211,28 +217,28 @@ export default function CatalogoPublico({
           />
         </div>
       </div>
-      {/* BARRA DE CATEGORÍAS (CHIPS) - Solo se muestra si hay más de 0 categorías */}
+
+      {/* CATEGORÍAS */}
       {categorias.length > 0 && (
         <div className="w-full overflow-x-auto no-scrollbar py-4 px-6 mb-4 flex gap-3 sticky top-[72px] bg-slate-50/80 backdrop-blur-md z-30">
           <button
             onClick={() => setCatSeleccionada('todas')}
             className={`px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${
               catSeleccionada === 'todas'
-                ? 'bg-[#1A1D23] text-[#FF9800] border-[#1A1D23] shadow-lg shadow-orange-100'
-                : 'bg-white text-slate-400 border-white hover:border-slate-200'
+                ? 'bg-[#1A1D23] text-[#FF9800] border-[#1A1D23] shadow-lg'
+                : 'bg-white text-slate-400 border-white'
             }`}
           >
             Ver Todo
           </button>
-
           {categorias.map((cat) => (
             <button
               key={cat.id}
               onClick={() => setCatSeleccionada(cat.id)}
               className={`px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-2 ${
                 catSeleccionada === cat.id
-                  ? 'bg-[#1A1D23] text-[#FF9800] border-[#1A1D23] shadow-lg shadow-orange-100'
-                  : 'bg-white text-slate-400 border-white hover:border-slate-200'
+                  ? 'bg-[#1A1D23] text-[#FF9800] border-[#1A1D23]'
+                  : 'bg-white text-slate-400 border-white'
               }`}
             >
               {cat.nombre}
@@ -245,15 +251,11 @@ export default function CatalogoPublico({
       <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {productos
           .filter((p) => {
-            // Filtro por buscador de texto
             const matchBusqueda = p.nombre
               .toLowerCase()
               .includes(filtro.toLowerCase());
-
-            // Filtro por Categoría: Si es 'todas' pasa todo, si no, debe coincidir el ID
             const matchCategoria =
               catSeleccionada === 'todas' || p.categoria_id === catSeleccionada;
-
             return matchBusqueda && matchCategoria;
           })
           .map((p) => {
@@ -262,39 +264,29 @@ export default function CatalogoPublico({
             return (
               <div
                 key={p.id}
-                className={`bg-white p-5 rounded-[2.8rem] flex flex-row items-center gap-5 border-2 transition-all duration-300 ${cant > 0 ? 'border-orange-500 shadow-xl shadow-orange-50' : 'border-transparent shadow-sm'}`}
+                className={`bg-white p-5 rounded-[2.8rem] flex flex-row items-center gap-5 border-2 transition-all ${cant > 0 ? 'border-orange-500 shadow-xl' : 'border-transparent shadow-sm'}`}
               >
                 <div className="relative w-24 h-24 flex-shrink-0">
                   <div className="w-full h-full bg-slate-100 rounded-3xl overflow-hidden border border-slate-50 relative">
-                    {/* Placeholder mientras carga */}
-                    <div className="absolute inset-0 flex items-center justify-center text-slate-300 animate-pulse">
-                      <Package size={24} />
-                    </div>
-
                     {p.imagen_url ? (
                       <img
                         src={p.imagen_url}
                         alt={p.nombre}
-                        loading="lazy" // <--- LA MAGIA: El navegador gestiona la carga
-                        decoding="async" // <--- Optimiza el renderizado
-                        className="w-full h-full object-cover relative z-10 transition-opacity duration-500 opacity-0"
-                        onLoad={(e) => (e.currentTarget.style.opacity = '1')} // Aparece suavemente al cargar
+                        loading="lazy"
+                        className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-200 bg-slate-50">
+                      <div className="w-full h-full flex items-center justify-center text-slate-200">
                         <Package size={30} />
                       </div>
                     )}
                   </div>
-
-                  {/* Badge de cantidad (se mantiene igual) */}
                   {cant > 0 && (
                     <div className="absolute -top-2 -right-2 bg-orange-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-xs border-4 border-white shadow-lg animate-in zoom-in">
                       {cant}
                     </div>
                   )}
                 </div>
-
                 <div className="flex-1 min-w-0">
                   <h3 className="font-black text-slate-800 text-xs uppercase leading-tight mb-1 truncate">
                     {p.nombre}
@@ -306,18 +298,19 @@ export default function CatalogoPublico({
                     {cant === 0 ? (
                       <button
                         onClick={() => agregarAlCarrito(p)}
-                        className="bg-slate-900 text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 active:scale-95 transition-all text-[10px] font-black uppercase tracking-widest"
+                        className="bg-slate-900 text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
                       >
                         <Plus size={14} /> Añadir
                       </button>
                     ) : (
-                      <div className="flex items-center bg-slate-100 rounded-2xl p-1 gap-1 animate-in slide-in-from-left-2">
+                      <div className="flex items-center bg-slate-100 rounded-2xl p-1 gap-1">
                         <button
-                          onClick={() => {
-                            if (cant === 1) eliminarDelCarrito(p.id);
-                            else actualizarCant(p.id, cant - 1);
-                          }}
-                          className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-400 hover:text-red-500 transition-colors"
+                          onClick={() =>
+                            cant === 1
+                              ? eliminarDelCarrito(p.id)
+                              : actualizarCant(p.id, cant - 1)
+                          }
+                          className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-400"
                         >
                           {cant === 1 ? (
                             <Trash2 size={14} />
@@ -325,7 +318,6 @@ export default function CatalogoPublico({
                             <Minus size={14} />
                           )}
                         </button>
-
                         <input
                           type="number"
                           value={cant}
@@ -335,10 +327,9 @@ export default function CatalogoPublico({
                           onBlur={() => validarInputBlur(p.id, cant)}
                           className="w-10 bg-transparent text-center font-black text-xs text-slate-900 outline-none"
                         />
-
                         <button
                           onClick={() => actualizarCant(p.id, cant + 1)}
-                          className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-400 hover:text-emerald-500"
+                          className="w-8 h-8 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-400"
                         >
                           <Plus size={14} />
                         </button>
@@ -351,12 +342,12 @@ export default function CatalogoPublico({
           })}
       </div>
 
-      {/* BOTÓN FLOTANTE */}
+      {/* BOTÓN FLOTANTE CARRITO */}
       {carrito.length > 0 && (
         <div className="fixed bottom-8 left-0 right-0 px-6 z-50">
           <button
             onClick={() => setIsCartOpen(true)}
-            className="max-w-md mx-auto w-full bg-[#1A1D23] text-white p-6 rounded-[2.8rem] shadow-2xl flex items-center justify-between border-t border-white/10 active:scale-95 transition-transform"
+            className="max-w-md mx-auto w-full bg-[#1A1D23] text-white p-6 rounded-[2.8rem] shadow-2xl flex items-center justify-between active:scale-95 transition-transform"
           >
             <div className="flex items-center gap-4">
               <div className="relative bg-orange-500 p-3 rounded-2xl">
@@ -395,27 +386,24 @@ export default function CatalogoPublico({
                 <X size={24} />
               </button>
             </div>
-
             <div className="flex-1 overflow-y-auto p-8 space-y-4">
-              {/* Dentro del mapeo del carrito en el Drawer */}
               {carrito.map((item) => (
                 <div
                   key={item.id}
                   className="group relative flex items-center gap-4 bg-white p-4 rounded-[2rem] border border-slate-100 shadow-sm"
                 >
-                  {/* Botón de eliminar absoluto (fácil de tocar) */}
                   <button
                     onClick={() => eliminarDelCarrito(item.id)}
-                    className="absolute -top-1 -right-1 bg-red-50 text-red-500 p-2 rounded-full border border-red-100 shadow-sm opacity-0 group-hover:opacity-100 md:opacity-100 transition-opacity"
+                    className="absolute -top-1 -right-1 bg-red-50 text-red-500 p-2 rounded-full border border-red-100 shadow-sm opacity-100 transition-opacity"
                   >
                     <Trash2 size={12} />
                   </button>
-
                   <div className="w-16 h-16 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0">
                     {item.imagen_url ? (
                       <img
                         src={item.imagen_url}
                         className="w-full h-full object-cover"
+                        alt="item"
                       />
                     ) : (
                       <Package
@@ -424,7 +412,6 @@ export default function CatalogoPublico({
                       />
                     )}
                   </div>
-
                   <div className="flex-1 min-w-0">
                     <p className="font-black text-[10px] uppercase text-slate-800 truncate pr-4">
                       {item.nombre}
@@ -433,8 +420,6 @@ export default function CatalogoPublico({
                       ${(item.precio * item.cant).toFixed(2)}
                     </p>
                   </div>
-
-                  {/* Controles de cantidad */}
                   <div className="flex items-center bg-slate-50 rounded-2xl p-1 gap-1 border">
                     <button
                       onClick={() => actualizarCant(item.id, item.cant - 1)}
@@ -461,7 +446,6 @@ export default function CatalogoPublico({
                 </div>
               ))}
             </div>
-
             <div className="p-8 border-t bg-slate-50/50 space-y-6">
               <div className="flex items-center justify-between">
                 <p className="font-black text-slate-900 text-3xl tracking-tighter">
