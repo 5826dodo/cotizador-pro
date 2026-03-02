@@ -122,7 +122,7 @@ export default function Navbar() {
     { name: 'Stock', href: '/', icon: Package },
     { name: 'Categorías', href: '/dashboard/categorias', icon: LayoutGrid }, // <-- NUEVO LINK
     { name: 'Clientes', href: '/clientes', icon: Users },
-    { name: 'Venta-Cotizar', href: '/cotizar', icon: FileEdit },
+    { name: 'Venta|Cotizar', href: '/cotizar', icon: FileEdit },
     { name: 'Historial', href: '/historial', icon: History },
     { name: 'Cobros', href: '/cobranzas', icon: BadgeDollarSign },
   ];
