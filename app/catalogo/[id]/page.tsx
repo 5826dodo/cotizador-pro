@@ -34,6 +34,8 @@ export default function CatalogoPublico({
   const [categorias, setCategorias] = useState<any[]>([]);
   const [catSeleccionada, setCatSeleccionada] = useState('todas');
 
+  const [nombreCliente, setNombreCliente] = useState('');
+
   // --- EFECTO AGRESIVO PARA OCULTAR NAVBAR ---
   useEffect(() => {
     const style = document.createElement('style');
@@ -141,17 +143,26 @@ export default function CatalogoPublico({
   const totalDolar = carrito.reduce((acc, p) => acc + p.precio * p.cant, 0);
 
   const enviarPedido = () => {
-    let mensaje = `*NUEVO PEDIDO - ${empresa.nombre.toUpperCase()}*%0A%0A`;
+    if (!nombreCliente.trim()) {
+      alert('Por favor, ingresa tu nombre para completar el pedido.');
+      return;
+    }
+
+    let mensaje = `*NUEVO PEDIDO - ${empresa.nombre.toUpperCase()}*%0A`;
+    mensaje += `*Cliente:* ${nombreCliente.toUpperCase()}%0A%0A`;
+
     carrito.forEach((i) => {
       mensaje += `• ${i.cant}x ${i.nombre} ($${(i.precio * i.cant).toFixed(2)})%0A`;
     });
+
     mensaje += `%0A*TOTAL:* *$${totalDolar.toFixed(2)}*%0A*Bs. ${(totalDolar * tasa).toFixed(2)}*%0A%0A_Enviado desde Ventiq_`;
 
-    window.open(
-      `https://wa.me/${empresa.telefono?.replace(/\D/g, '')}?text=${mensaje}`,
-      '_blank',
-    );
+    const url = `https://wa.me/${empresa.telefono?.replace(/\D/g, '')}?text=${mensaje}`;
+    window.open(url, '_blank');
+
+    // Limpiar carrito y cerrar
     setCarrito([]);
+    setNombreCliente('');
     setIsCartOpen(false);
     setPedidoEnviado(true);
     setTimeout(() => setPedidoEnviado(false), 5000);
@@ -447,19 +458,49 @@ export default function CatalogoPublico({
               ))}
             </div>
             <div className="p-8 border-t bg-slate-50/50 space-y-6">
-              <div className="flex items-center justify-between">
-                <p className="font-black text-slate-900 text-3xl tracking-tighter">
-                  ${totalDolar.toFixed(2)}
+              {/* CAMPO DE NOMBRE DEL CLIENTE */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4">
+                  Tus Datos
                 </p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-white px-3 py-1 rounded-full border">
+                <input
+                  type="text"
+                  placeholder="¿CUÁL ES TU NOMBRE?"
+                  value={nombreCliente}
+                  onChange={(e) => setNombreCliente(e.target.value)}
+                  className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl outline-none focus:border-orange-500 font-black text-xs uppercase transition-all shadow-sm"
+                />
+              </div>
+
+              {/* RESUMEN DE TOTALES */}
+              <div className="flex items-center justify-between px-2">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">
+                    Total a Pagar
+                  </p>
+                  <p className="font-black text-slate-900 text-3xl tracking-tighter">
+                    ${totalDolar.toFixed(2)}
+                  </p>
+                </div>
+                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
                   Bs. {(totalDolar * tasa).toFixed(2)}
                 </p>
               </div>
+
+              {/* BOTÓN WHATSAPP */}
               <button
                 onClick={enviarPedido}
-                className="w-full bg-[#25D366] text-white py-6 rounded-[2.2rem] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl hover:brightness-105 active:scale-[0.98] transition-all"
+                disabled={!nombreCliente.trim()}
+                className={`w-full py-6 rounded-[2.2rem] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl transition-all ${
+                  nombreCliente.trim()
+                    ? 'bg-[#25D366] text-white hover:brightness-105 active:scale-[0.98]'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
               >
-                <MessageCircle size={22} strokeWidth={3} /> Enviar Pedido
+                <MessageCircle size={22} strokeWidth={3} />
+                {nombreCliente.trim()
+                  ? 'Enviar a WhatsApp'
+                  : 'Escribe tu nombre'}
               </button>
             </div>
           </div>
