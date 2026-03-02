@@ -381,18 +381,39 @@ export default function InventarioPage() {
             </div>
 
             <div className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
-                  Stock Actual
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={stock}
-                  onChange={(e) => setStock(e.target.value)}
-                  required
-                  className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold text-orange-500"
-                />
+              {/* STOCK Y UNIDAD DE MEDIDA */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
+                    Stock Actual
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={stock}
+                    onChange={(e) => setStock(e.target.value)}
+                    required
+                    className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold text-orange-500 focus:ring-2 ring-orange-500 transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
+                    Medida
+                  </label>
+                  <select
+                    value={unidad}
+                    onChange={(e) => setUnidad(e.target.value)}
+                    className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold appearance-none text-slate-700 cursor-pointer border-2 border-transparent focus:border-orange-500 transition-all"
+                  >
+                    {unidadesMedida.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <button
                 disabled={subiendoImg}
