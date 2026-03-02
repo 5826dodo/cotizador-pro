@@ -32,6 +32,19 @@ export default function ClientesPage() {
   const [nombreEmpresaCliente, setNombreEmpresaCliente] = useState('');
   const [mensaje, setMensaje] = useState('');
 
+  const [errorMensaje, setErrorMensaje] = useState('');
+  const [tipoMensaje, setTipoMensaje] = useState<'success' | 'error'>(
+    'success',
+  );
+
+  // --- AQUÍ VA LA FUNCIÓN ---
+  const mostrarAviso = (msg: string, tipo: 'success' | 'error') => {
+    setMensaje(msg);
+    setTipoMensaje(tipo);
+    // Limpiamos el mensaje tras 4 segundos
+    setTimeout(() => setMensaje(''), 4000);
+  };
+
   useEffect(() => {
     const obtenerPerfilYClientes = async () => {
       try {
@@ -78,11 +91,24 @@ export default function ClientesPage() {
     e.preventDefault();
     if (!empresaId) return alert('No se pudo identificar tu empresa.');
 
-    const telLimpio = telefono.replace(/\D/g, '');
+    // --- LIMPIEZA DE TELÉFONO PARA WHATSAPP ---
+    let telProcesado = telefono.replace(/\D/g, ''); // Solo números
+
+    // Si empieza por 0 (ej: 0412), quitamos el 0
+    if (telProcesado.startsWith('0')) {
+      telProcesado = telProcesado.substring(1);
+    }
+
+    // Si no tiene el 58 y el número tiene 10 dígitos (celular Vzla), le ponemos el 58
+    if (!telProcesado.startsWith('58') && telProcesado.length === 10) {
+      telProcesado = '58' + telProcesado;
+    }
+    // ------------------------------------------
+
     const datosCliente = {
       nombre,
       cedula,
-      telefono: telLimpio,
+      telefono: telProcesado, // Guardamos el número ya listo para WhatsApp
       email,
       empresa: nombreEmpresaCliente,
       empresa_id: empresaId,
@@ -117,10 +143,10 @@ export default function ClientesPage() {
     try {
       const { error } = await supabase.from('clientes').delete().eq('id', id);
       if (error) throw error;
-      setMensaje('🗑️ Cliente eliminado');
+      mostrarAviso('🗑️ Cliente eliminado de la cartera', 'success'); // Nuevo estilo
       if (empresaId) cargarClientes(empresaId);
     } catch (error: any) {
-      alert('Error al eliminar el cliente');
+      mostrarAviso('Error al eliminar el cliente', 'error');
     }
   };
 
@@ -294,8 +320,25 @@ export default function ClientesPage() {
           </form>
 
           {mensaje && (
-            <div className="mt-4 p-3 bg-orange-50 text-ventiq-orange rounded-xl text-center font-bold text-sm border border-orange-100 animate-pulse">
-              {mensaje}
+            <div
+              className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-sm p-5 rounded-[2rem] shadow-2xl flex items-center gap-4 animate-in fade-in zoom-in slide-in-from-top-10 duration-300 ${
+                tipoMensaje === 'success'
+                  ? 'bg-ventiq-black text-white'
+                  : 'bg-red-600 text-white'
+              }`}
+            >
+              <div
+                className={`p-2 rounded-xl ${tipoMensaje === 'success' ? 'bg-ventiq-orange' : 'bg-red-500'}`}
+              >
+                {tipoMensaje === 'success' ? (
+                  <Save size={20} />
+                ) : (
+                  <X size={20} />
+                )}
+              </div>
+              <p className="text-[11px] font-black uppercase tracking-tight leading-tight">
+                {mensaje}
+              </p>
             </div>
           )}
         </section>
