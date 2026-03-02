@@ -264,7 +264,7 @@ export default function PerfilEmpresa() {
                 />
               </div>
             </div>
-            {/* TELÉFONO - Agregado */}
+            {/* TELÉFONO - Con formateo automático a 58 */}
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
                 Teléfono
@@ -275,13 +275,34 @@ export default function PerfilEmpresa() {
                   size={18}
                 />
                 <input
+                  placeholder="Ej: 04121234567"
                   className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold"
                   value={empresa?.telefono || ''}
-                  onChange={(e) =>
-                    setEmpresa({ ...empresa, telefono: e.target.value })
-                  }
+                  onChange={(e) => {
+                    // 1. Extraer solo los números
+                    let num = e.target.value.replace(/\D/g, '');
+
+                    // 2. Si empieza por "0", lo quitamos (ej: 0412 -> 412)
+                    if (num.startsWith('0')) {
+                      num = num.substring(1);
+                    }
+
+                    // 3. Si ya tiene el 58 al principio, lo dejamos,
+                    // pero si no lo tiene, se lo agregamos
+                    if (num.length > 0 && !num.startsWith('58')) {
+                      num = '58' + num;
+                    }
+
+                    setEmpresa({ ...empresa, telefono: num });
+                  }}
                 />
               </div>
+              <p className="text-[9px] text-slate-400 ml-2 font-bold uppercase tracking-tighter">
+                Se guardará como:{' '}
+                <span className="text-blue-600">
+                  {empresa?.telefono || '58...'}
+                </span>
+              </p>
             </div>
 
             {/* DIRECCIÓN - Agregada */}
