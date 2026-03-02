@@ -95,6 +95,22 @@ export default function PerfilEmpresa() {
     setSubiendo(true);
 
     try {
+      // --- LÓGICA DE FORMATEO WHATSAPP (Igual que en Clientes) ---
+      let telefonoFormateado = empresa.telefono || '';
+      if (telefonoFormateado) {
+        // Si empieza con 0, quitamos el 0 (ej: 0412 -> 412)
+        if (telefonoFormateado.startsWith('0')) {
+          telefonoFormateado = telefonoFormateado.substring(1);
+        }
+        // Si no tiene el 58 adelante, se lo ponemos
+        if (!telefonoFormateado.startsWith('58')) {
+          telefonoFormateado = '58' + telefonoFormateado;
+        }
+      }
+
+      // 2. PROCESAR RIF (Asegurar Mayúsculas y quitar espacios extras)
+      const rifLimpio = empresa.rif?.trim().toUpperCase() || '';
+
       let finalLogoUrl = empresa.logo_url;
       if (file) {
         finalLogoUrl = await subirLogo(file, empresa.id);
@@ -104,8 +120,8 @@ export default function PerfilEmpresa() {
         .from('empresas')
         .update({
           nombre: empresa.nombre,
-          rif: empresa.rif,
-          telefono: empresa.telefono,
+          rif: rifLimpio,
+          telefono: telefonoFormateado,
           direccion: empresa.direccion,
           logo_url: finalLogoUrl,
           notificaciones_stock: configGlobal.notificaciones_stock,
@@ -256,15 +272,20 @@ export default function PerfilEmpresa() {
                 />
                 <input
                   required
+                  placeholder="Ej: J-12345678-9"
                   className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold text-sm"
                   value={empresa.rif || ''}
                   onChange={(e) =>
-                    setEmpresa({ ...empresa, rif: e.target.value })
+                    // Convertimos a MAYÚSCULAS en tiempo real
+                    setEmpresa({
+                      ...empresa,
+                      rif: e.target.value.toUpperCase(),
+                    })
                   }
                 />
               </div>
             </div>
-            {/* TELÉFONO - Con formateo automático a 58 */}
+            {/* TELÉFONO - Agregado */}
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
                 Teléfono
@@ -275,34 +296,16 @@ export default function PerfilEmpresa() {
                   size={18}
                 />
                 <input
-                  placeholder="Ej: 04121234567"
+                  placeholder="Ej: 0412 123 4567"
                   className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold"
                   value={empresa?.telefono || ''}
                   onChange={(e) => {
-                    // 1. Extraer solo los números
-                    let num = e.target.value.replace(/\D/g, '');
-
-                    // 2. Si empieza por "0", lo quitamos (ej: 0412 -> 412)
-                    if (num.startsWith('0')) {
-                      num = num.substring(1);
-                    }
-
-                    // 3. Si ya tiene el 58 al principio, lo dejamos,
-                    // pero si no lo tiene, se lo agregamos
-                    if (num.length > 0 && !num.startsWith('58')) {
-                      num = '58' + num;
-                    }
-
-                    setEmpresa({ ...empresa, telefono: num });
+                    // Solo permite números mientras escribe
+                    const soloNumeros = e.target.value.replace(/\D/g, '');
+                    setEmpresa({ ...empresa, telefono: soloNumeros });
                   }}
                 />
               </div>
-              <p className="text-[9px] text-slate-400 ml-2 font-bold uppercase tracking-tighter">
-                Se guardará como:{' '}
-                <span className="text-blue-600">
-                  {empresa?.telefono || '58...'}
-                </span>
-              </p>
             </div>
 
             {/* DIRECCIÓN - Agregada */}
