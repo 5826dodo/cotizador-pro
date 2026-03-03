@@ -1,14 +1,23 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import {
+  Building2,
+  UserPlus,
+  Calendar,
+  ShieldCheck,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
 
 export default function AdminPage() {
   const [loading, setLoading] = useState(false);
-  const [mensaje, setMensaje] = useState('');
+  const [mensaje, setMensaje] = useState({ texto: '', tipo: '' });
   const [empresas, setEmpresas] = useState<any[]>([]);
   const supabase = createClient();
 
-  // Función para cargar la lista de empresas (Punto B)
   const cargarEmpresas = async () => {
     const { data } = await supabase
       .from('empresas')
@@ -23,31 +32,37 @@ export default function AdminPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
-    // 1. Si ya está cargando, salir para evitar duplicados
     if (loading) return;
 
     setLoading(true);
-    setMensaje('');
+    setMensaje({ texto: '', tipo: '' });
 
     const formData = new FormData(e.currentTarget);
     const nombre = formData.get('nombre') as string;
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     const plan = formData.get('plan') as string;
+    const rif = formData.get('rif') as string; // Agregado RIF
     const vencimiento = `${formData.get('vencimiento')}T23:59:59Z`;
 
     try {
-      // 2. Crear la Empresa
+      // 1. Crear Empresa con RIF inicial
       const { data: nuevaEmpresa, error: errEmpresa } = await supabase
         .from('empresas')
-        .insert([{ nombre, plan_activo: plan, fecha_vencimiento: vencimiento }])
+        .insert([
+          {
+            nombre,
+            plan_activo: plan,
+            fecha_vencimiento: vencimiento,
+            rif: rif.toUpperCase(),
+          },
+        ])
         .select()
         .single();
 
       if (errEmpresa) throw errEmpresa;
 
-      // 3. Crear el Usuario
+      // 2. Crear Auth User
       const { data: nuevoUsuario, error: errAuth } = await supabase.auth.signUp(
         {
           email,
@@ -57,154 +72,265 @@ export default function AdminPage() {
 
       if (errAuth) throw errAuth;
 
-      // ... (resto del código igual hasta el paso 4)
-
-      // 4. Vincular o Actualizar Perfil
+      // 3. Vincular Perfil
       if (nuevoUsuario.user) {
-        // Usamos .upsert en lugar de .insert para evitar el error de "duplicate key"
-        // y asegurar que el rol sea 'cliente' y tenga su 'empresa_id'
         const { error: errPerfil } = await supabase.from('perfiles').upsert(
           {
             id: nuevoUsuario.user.id,
             email: email,
-            rol: 'cliente', // Forzamos que sea cliente y no vendedor
+            rol: 'admin', // El primer usuario creado desde aquí es Admin de su empresa
             empresa_id: nuevaEmpresa.id,
           },
-          { onConflict: 'id' }, // Si el ID ya existe (por el trigger), actualiza los datos
+          { onConflict: 'id' },
         );
 
         if (errPerfil) throw errPerfil;
       }
 
-      // ... (resto del código igual)
-
-      // 5. Éxito: Limpiar y Refrescar
-      setMensaje('✅ Registro completado exitosamente');
-      (e.target as HTMLFormElement).reset(); // Limpia los campos del formulario
-
-      // Refrescamos la lista de empresas
+      setMensaje({
+        texto: '✅ Empresa y Usuario creados correctamente',
+        tipo: 'success',
+      });
+      (e.target as HTMLFormElement).reset();
       await cargarEmpresas();
     } catch (error: any) {
-      setMensaje('❌ Error: ' + error.message);
+      setMensaje({ texto: '❌ Error: ' + error.message, tipo: 'error' });
     } finally {
-      // 6. Apagamos el loading al final de todo
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
-      {/* SECCIÓN A: FORMULARIO */}
-      <section>
-        <h2 className="text-2xl font-bold mb-4">Nueva Suscripción</h2>
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white p-6 rounded-xl shadow-lg border border-slate-200 flex flex-col gap-4"
-        >
+    <main className="min-h-screen bg-slate-50 p-4 md:p-8">
+      <div className="max-w-7xl mx-auto space-y-8">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <label className="text-sm font-bold text-slate-600">
-              Nombre de la Empresa
-            </label>
-            <input
-              name="nombre"
-              required
-              className="w-full p-2 border rounded-md"
-            />
+            <h1 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">
+              Ventiq Cloud
+            </h1>
+            <p className="text-slate-500 font-medium">
+              Panel de Administración de Suscripciones
+            </p>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-bold text-slate-600">
-                Email del Dueño
-              </label>
-              <input
-                name="email"
-                type="email"
-                required
-                className="w-full p-2 border rounded-md"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-bold text-slate-600">
-                Password Inicial
-              </label>
-              <input
-                name="password"
-                type="password"
-                required
-                className="w-full p-2 border rounded-md"
-              />
-            </div>
+          <div className="bg-blue-600 text-white px-4 py-2 rounded-2xl flex items-center gap-3 shadow-lg">
+            <ShieldCheck size={20} />
+            <span className="text-xs font-black uppercase tracking-widest">
+              Súper Admin
+            </span>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-bold text-slate-600">Plan</label>
-              <select name="plan" className="w-full p-2 border rounded-md">
-                <option value="gratis">Gratis</option>
-                <option value="pro">Pro Mensual</option>
-                <option value="premium">Premium Anual</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-bold text-slate-600">
-                Vencimiento
-              </label>
-              <input
-                name="vencimiento"
-                type="date"
-                required
-                className="w-full p-2 border rounded-md"
-              />
-            </div>
-          </div>
-          <button
-            disabled={loading}
-            className="bg-blue-600 text-white font-bold py-3 rounded-md hover:bg-blue-700"
-          >
-            {loading ? 'Procesando...' : 'Dar de Alta'}
-          </button>
-          {mensaje && (
-            <p className="text-center text-sm font-bold">{mensaje}</p>
-          )}
-        </form>
-      </section>
+        </header>
 
-      {/* SECCIÓN B: LISTADO */}
-      <section>
-        <h2 className="text-2xl font-bold mb-4">Empresas Registradas</h2>
-        <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b">
-              <tr>
-                <th className="p-3 text-sm">Empresa</th>
-                <th className="p-3 text-sm">Plan</th>
-                <th className="p-3 text-sm">Vence</th>
-              </tr>
-            </thead>
-            <tbody>
-              {empresas.map((emp) => (
-                // Dentro de tu tabla en el map de empresas
-                <tr key={emp.id} className="border-b hover:bg-slate-50">
-                  <td className="p-3 font-medium">{emp.nombre}</td>
-                  <td className="p-3">
-                    <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs uppercase">
-                      {emp.plan_activo}
-                    </span>
-                  </td>
-                  <td className="p-3 text-xs text-slate-500">
-                    {/* Fecha de creación */}
-                    Registro: {new Date(emp.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="p-3 text-sm font-bold text-red-600">
-                    {/* Fecha de vencimiento */}
-                    Vence:{' '}
-                    {new Date(emp.fecha_vencimiento).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* COLUMNA REGISTRO */}
+          <section className="lg:col-span-1">
+            <div className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-100">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="bg-blue-100 p-2 rounded-xl text-blue-600">
+                  <UserPlus size={20} />
+                </div>
+                <h2 className="font-black text-slate-700 uppercase text-sm tracking-widest">
+                  Alta de Negocio
+                </h2>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                    Nombre Empresa
+                  </label>
+                  <input
+                    name="nombre"
+                    required
+                    className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none focus:ring-2 ring-blue-500 font-bold text-sm"
+                    placeholder="Ej: Inversiones Gómez"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                    RIF / ID Fiscal
+                  </label>
+                  <input
+                    name="rif"
+                    required
+                    className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none focus:ring-2 ring-blue-500 font-bold text-sm"
+                    placeholder="J-12345678-0"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                    Email Dueño
+                  </label>
+                  <input
+                    name="email"
+                    type="email"
+                    required
+                    className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none focus:ring-2 ring-blue-500 font-bold text-sm"
+                    placeholder="admin@empresa.com"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                    Password Temporal
+                  </label>
+                  <input
+                    name="password"
+                    type="password"
+                    required
+                    className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none focus:ring-2 ring-blue-500 font-bold text-sm"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                      Plan
+                    </label>
+                    <select
+                      name="plan"
+                      className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none focus:ring-2 ring-blue-500 font-bold text-sm"
+                    >
+                      <option value="gratis">Gratis</option>
+                      <option value="pro">Pro</option>
+                      <option value="premium">Premium</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
+                      Vencimiento
+                    </label>
+                    <input
+                      name="vencimiento"
+                      type="date"
+                      required
+                      className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none focus:ring-2 ring-blue-500 font-bold text-sm"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  disabled={loading}
+                  className="w-full bg-[#1A1D23] text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-black transition-all disabled:opacity-50 shadow-lg mt-4"
+                >
+                  {loading ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <CheckCircle2 size={18} />
+                  )}
+                  {loading ? 'Procesando...' : 'Activar Suscripción'}
+                </button>
+
+                {mensaje.texto && (
+                  <div
+                    className={`p-4 rounded-2xl text-[10px] font-black uppercase text-center ${mensaje.tipo === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
+                  >
+                    {mensaje.texto}
+                  </div>
+                )}
+              </form>
+            </div>
+          </section>
+
+          {/* COLUMNA LISTADO */}
+          <section className="lg:col-span-2">
+            <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
+              <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+                <h3 className="font-black text-slate-700 uppercase text-sm tracking-widest">
+                  Empresas en el Sistema
+                </h3>
+                <span className="bg-slate-100 px-3 py-1 rounded-full text-[10px] font-black text-slate-500">
+                  {empresas.length} TOTAL
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">
+                        Negocio
+                      </th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">
+                        Plan
+                      </th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">
+                        Estado / Vencimiento
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {empresas.map((emp) => {
+                      const estaVencido =
+                        new Date(emp.fecha_vencimiento) < new Date();
+                      return (
+                        <tr
+                          key={emp.id}
+                          className="hover:bg-slate-50/50 transition-colors"
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="bg-slate-100 p-2 rounded-xl">
+                                <Building2
+                                  size={16}
+                                  className="text-slate-400"
+                                />
+                              </div>
+                              <div>
+                                <p className="font-black text-slate-700 text-sm uppercase tracking-tight">
+                                  {emp.nombre}
+                                </p>
+                                <p className="text-[10px] text-slate-400 font-bold">
+                                  {emp.rif || 'SIN RIF'}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span
+                              className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                emp.plan_activo === 'premium'
+                                  ? 'bg-purple-100 text-purple-600'
+                                  : emp.plan_activo === 'pro'
+                                    ? 'bg-blue-100 text-blue-600'
+                                    : 'bg-slate-100 text-slate-500'
+                              }`}
+                            >
+                              {emp.plan_activo}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col gap-1">
+                              <div
+                                className={`flex items-center gap-1.5 text-[10px] font-black uppercase ${estaVencido ? 'text-red-500' : 'text-emerald-500'}`}
+                              >
+                                {estaVencido ? (
+                                  <AlertCircle size={12} />
+                                ) : (
+                                  <CheckCircle2 size={12} />
+                                )}
+                                {estaVencido ? 'Vencido' : 'Activo'}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold">
+                                <Calendar size={12} />
+                                {new Date(
+                                  emp.fecha_vencimiento,
+                                ).toLocaleDateString()}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
-    </div>
+      </div>
+    </main>
   );
 }
