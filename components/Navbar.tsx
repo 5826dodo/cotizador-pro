@@ -224,18 +224,6 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* --- DISEÑO MOBILE (Tasa flotante) --- */}
-      <div className="md:hidden fixed top-4 right-4 z-[60]">
-        <div className="bg-[#1A1D23] text-white px-3 py-1.5 rounded-full flex items-center gap-2 shadow-xl border border-white/10">
-          <span className="text-[7px] font-black text-[#FF9800] uppercase tracking-tighter">
-            {monedaConfig === 'EUR' ? 'EUR' : 'BCV'}
-          </span>
-          <span className="text-xs font-bold">
-            {tasa ? tasa.toFixed(2) : '...'}
-          </span>
-        </div>
-      </div>
-
       {/* --- DISEÑO MOBILE (TAB BAR) --- */}
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#1A1D23] border-t border-white/5 z-[100] pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
