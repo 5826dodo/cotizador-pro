@@ -6,16 +6,18 @@ import {
   UserPlus,
   Calendar,
   ShieldCheck,
-  Clock,
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Edit3,
+  X,
 } from 'lucide-react';
 
 export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState({ texto: '', tipo: '' });
   const [empresas, setEmpresas] = useState<any[]>([]);
+  const [empresaEditando, setEmpresaEditando] = useState<any>(null); // Estado para el Modal
   const supabase = createClient();
 
   const cargarEmpresas = async () => {
@@ -33,28 +35,18 @@ export default function AdminPage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (loading) return;
-
     setLoading(true);
-    setMensaje({ texto: '', tipo: '' });
-
     const formData = new FormData(e.currentTarget);
-    const nombre = formData.get('nombre') as string;
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
-    const plan = formData.get('plan') as string;
-    const rif = formData.get('rif') as string; // Agregado RIF
-    const vencimiento = `${formData.get('vencimiento')}T23:59:59Z`;
 
     try {
-      // 1. Crear Empresa con RIF inicial
       const { data: nuevaEmpresa, error: errEmpresa } = await supabase
         .from('empresas')
         .insert([
           {
-            nombre,
-            plan_activo: plan,
-            fecha_vencimiento: vencimiento,
-            rif: rif.toUpperCase(),
+            nombre: formData.get('nombre'),
+            plan_activo: formData.get('plan'),
+            fecha_vencimiento: `${formData.get('vencimiento')}T23:59:59Z`,
+            rif: (formData.get('rif') as string).toUpperCase(),
           },
         ])
         .select()
@@ -62,35 +54,12 @@ export default function AdminPage() {
 
       if (errEmpresa) throw errEmpresa;
 
-      // 2. Crear Auth User
-      const { data: nuevoUsuario, error: errAuth } = await supabase.auth.signUp(
-        {
-          email,
-          password,
-        },
-      );
-
-      if (errAuth) throw errAuth;
-
-      // 3. Vincular Perfil
-      if (nuevoUsuario.user) {
-        const { error: errPerfil } = await supabase.from('perfiles').upsert(
-          {
-            id: nuevoUsuario.user.id,
-            email: email,
-            rol: 'admin', // El primer usuario creado desde aquí es Admin de su empresa
-            empresa_id: nuevaEmpresa.id,
-          },
-          { onConflict: 'id' },
-        );
-
-        if (errPerfil) throw errPerfil;
-      }
-
-      setMensaje({
-        texto: '✅ Empresa y Usuario creados correctamente',
-        tipo: 'success',
+      const { error: errAuth } = await supabase.auth.signUp({
+        email: formData.get('email') as string,
+        password: formData.get('password') as string,
       });
+
+      setMensaje({ texto: '✅ Empresa creada correctamente', tipo: 'success' });
       (e.target as HTMLFormElement).reset();
       await cargarEmpresas();
     } catch (error: any) {
@@ -100,237 +69,253 @@ export default function AdminPage() {
     }
   };
 
+  // FUNCIÓN PARA GUARDAR EDICIÓN
+  const handleUpdateSuscripcion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('empresas')
+        .update({
+          plan_activo: empresaEditando.plan_activo,
+          fecha_vencimiento: empresaEditando.fecha_vencimiento.includes('T')
+            ? empresaEditando.fecha_vencimiento
+            : `${empresaEditando.fecha_vencimiento}T23:59:59Z`,
+        })
+        .eq('id', empresaEditando.id);
+
+      if (error) throw error;
+      setEmpresaEditando(null);
+      await cargarEmpresas();
+    } catch (error: any) {
+      alert('Error al actualizar: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <header className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-black text-slate-800 tracking-tighter uppercase">
               Ventiq Cloud
             </h1>
-            <p className="text-slate-500 font-medium">
-              Panel de Administración de Suscripciones
-            </p>
+            <p className="text-slate-500 font-medium">Panel de Suscripciones</p>
           </div>
-          <div className="bg-blue-600 text-white px-4 py-2 rounded-2xl flex items-center gap-3 shadow-lg">
-            <ShieldCheck size={20} />
-            <span className="text-xs font-black uppercase tracking-widest">
+          <div className="bg-blue-600 text-white px-4 py-2 rounded-2xl flex items-center gap-2 shadow-lg">
+            <ShieldCheck size={18} />
+            <span className="text-[10px] font-black uppercase tracking-widest text-white/90">
               Súper Admin
             </span>
           </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* COLUMNA REGISTRO */}
+          {/* FORMULARIO DE ALTA */}
           <section className="lg:col-span-1">
             <div className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-100">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="bg-blue-100 p-2 rounded-xl text-blue-600">
-                  <UserPlus size={20} />
-                </div>
-                <h2 className="font-black text-slate-700 uppercase text-sm tracking-widest">
-                  Alta de Negocio
-                </h2>
-              </div>
-
+              <h2 className="font-black text-slate-700 uppercase text-xs tracking-[0.2em] mb-6">
+                Nueva Suscripción
+              </h2>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-                    Nombre Empresa
-                  </label>
-                  <input
-                    name="nombre"
-                    required
-                    className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none focus:ring-2 ring-blue-500 font-bold text-sm"
-                    placeholder="Ej: Inversiones Gómez"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-                    RIF / ID Fiscal
-                  </label>
-                  <input
-                    name="rif"
-                    required
-                    className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none focus:ring-2 ring-blue-500 font-bold text-sm"
-                    placeholder="J-12345678-0"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-                    Email Dueño
-                  </label>
-                  <input
-                    name="email"
-                    type="email"
-                    required
-                    className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none focus:ring-2 ring-blue-500 font-bold text-sm"
-                    placeholder="admin@empresa.com"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-                    Password Temporal
-                  </label>
-                  <input
-                    name="password"
-                    type="password"
-                    required
-                    className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none focus:ring-2 ring-blue-500 font-bold text-sm"
-                    placeholder="••••••••"
-                  />
-                </div>
-
+                <input
+                  name="nombre"
+                  required
+                  className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none font-bold text-sm"
+                  placeholder="Nombre Empresa"
+                />
+                <input
+                  name="rif"
+                  required
+                  className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none font-bold text-sm"
+                  placeholder="RIF (J-12345678-0)"
+                />
+                <input
+                  name="email"
+                  type="email"
+                  required
+                  className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none font-bold text-sm"
+                  placeholder="Email Dueño"
+                />
+                <input
+                  name="password"
+                  type="password"
+                  required
+                  className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none font-bold text-sm"
+                  placeholder="Password"
+                />
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-                      Plan
-                    </label>
-                    <select
-                      name="plan"
-                      className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none focus:ring-2 ring-blue-500 font-bold text-sm"
-                    >
-                      <option value="gratis">Gratis</option>
-                      <option value="pro">Pro</option>
-                      <option value="premium">Premium</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-                      Vencimiento
-                    </label>
-                    <input
-                      name="vencimiento"
-                      type="date"
-                      required
-                      className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none focus:ring-2 ring-blue-500 font-bold text-sm"
-                    />
-                  </div>
+                  <select
+                    name="plan"
+                    className="px-4 py-3 bg-slate-50 rounded-2xl border-none font-bold text-sm"
+                  >
+                    <option value="gratis">Gratis</option>
+                    <option value="pro">Pro</option>
+                    <option value="premium">Premium</option>
+                  </select>
+                  <input
+                    name="vencimiento"
+                    type="date"
+                    required
+                    className="px-4 py-3 bg-slate-50 rounded-2xl border-none font-bold text-sm"
+                  />
                 </div>
-
                 <button
                   disabled={loading}
-                  className="w-full bg-[#1A1D23] text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-black transition-all disabled:opacity-50 shadow-lg mt-4"
+                  className="w-full bg-[#1A1D23] text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg"
                 >
-                  {loading ? (
-                    <Loader2 className="animate-spin" size={18} />
-                  ) : (
-                    <CheckCircle2 size={18} />
-                  )}
-                  {loading ? 'Procesando...' : 'Activar Suscripción'}
+                  {loading ? 'Cargando...' : 'Activar Negocio'}
                 </button>
-
-                {mensaje.texto && (
-                  <div
-                    className={`p-4 rounded-2xl text-[10px] font-black uppercase text-center ${mensaje.tipo === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}
-                  >
-                    {mensaje.texto}
-                  </div>
-                )}
               </form>
             </div>
           </section>
 
-          {/* COLUMNA LISTADO */}
+          {/* LISTADO DE EMPRESAS */}
           <section className="lg:col-span-2">
             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-              <div className="p-6 border-b border-slate-50 flex items-center justify-between">
-                <h3 className="font-black text-slate-700 uppercase text-sm tracking-widest">
-                  Empresas en el Sistema
-                </h3>
-                <span className="bg-slate-100 px-3 py-1 rounded-full text-[10px] font-black text-slate-500">
-                  {empresas.length} TOTAL
-                </span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">
-                        Negocio
-                      </th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">
-                        Plan
-                      </th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">
-                        Estado / Vencimiento
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {empresas.map((emp) => {
-                      const estaVencido =
-                        new Date(emp.fecha_vencimiento) < new Date();
-                      return (
-                        <tr
-                          key={emp.id}
-                          className="hover:bg-slate-50/50 transition-colors"
-                        >
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="bg-slate-100 p-2 rounded-xl">
-                                <Building2
-                                  size={16}
-                                  className="text-slate-400"
-                                />
-                              </div>
-                              <div>
-                                <p className="font-black text-slate-700 text-sm uppercase tracking-tight">
-                                  {emp.nombre}
-                                </p>
-                                <p className="text-[10px] text-slate-400 font-bold">
-                                  {emp.rif || 'SIN RIF'}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span
-                              className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                                emp.plan_activo === 'premium'
-                                  ? 'bg-purple-100 text-purple-600'
-                                  : emp.plan_activo === 'pro'
-                                    ? 'bg-blue-100 text-blue-600'
-                                    : 'bg-slate-100 text-slate-500'
-                              }`}
-                            >
-                              {emp.plan_activo}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col gap-1">
-                              <div
-                                className={`flex items-center gap-1.5 text-[10px] font-black uppercase ${estaVencido ? 'text-red-500' : 'text-emerald-500'}`}
-                              >
-                                {estaVencido ? (
-                                  <AlertCircle size={12} />
-                                ) : (
-                                  <CheckCircle2 size={12} />
-                                )}
-                                {estaVencido ? 'Vencido' : 'Activo'}
-                              </div>
-                              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold">
-                                <Calendar size={12} />
-                                {new Date(
-                                  emp.fecha_vencimiento,
-                                ).toLocaleDateString()}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <table className="w-full text-left">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">
+                      Negocio
+                    </th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">
+                      Plan
+                    </th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">
+                      Estado
+                    </th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">
+                      Acción
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {empresas.map((emp) => {
+                    const estaVencido =
+                      new Date(emp.fecha_vencimiento) < new Date();
+                    return (
+                      <tr
+                        key={emp.id}
+                        className="hover:bg-slate-50/50 transition-colors"
+                      >
+                        <td className="px-6 py-4">
+                          <p className="font-black text-slate-700 text-sm uppercase">
+                            {emp.nombre}
+                          </p>
+                          <p className="text-[10px] text-slate-400 font-bold">
+                            {emp.rif}
+                          </p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase">
+                            {emp.plan_activo}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div
+                            className={`text-[10px] font-black uppercase flex items-center gap-1 ${estaVencido ? 'text-red-500' : 'text-emerald-500'}`}
+                          >
+                            {estaVencido ? (
+                              <AlertCircle size={12} />
+                            ) : (
+                              <CheckCircle2 size={12} />
+                            )}
+                            {new Date(
+                              emp.fecha_vencimiento,
+                            ).toLocaleDateString()}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={() => setEmpresaEditando(emp)}
+                            className="p-2 hover:bg-blue-50 text-blue-600 rounded-xl transition-all"
+                          >
+                            <Edit3 size={18} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </section>
         </div>
       </div>
+
+      {/* MODAL DE EDICIÓN */}
+      {empresaEditando && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-black text-slate-800 uppercase text-sm tracking-widest">
+                Editar Suscripción
+              </h3>
+              <button
+                onClick={() => setEmpresaEditando(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateSuscripcion} className="space-y-6">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-2">
+                  Empresa Seleccionada
+                </p>
+                <div className="bg-slate-50 p-4 rounded-2xl font-bold text-slate-700">
+                  {empresaEditando.nombre}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-2 block">
+                  Cambiar Plan
+                </label>
+                <select
+                  value={empresaEditando.plan_activo}
+                  onChange={(e) =>
+                    setEmpresaEditando({
+                      ...empresaEditando,
+                      plan_activo: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none font-bold text-sm"
+                >
+                  <option value="gratis">Gratis</option>
+                  <option value="pro">Pro</option>
+                  <option value="premium">Premium</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase mb-2 ml-2 block">
+                  Nueva Fecha Vencimiento
+                </label>
+                <input
+                  type="date"
+                  value={empresaEditando.fecha_vencimiento.split('T')[0]}
+                  onChange={(e) =>
+                    setEmpresaEditando({
+                      ...empresaEditando,
+                      fecha_vencimiento: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-slate-50 rounded-2xl border-none font-bold text-sm"
+                />
+              </div>
+
+              <button className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all">
+                Guardar Cambios
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
