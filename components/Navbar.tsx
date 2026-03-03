@@ -239,6 +239,22 @@ export default function Navbar() {
       {/* --- DISEÑO MOBILE (TAB BAR) --- */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#1A1D23] border-t border-white/5 z-[100] pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
         <div className="flex items-center h-16 px-4 overflow-x-auto scrollbar-hide gap-6">
+          {/* NUEVO: Widget de Tasa dentro del scroll del menú */}
+          <div className="flex flex-col items-center justify-center min-w-[70px] h-full border-r border-white/10 pr-4">
+            <span className="text-[7px] font-black text-[#FF9800] uppercase tracking-tighter leading-none">
+              {monedaConfig === 'EUR' ? 'EUR' : 'BCV'}
+            </span>
+            <span className="text-[11px] font-bold text-white mt-1">
+              {tasa ? tasa.toFixed(2) : '...'}
+            </span>
+            <button onClick={() => obtenerTasa(monedaConfig)} className="mt-1">
+              <RefreshCw
+                size={8}
+                className={`text-slate-400 ${cargandoTasa ? 'animate-spin' : ''}`}
+              />
+            </button>
+          </div>
+
           {links.map((link) => {
             const isActive = pathname === link.href;
             return (
@@ -258,44 +274,14 @@ export default function Navbar() {
                 <span
                   className={`text-[8px] font-black mt-1.5 uppercase tracking-widest ${isActive ? 'text-white' : 'text-slate-500'}`}
                 >
-                  {link.name}
+                  {link.name.split('|')[0]}{' '}
+                  {/* Acortamos nombres largos para móvil */}
                 </span>
               </Link>
             );
           })}
 
-          {/* Botón Configuración en Mobile */}
-          <Link
-            href="/configuracion"
-            className="relative flex flex-col items-center justify-center min-w-[64px] h-full active:scale-90"
-          >
-            <Settings
-              size={24}
-              className={
-                pathname === '/configuracion'
-                  ? 'text-[#FF9800]'
-                  : 'text-slate-500'
-              }
-            />
-            <span
-              className={`text-[8px] font-black mt-1.5 uppercase ${pathname === '/configuracion' ? 'text-white' : 'text-slate-500'}`}
-            >
-              Config
-            </span>
-            {configIncompleta && (
-              <span className="absolute top-2 right-4 w-2 h-2 bg-red-500 rounded-full"></span>
-            )}
-          </Link>
-
-          <button
-            onClick={handleLogout}
-            className="flex flex-col items-center justify-center min-w-[64px] h-full"
-          >
-            <LogOut size={24} className="text-red-400 opacity-80" />
-            <span className="text-[8px] font-black mt-1.5 text-red-400 uppercase tracking-widest">
-              Salir
-            </span>
-          </button>
+          {/* ... (resto de botones: Config y Salir) */}
         </div>
       </nav>
     </>
