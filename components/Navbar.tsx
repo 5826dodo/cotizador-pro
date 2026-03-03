@@ -237,6 +237,7 @@ export default function Navbar() {
       </div>
 
       {/* --- DISEÑO MOBILE (TAB BAR) --- */}
+
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#1A1D23] border-t border-white/5 z-[100] pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
         <div className="flex items-center h-16 px-4 overflow-x-auto scrollbar-hide gap-6">
           {/* NUEVO: Widget de Tasa dentro del scroll del menú */}
@@ -281,7 +282,38 @@ export default function Navbar() {
             );
           })}
 
-          {/* ... (resto de botones: Config y Salir) */}
+          {/* Botón Configuración en Mobile */}
+          <Link
+            href="/configuracion"
+            className="relative flex flex-col items-center justify-center min-w-[64px] h-full active:scale-90"
+          >
+            <Settings
+              size={24}
+              className={
+                pathname === '/configuracion'
+                  ? 'text-[#FF9800]'
+                  : 'text-slate-500'
+              }
+            />
+            <span
+              className={`text-[8px] font-black mt-1.5 uppercase ${pathname === '/configuracion' ? 'text-white' : 'text-slate-500'}`}
+            >
+              Config
+            </span>
+            {configIncompleta && (
+              <span className="absolute top-2 right-4 w-2 h-2 bg-red-500 rounded-full"></span>
+            )}
+          </Link>
+
+          <button
+            onClick={handleLogout}
+            className="flex flex-col items-center justify-center min-w-[64px] h-full"
+          >
+            <LogOut size={24} className="text-red-400 opacity-80" />
+            <span className="text-[8px] font-black mt-1.5 text-red-400 uppercase tracking-widest">
+              Salir
+            </span>
+          </button>
         </div>
       </nav>
     </>
