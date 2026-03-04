@@ -68,6 +68,7 @@ export default function CatalogoPublico({
           .from('productos')
           .select('*')
           .eq('empresa_id', empresaId)
+          .eq('activo', true)
           .gt('stock', 0);
         setProductos(prods || []);
 
@@ -148,6 +149,16 @@ export default function CatalogoPublico({
       return;
     }
 
+    // VALIDACIÓN DE TELÉFONO
+    const telefonoLimpio = empresa?.telefono?.replace(/\D/g, '');
+
+    if (!telefonoLimpio || telefonoLimpio.length < 7) {
+      alert(
+        '⚠️ Esta empresa aún no ha configurado un número de WhatsApp de atención. Por favor, contacta al administrador.',
+      );
+      return;
+    }
+
     let mensaje = `*NUEVO PEDIDO - ${empresa.nombre.toUpperCase()}*%0A`;
     mensaje += `*Cliente:* ${nombreCliente.toUpperCase()}%0A%0A`;
 
@@ -157,10 +168,11 @@ export default function CatalogoPublico({
 
     mensaje += `%0A*TOTAL:* *$${totalDolar.toFixed(2)}*%0A*Bs. ${(totalDolar * tasa).toFixed(2)}*%0A%0A_Enviado desde Ventiq_`;
 
-    const url = `https://wa.me/${empresa.telefono?.replace(/\D/g, '')}?text=${mensaje}`;
+    // Construcción de URL con el teléfono validado
+    const url = `https://wa.me/${telefonoLimpio}?text=${mensaje}`;
     window.open(url, '_blank');
 
-    // Limpiar carrito y cerrar
+    // Limpiar carrito
     setCarrito([]);
     setNombreCliente('');
     setIsCartOpen(false);
@@ -487,7 +499,7 @@ export default function CatalogoPublico({
                 </p>
               </div>
 
-              {/* BOTÓN WHATSAPP */}
+              {/* BOTÓN WHATSAPP MEJORADO */}
               <button
                 onClick={enviarPedido}
                 disabled={!nombreCliente.trim()}
@@ -498,9 +510,11 @@ export default function CatalogoPublico({
                 }`}
               >
                 <MessageCircle size={22} strokeWidth={3} />
-                {nombreCliente.trim()
-                  ? 'Enviar a WhatsApp'
-                  : 'Escribe tu nombre'}
+                {!empresa?.telefono
+                  ? 'WhatsApp no configurado' // <--- Alerta visual previa
+                  : nombreCliente.trim()
+                    ? 'Enviar a WhatsApp'
+                    : 'Escribe tu nombre'}
               </button>
             </div>
           </div>
