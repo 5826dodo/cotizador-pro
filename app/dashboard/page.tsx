@@ -41,15 +41,10 @@ export default function InventarioPage() {
   const obtenerProductos = async (idEmpresa: string) => {
     const { data } = await supabase
       .from('productos')
-      .select(
-        `
-      *,
-      categorias (
-        nombre
-      )
-    `,
-      )
+      .select(`*, categorias ( nombre )`)
       .eq('empresa_id', idEmpresa)
+      // .eq('activo', true) // Si quieres ocultar los "borrados" totalmente, descomenta esto
+      .order('activo', { ascending: false }) // Los activos primero
       .order('created_at', { ascending: false });
 
     if (data) setProductos(data);
@@ -210,22 +205,45 @@ export default function InventarioPage() {
   };
 
   const eliminarProducto = async (id: string) => {
-    if (confirm('¿Estás seguro de eliminar este producto?')) {
+    if (
+      confirm(
+        '¿Deseas retirar este producto del catálogo? No se borrará del historial de ventas.',
+      )
+    ) {
       try {
         const { error } = await supabase
           .from('productos')
-          .delete()
+          .update({ activo: false }) // Cambiamos el estado en lugar de borrar
           .eq('id', id)
           .eq('empresa_id', empresaId);
 
         if (error) throw error;
 
-        // Refrescamos la lista después de eliminar
         if (empresaId) obtenerProductos(empresaId);
-        setMensaje('🗑️ Producto eliminado');
+        setMensaje('📦 Producto archivado');
         setTimeout(() => setMensaje(''), 3000);
       } catch (err: any) {
-        alert('Error al eliminar: ' + err.message);
+        alert('Error al desactivar: ' + err.message);
+      }
+    }
+  };
+
+  const reactivarProducto = async (id: string) => {
+    if (confirm('¿Deseas activar este producto nuevamente en tu catálogo?')) {
+      try {
+        const { error } = await supabase
+          .from('productos')
+          .update({ activo: true }) // Volvemos a ponerlo en true
+          .eq('id', id)
+          .eq('empresa_id', empresaId);
+
+        if (error) throw error;
+
+        if (empresaId) obtenerProductos(empresaId);
+        setMensaje('✅ Producto reactivado');
+        setTimeout(() => setMensaje(''), 3000);
+      } catch (err: any) {
+        alert('Error al reactivar: ' + err.message);
       }
     }
   };
@@ -482,11 +500,13 @@ export default function InventarioPage() {
             const stockSeguro = prod.stock ? Number(prod.stock) : 0;
             const unidadSegura = prod.unidad_medida || 'UNIDADES';
             const esStockCritico = stockSeguro <= 5;
+            const esActivo = prod.activo !== false;
 
             return (
               <div
                 key={prod.id}
-                className={`bg-white p-4 rounded-[2.5rem] shadow-sm border-2 flex flex-col gap-4 ${esStockCritico ? 'border-red-100' : 'border-white'}`}
+                className={`bg-white p-4 rounded-[2.5rem] shadow-sm border-2 flex flex-col gap-4 
+                ${!esActivo ? 'opacity-50 grayscale bg-slate-50 border-dashed' : esStockCritico ? 'border-red-100' : 'border-white'}`}
               >
                 <div className="flex items-center gap-4">
                   <div className="w-20 h-20 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-100">
@@ -503,6 +523,11 @@ export default function InventarioPage() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
+                    {!esActivo && (
+                      <span className="text-[8px] font-black bg-slate-800 text-white px-2 py-0.5 rounded-md uppercase mb-2 inline-block">
+                        Fuera de Catálogo
+                      </span>
+                    )}
                     {/* CATEGORÍA BADGE */}
                     <div className="flex items-center gap-2 mb-1">
                       <span
@@ -535,12 +560,16 @@ export default function InventarioPage() {
                     >
                       ✏️
                     </button>
+                    {/* Si está inactivo, podríamos mostrar un botón de "Reactivar" en lugar de basura */}
                     <button
-                      type="button"
-                      onClick={() => eliminarProducto(prod.id)}
-                      className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-red-500 transition-all"
+                      onClick={() =>
+                        esActivo
+                          ? eliminarProducto(prod.id)
+                          : reactivarProducto(prod.id)
+                      }
+                      className="..."
                     >
-                      🗑️
+                      {esActivo ? '🗑️' : '🔄'}
                     </button>
                   </div>
                 </div>
