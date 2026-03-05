@@ -1,7 +1,16 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Tag, Plus, Trash2, LayoutGrid, Loader2 } from 'lucide-react';
+import {
+  Tag,
+  Plus,
+  Trash2,
+  LayoutGrid,
+  Loader2,
+  Edit2,
+  Check,
+  X,
+} from 'lucide-react';
 
 export default function GestionCategorias() {
   const supabase = createClient();
@@ -9,6 +18,10 @@ export default function GestionCategorias() {
   const [nombre, setNombre] = useState('');
   const [loading, setLoading] = useState(true);
   const [empresaId, setEmpresaId] = useState<string | null>(null);
+
+  // Estados para Edición
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [nombreEditado, setNombreEditado] = useState('');
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -38,28 +51,60 @@ export default function GestionCategorias() {
   }, []);
 
   const crearCategoria = async () => {
-    if (!nombre || !empresaId) return;
+    if (!nombre.trim() || !empresaId) return;
     const { data, error } = await supabase
       .from('categorias')
-      .insert([{ nombre, empresa_id: empresaId }])
+      .insert([{ nombre: nombre.trim(), empresa_id: empresaId }])
       .select()
       .single();
 
     if (!error) {
-      setCategorias([...categorias, data]);
+      setCategorias(
+        [...categorias, data].sort((a, b) => a.nombre.localeCompare(b.nombre)),
+      );
       setNombre('');
     }
   };
 
-  const eliminarCategoria = async (id: string) => {
-    const confirmacion = confirm(
-      '¿Estás seguro? Los productos en esta categoría quedarán sin categoría asignada.',
-    );
-    if (!confirmacion) return;
+  const actualizarCategoria = async (id: string) => {
+    if (!nombreEditado.trim()) return;
 
-    const { error } = await supabase.from('categorias').delete().eq('id', id);
+    const { error } = await supabase
+      .from('categorias')
+      .update({ nombre: nombreEditado.trim() })
+      .eq('id', id);
+
     if (!error) {
-      setCategorias(categorias.filter((c) => c.id !== id));
+      setCategorias(
+        categorias.map((c) =>
+          c.id === id ? { ...c, nombre: nombreEditado.trim() } : c,
+        ),
+      );
+      setEditandoId(null);
+    }
+  };
+
+  const eliminarCategoria = async (id: string) => {
+    // 1. Verificar si hay productos usando esa categoría
+    const { count, error: countError } = await supabase
+      .from('productos')
+      .select('*', { count: 'exact', head: true })
+      .eq('categoria_id', id);
+
+    if (count && count > 0) {
+      alert(
+        `No puedes eliminar esta categoría porque tiene ${count} productos asociados. Cámbialos de categoría antes de borrarla.`,
+      );
+      return;
+    }
+
+    // 2. Si está vacía, proceder
+    const confirmacion = confirm(
+      '¿Estás seguro de eliminar esta categoría vacía?',
+    );
+    if (confirmacion) {
+      const { error } = await supabase.from('categorias').delete().eq('id', id);
+      if (!error) setCategorias(categorias.filter((c) => c.id !== id));
     }
   };
 
@@ -77,7 +122,7 @@ export default function GestionCategorias() {
           Categorías
         </h1>
         <p className="text-slate-500 font-bold text-sm uppercase tracking-widest mt-2">
-          Organiza tu catálogo para tus clientes
+          Organiza tu catálogo
         </p>
       </div>
 
@@ -90,10 +135,11 @@ export default function GestionCategorias() {
           />
           <input
             type="text"
-            placeholder="Ej: Bebidas, Postres, Hamburguesas..."
+            placeholder="Nueva categoría..."
             className="w-full bg-slate-50 py-5 pl-14 pr-6 rounded-3xl outline-none font-bold text-sm border-2 border-transparent focus:border-orange-100 transition-all"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && crearCategoria()}
           />
         </div>
         <button
@@ -109,32 +155,68 @@ export default function GestionCategorias() {
         {categorias.map((cat) => (
           <div
             key={cat.id}
-            className="bg-white p-6 rounded-[2rem] border border-slate-100 flex items-center justify-between group hover:border-orange-200 transition-all"
+            className="bg-white p-4 rounded-[2rem] border border-slate-100 flex items-center justify-between group hover:border-orange-200 transition-all"
           >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-500">
-                <LayoutGrid size={20} />
+            <div className="flex items-center gap-4 flex-1">
+              <div className="w-10 h-10 bg-orange-50 rounded-2xl flex-shrink-0 flex items-center justify-center text-orange-500">
+                <LayoutGrid size={18} />
               </div>
-              <span className="font-black text-slate-800 uppercase text-sm tracking-tight">
-                {cat.nombre}
-              </span>
+
+              {editandoId === cat.id ? (
+                <input
+                  autoFocus
+                  className="w-full bg-slate-50 border-2 border-orange-200 rounded-xl px-3 py-1 font-bold text-sm outline-none"
+                  value={nombreEditado}
+                  onChange={(e) => setNombreEditado(e.target.value)}
+                  onKeyDown={(e) =>
+                    e.key === 'Enter' && actualizarCategoria(cat.id)
+                  }
+                />
+              ) : (
+                <span className="font-black text-slate-800 uppercase text-xs tracking-tight truncate">
+                  {cat.nombre}
+                </span>
+              )}
             </div>
-            <button
-              onClick={() => eliminarCategoria(cat.id)}
-              className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-            >
-              <Trash2 size={18} />
-            </button>
+
+            <div className="flex items-center gap-1">
+              {editandoId === cat.id ? (
+                <>
+                  <button
+                    onClick={() => actualizarCategoria(cat.id)}
+                    className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-xl"
+                  >
+                    <Check size={18} />
+                  </button>
+                  <button
+                    onClick={() => setEditandoId(null)}
+                    className="p-2 text-slate-400 hover:bg-slate-50 rounded-xl"
+                  >
+                    <X size={18} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      setEditandoId(cat.id);
+                      setNombreEditado(cat.nombre);
+                    }}
+                    className="p-2 text-slate-300 hover:text-orange-500 hover:bg-orange-50 rounded-xl transition-all"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button
+                    onClick={() => eliminarCategoria(cat.id)}
+                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         ))}
-        {categorias.length === 0 && (
-          <div className="col-span-full py-20 text-center opacity-30">
-            <Tag size={60} className="mx-auto mb-4" />
-            <p className="font-black uppercase tracking-widest text-xs">
-              No has creado categorías todavía
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
