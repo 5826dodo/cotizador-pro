@@ -51,15 +51,50 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setErrorMsg(null);
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+
+    // 1. Intento de login en Auth
+    const { data: authData, error: authError } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
     if (authError) {
       setErrorMsg('Credenciales incorrectas');
       setLoading(false);
       return;
     }
+
+    // 2. Si el usuario existe, verificamos si su empresa está suspendida
+    if (authData.user) {
+      const { data: perfil, error: perfilError } = await supabase
+        .from('perfiles')
+        .select(
+          `
+          rol,
+          empresas (
+            suspendida
+          )
+        `,
+        )
+        .eq('id', authData.user.id)
+        .single();
+
+      // Accedemos al estado de suspensión (manejando el tipado de la relación)
+      const estaSuspendida = (perfil?.empresas as any)?.suspendida;
+
+      if (estaSuspendida) {
+        // 3. BLOQUEO: Si está suspendida, cerramos la sesión inmediatamente
+        await supabase.auth.signOut();
+        setErrorMsg(
+          'Esta cuenta ha sido suspendida por falta de pago o infracción.',
+        );
+        setLoading(false);
+        return;
+      }
+    }
+
+    // 4. Si todo está bien, refrescamos y entramos
     router.refresh();
     router.push('/');
   };
