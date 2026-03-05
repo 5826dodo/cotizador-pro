@@ -38,6 +38,8 @@ export default function InventarioPage() {
   const [categorias, setCategorias] = useState<any[]>([]); // Nuevo
   const [categoriaId, setCategoriaId] = useState(''); // Nuevo
 
+  const [descripcion, setDescripcion] = useState('');
+
   const obtenerProductos = async (idEmpresa: string) => {
     const { data } = await supabase
       .from('productos')
@@ -169,6 +171,7 @@ export default function InventarioPage() {
 
       const payload = {
         nombre,
+        descripcion,
         precio: parseFloat(precio),
         stock: parseFloat(stock),
         unidad_medida: unidad,
@@ -251,6 +254,7 @@ export default function InventarioPage() {
   const prepararEdicion = (prod: any) => {
     setEditando(prod);
     setNombre(prod.nombre);
+    setDescripcion(prod.descripcion || '');
     setPrecio(prod.precio.toString());
     setStock(prod.stock.toString());
     setUnidad(prod.unidad_medida || 'UNIDADES');
@@ -262,6 +266,7 @@ export default function InventarioPage() {
   const cancelarEdicion = () => {
     setEditando(null);
     setNombre('');
+    setDescripcion('');
     setPrecio('');
     setStock('');
     setUnidad('UNIDADES');
@@ -357,6 +362,18 @@ export default function InventarioPage() {
                   onChange={(e) => setNombre(e.target.value)}
                   required
                   className="w-full bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-orange-500 font-bold placeholder:text-slate-300 transition-all"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
+                  Descripción / Detalles (Tallas, Colores, Notas)
+                </label>
+                <textarea
+                  placeholder="Ej: Talla L, Color Azul, o especificaciones del servicio..."
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  className="w-full bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-orange-500 font-bold placeholder:text-slate-300 transition-all resize-none"
+                  rows={2}
                 />
               </div>
 
@@ -543,6 +560,12 @@ export default function InventarioPage() {
                     <h3 className="font-black text-slate-800 text-sm uppercase truncate">
                       {prod.nombre || 'Sin nombre'}
                     </h3>
+                    {/* AÑADE ESTO: */}
+                    {prod.descripcion && (
+                      <p className="text-[10px] text-slate-400 italic truncate mb-1">
+                        {prod.descripcion}
+                      </p>
+                    )}
                     <p className="text-orange-500 font-black text-lg">
                       ${precioSeguro.toFixed(2)}
                     </p>
