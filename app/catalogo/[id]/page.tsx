@@ -163,7 +163,8 @@ export default function CatalogoPublico({
     mensaje += `*Cliente:* ${nombreCliente.toUpperCase()}%0A%0A`;
 
     carrito.forEach((i) => {
-      mensaje += `• ${i.cant}x ${i.nombre} ($${(i.precio * i.cant).toFixed(2)})%0A`;
+      const desc = i.descripcion ? ` (${i.descripcion})` : '';
+      mensaje += `• ${i.cant}x ${i.nombre}${desc} - $${(i.precio * i.cant).toFixed(2)}%0A`;
     });
 
     mensaje += `%0A*TOTAL:* *$${totalDolar.toFixed(2)}*%0A*Bs. ${(totalDolar * tasa).toFixed(2)}*%0A%0A_Enviado desde Ventiq_`;
@@ -314,6 +315,12 @@ export default function CatalogoPublico({
                   <h3 className="font-black text-slate-800 text-xs uppercase leading-tight mb-1 truncate">
                     {p.nombre}
                   </h3>
+                  {/* NUEVO: Mostrar descripción/talla si existe */}
+                  {p.descripcion && (
+                    <p className="text-[10px] text-slate-400 font-medium leading-tight mb-2 line-clamp-1">
+                      {p.descripcion}
+                    </p>
+                  )}
                   <p className="text-orange-500 font-black text-xl leading-none">
                     ${p.precio.toFixed(2)}
                   </p>
