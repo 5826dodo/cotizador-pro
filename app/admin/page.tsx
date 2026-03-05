@@ -83,12 +83,13 @@ export default function AdminPage() {
       if (errAuth) throw errAuth;
 
       // Vincular Perfil
+      // Vincular Perfil como CLIENTE
       if (nuevoUsuario.user) {
         const { error: errPerfil } = await supabase.from('perfiles').upsert(
           {
             id: nuevoUsuario.user.id,
             email: email,
-            rol: 'admin',
+            rol: 'cliente', // <--- CAMBIO REALIZADO
             empresa_id: nuevaEmpresa.id,
           },
           { onConflict: 'id' },
