@@ -15,6 +15,8 @@ import {
   Loader2,
   Users,
   ArrowLeft,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 
 export default function ClientesPage() {
@@ -81,6 +83,7 @@ export default function ClientesPage() {
       .from('clientes')
       .select('*')
       .eq('empresa_id', idEmpresa)
+      .order('activo', { ascending: false }) // Primero los activos
       .order('nombre', { ascending: true });
 
     if (error) console.error('Error al obtener clientes:', error);
@@ -138,15 +141,29 @@ export default function ClientesPage() {
     }
   };
 
-  const eliminarCliente = async (id: string) => {
-    if (!confirm('¿Seguro que deseas eliminar este cliente?')) return;
+  const alternarEstadoCliente = async (
+    id: string,
+    estadoActual: boolean,
+    nombreC: string,
+  ) => {
+    const accion = estadoActual ? 'inhabilitar' : 'activar';
+    if (!confirm(`¿Seguro que deseas ${accion} a ${nombreC}?`)) return;
+
     try {
-      const { error } = await supabase.from('clientes').delete().eq('id', id);
+      const { error } = await supabase
+        .from('clientes')
+        .update({ activo: !estadoActual }) // Cambia true a false o viceversa
+        .eq('id', id);
+
       if (error) throw error;
-      mostrarAviso('🗑️ Cliente eliminado de la cartera', 'success'); // Nuevo estilo
-      if (empresaId) cargarClientes(empresaId);
+
+      mostrarAviso(
+        `Cliente ${estadoActual ? 'inhabilitado' : 'activado'}`,
+        'success',
+      );
+      if (empresaId) cargarClientes(empresaId); // Recarga la lista
     } catch (error: any) {
-      mostrarAviso('Error al eliminar el cliente', 'error');
+      mostrarAviso('Error al cambiar estado', 'error');
     }
   };
 
@@ -355,7 +372,11 @@ export default function ClientesPage() {
           {clientes.map((c) => (
             <div
               key={c.id}
-              className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-xl hover:-translate-y-1 transition-all group"
+              className={`p-6 rounded-[2.5rem] shadow-sm border flex flex-col justify-between transition-all group ${
+                c.activo
+                  ? 'bg-white border-slate-100 hover:shadow-xl hover:-translate-y-1'
+                  : 'bg-slate-100 opacity-60 grayscale border-transparent'
+              }`}
             >
               <div>
                 <div className="flex justify-between items-start mb-4">
@@ -406,10 +427,13 @@ export default function ClientesPage() {
                   <Edit3 size={14} /> Editar
                 </button>
                 <button
-                  onClick={() => eliminarCliente(c.id)}
-                  className="w-12 flex items-center justify-center py-3 bg-red-50 text-red-500 rounded-2xl font-bold hover:bg-red-500 hover:text-white transition-all"
+                  onClick={() =>
+                    alternarEstadoCliente(c.id, c.activo, c.nombre)
+                  }
+                  className={`w-12 flex items-center justify-center py-3 rounded-2xl font-bold transition-all ${c.activo ? 'bg-red-50 text-red-500 hover:bg-red-500 hover:text-white' : 'bg-green-50 text-green-600 hover:bg-green-500 hover:text-white'}`}
+                  title={c.activo ? 'Inhabilitar' : 'Activar'}
                 >
-                  <Trash2 size={16} />
+                  {c.activo ? <Lock size={16} /> : <Unlock size={16} />}
                 </button>
               </div>
             </div>
