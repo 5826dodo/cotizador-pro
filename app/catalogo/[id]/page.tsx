@@ -15,6 +15,30 @@ import {
   Loader2,
 } from 'lucide-react';
 
+function ImagenConCarga({ url, nombre }: { url: string; nombre: string }) {
+  const [cargada, setCargada] = useState(false);
+
+  return (
+    <div className="relative w-full h-full">
+      {/* SKELETON: Fondo gris que pulsa mientras carga */}
+      {!cargada && (
+        <div className="absolute inset-0 bg-slate-200 animate-pulse" />
+      )}
+
+      <img
+        src={url}
+        alt={nombre}
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setCargada(true)} // Se dispara cuando la imagen termina de bajar
+        className={`w-full h-full object-cover transition-all duration-700 ease-in-out ${
+          cargada ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+        }`}
+      />
+    </div>
+  );
+}
+
 export default function CatalogoPublico({
   params,
 }: {
@@ -339,12 +363,7 @@ export default function CatalogoPublico({
                 <div className="relative w-24 h-24 flex-shrink-0">
                   <div className="w-full h-full bg-slate-100 rounded-3xl overflow-hidden border border-slate-50 relative">
                     {p.imagen_url ? (
-                      <img
-                        src={p.imagen_url}
-                        alt={p.nombre}
-                        loading="lazy"
-                        className="w-full h-full object-cover"
-                      />
+                      <ImagenConCarga url={p.imagen_url} nombre={p.nombre} />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-200">
                         <Package size={30} />
