@@ -40,16 +40,40 @@ export default function InventarioPage() {
 
   const [descripcion, setDescripcion] = useState('');
 
-  const obtenerProductos = async (idEmpresa: string) => {
-    const { data } = await supabase
+  const [pagina, setPagina] = useState(0);
+  const [tieneMas, setTieneMas] = useState(true);
+  const [cargandoMas, setCargandoMas] = useState(false);
+  const ITEMS_POR_PAGINA = 12;
+
+  const obtenerProductos = async (idEmpresa: string, reiniciar = false) => {
+    const nuevaPagina = reiniciar ? 0 : pagina;
+    if (!reiniciar) setCargandoMas(true);
+
+    const desde = nuevaPagina * ITEMS_POR_PAGINA;
+    const hasta = desde + ITEMS_POR_PAGINA - 1;
+
+    const { data, error } = await supabase
       .from('productos')
       .select(`*, categorias ( nombre )`)
       .eq('empresa_id', idEmpresa)
-      // .eq('activo', true) // Si quieres ocultar los "borrados" totalmente, descomenta esto
-      .order('activo', { ascending: false }) // Los activos primero
-      .order('created_at', { ascending: false });
+      .order('activo', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(desde, hasta);
 
-    if (data) setProductos(data);
+    if (error) {
+      console.error(error);
+    } else {
+      if (reiniciar) {
+        setProductos(data);
+        setPagina(1);
+        setTieneMas(data.length === ITEMS_POR_PAGINA);
+      } else {
+        setProductos((prev) => [...prev, ...data]);
+        setPagina(nuevaPagina + 1);
+        setTieneMas(data.length === ITEMS_POR_PAGINA);
+      }
+    }
+    setCargandoMas(false);
   };
 
   // Función para comprimir y redimensionar la imagen antes de subirla
@@ -62,8 +86,8 @@ export default function InventarioPage() {
         img.src = event.target?.result as string;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800; // Tamaño máximo suficiente para un catálogo móvil
-          const MAX_HEIGHT = 800;
+          const MAX_WIDTH = 600; // Suficiente para alta densidad de pixeles en móviles
+          const MAX_HEIGHT = 600;
           let width = img.width;
           let height = img.height;
 
@@ -92,7 +116,7 @@ export default function InventarioPage() {
               else reject(new Error('Error al comprimir imagen'));
             },
             'image/webp', // Formato moderno de alta compresión
-            0.7, // Calidad (70%)
+            0.6, // Calidad (60%)
           );
         };
       };
@@ -116,6 +140,8 @@ export default function InventarioPage() {
         if (perfil) {
           setEmpresaId(perfil.empresa_id);
           setNombreEmpresa((perfil.empresas as any)?.nombre || 'Mi Empresa');
+
+          await obtenerProductos(perfil.empresa_id, true);
 
           // CARGAR PRODUCTOS Y CATEGORÍAS
           await obtenerProductos(perfil.empresa_id);
@@ -526,17 +552,20 @@ export default function InventarioPage() {
                 ${!esActivo ? 'opacity-50 grayscale bg-slate-50 border-dashed' : esStockCritico ? 'border-red-100' : 'border-white'}`}
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-20 h-20 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-100">
+                  <div className="w-20 h-20 bg-slate-100 rounded-2xl overflow-hidden flex-shrink-0 animate-pulse">
                     {prod.imagen_url ? (
                       <img
-                        src={prod.imagen_url}
+                        src={`${prod.imagen_url}?width=150&quality=50`}
+                        onLoad={(e) =>
+                          e.currentTarget.parentElement!.classList.remove(
+                            'animate-pulse',
+                          )
+                        }
                         className="w-full h-full object-cover"
-                        alt={prod.nombre}
+                        loading="lazy"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-200">
-                        <Package size={24} />
-                      </div>
+                      <Package size={24} className="m-auto text-slate-200" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -600,6 +629,25 @@ export default function InventarioPage() {
             );
           })}
         </div>
+        {/* BOTÓN CARGAR MÁS */}
+        {tieneMas && (
+          <div className="flex justify-center mt-12 mb-20">
+            <button
+              onClick={() => empresaId && obtenerProductos(empresaId)}
+              disabled={cargandoMas}
+              className="px-8 py-4 bg-white border-2 border-slate-200 text-slate-600 rounded-[2rem] font-black uppercase text-xs hover:border-orange-500 hover:text-orange-500 transition-all flex items-center gap-3 shadow-sm disabled:opacity-50"
+            >
+              {cargandoMas ? (
+                <>
+                  <Loader2 className="animate-spin" size={16} />
+                  Cargando...
+                </>
+              ) : (
+                'Ver más productos'
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </main>
   );
