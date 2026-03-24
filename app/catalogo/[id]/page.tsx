@@ -12,6 +12,7 @@ import {
   Minus,
   Trash2,
   CheckCircle2,
+  Loader2,
 } from 'lucide-react';
 
 export default function CatalogoPublico({
@@ -36,6 +37,11 @@ export default function CatalogoPublico({
 
   const [nombreCliente, setNombreCliente] = useState('');
 
+  const [pagina, setPagina] = useState(0);
+  const [tieneMas, setTieneMas] = useState(true);
+  const [cargandoMas, setCargandoMas] = useState(false);
+  const ITEMS_POR_PAGINA = 12;
+
   // --- EFECTO AGRESIVO PARA OCULTAR NAVBAR ---
   useEffect(() => {
     const style = document.createElement('style');
@@ -52,25 +58,58 @@ export default function CatalogoPublico({
     };
   }, []);
 
-  // --- CARGA DE DATOS ---
+  // NUEVA FUNCIÓN PARA TRAER PRODUCTOS
+  const obtenerProductos = async (idEmpresa: string, reiniciar = false) => {
+    try {
+      const nuevaPagina = reiniciar ? 0 : pagina;
+      if (!reiniciar) setCargandoMas(true);
+
+      const desde = nuevaPagina * ITEMS_POR_PAGINA;
+      const hasta = desde + ITEMS_POR_PAGINA - 1;
+
+      let query = supabase
+        .from('productos')
+        .select('*')
+        .eq('empresa_id', idEmpresa)
+        .eq('activo', true)
+        .gt('stock', 0)
+        .order('nombre', { ascending: true })
+        .range(desde, hasta);
+
+      if (catSeleccionada !== 'todas') {
+        query = query.eq('categoria_id', catSeleccionada);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      if (reiniciar) {
+        setProductos(data || []);
+        setPagina(1);
+        setTieneMas(data?.length === ITEMS_POR_PAGINA);
+      } else {
+        setProductos((prev) => [...prev, ...(data || [])]);
+        setPagina(nuevaPagina + 1);
+        setTieneMas(data?.length === ITEMS_POR_PAGINA);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCargandoMas(false);
+    }
+  };
+
+  // NUEVO EFFECT PARA DATOS INICIALES
   useEffect(() => {
-    const cargarTodo = async () => {
+    const cargarDatosBase = async () => {
+      if (!empresaId) return;
       try {
-        if (!empresaId) return;
         const { data: emp } = await supabase
           .from('empresas')
           .select('*')
           .eq('id', empresaId)
           .single();
         setEmpresa(emp);
-
-        const { data: prods } = await supabase
-          .from('productos')
-          .select('*')
-          .eq('empresa_id', empresaId)
-          .eq('activo', true)
-          .gt('stock', 0);
-        setProductos(prods || []);
 
         const { data: cats } = await supabase
           .from('categorias')
@@ -82,14 +121,22 @@ export default function CatalogoPublico({
         const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
         const d = await res.json();
         setTasa(d.promedio || 0);
-      } catch (err) {
-        console.error(err);
+
+        // Cargamos los primeros productos
+        await obtenerProductos(empresaId, true);
       } finally {
         setLoading(false);
       }
     };
-    cargarTodo();
+    cargarDatosBase();
   }, [empresaId]);
+
+  // NUEVO EFFECT PARA CAMBIO DE CATEGORÍA
+  useEffect(() => {
+    if (empresaId && !loading) {
+      obtenerProductos(empresaId, true);
+    }
+  }, [catSeleccionada]);
 
   // --- LÓGICA DE CARRITO ---
   const agregarAlCarrito = (p: any) => {
@@ -278,8 +325,7 @@ export default function CatalogoPublico({
             const matchBusqueda = p.nombre
               .toLowerCase()
               .includes(filtro.toLowerCase());
-            const matchCategoria =
-              catSeleccionada === 'todas' || p.categoria_id === catSeleccionada;
+            const matchCategoria = true;
             return matchBusqueda && matchCategoria;
           })
           .map((p) => {
@@ -371,6 +417,18 @@ export default function CatalogoPublico({
             );
           })}
       </div>
+      {/* PEGAR JUSTO AQUÍ ABAJO DEL GRID */}
+      {tieneMas && (
+        <div className="flex justify-center mt-12 mb-24 px-6">
+          <button
+            onClick={() => obtenerProductos(empresaId)}
+            disabled={cargandoMas}
+            className="w-full max-w-xs py-5 bg-white border-2 border-slate-100 text-slate-500 rounded-[2.5rem] font-black uppercase text-[10px] tracking-[0.2em] shadow-sm flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-50"
+          >
+            {cargandoMas ? 'Cargando...' : 'Ver más productos'}
+          </button>
+        </div>
+      )}
 
       {/* BOTÓN FLOTANTE CARRITO */}
       {carrito.length > 0 && (

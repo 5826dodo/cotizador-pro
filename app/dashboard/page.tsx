@@ -224,7 +224,7 @@ export default function InventarioPage() {
         setMensaje(editando ? '✅ Actualizado' : '🚀 Producto Registrado');
         setTimeout(() => setMensaje(''), 3000);
         cancelarEdicion();
-        obtenerProductos(empresaId);
+        obtenerProductos(empresaId, true);
       }
     } catch (err: any) {
       alert('Error al guardar: ' + err.message);
@@ -248,7 +248,7 @@ export default function InventarioPage() {
 
         if (error) throw error;
 
-        if (empresaId) obtenerProductos(empresaId);
+        if (empresaId) obtenerProductos(empresaId, true);
         setMensaje('📦 Producto archivado');
         setTimeout(() => setMensaje(''), 3000);
       } catch (err: any) {
@@ -268,7 +268,7 @@ export default function InventarioPage() {
 
         if (error) throw error;
 
-        if (empresaId) obtenerProductos(empresaId);
+        if (empresaId) obtenerProductos(empresaId, true);
         setMensaje('✅ Producto reactivado');
         setTimeout(() => setMensaje(''), 3000);
       } catch (err: any) {
