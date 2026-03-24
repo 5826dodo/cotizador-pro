@@ -1,4 +1,5 @@
 'use client';
+import imageCompression from 'browser-image-compression';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import {
@@ -44,6 +45,8 @@ export default function InventarioPage() {
   const [tieneMas, setTieneMas] = useState(true);
   const [cargandoMas, setCargandoMas] = useState(false);
   const ITEMS_POR_PAGINA = 12;
+
+  const [comprimiendo, setComprimiendo] = useState(false);
 
   const obtenerProductos = async (idEmpresa: string, reiniciar = false) => {
     const nuevaPagina = reiniciar ? 0 : pagina;
@@ -301,18 +304,53 @@ export default function InventarioPage() {
     setPreviewUrl(null);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
+      setComprimiendo(true); // <--- EMPIEZA
       const file = e.target.files[0];
 
-      // Si el archivo es mayor a 10MB, ni lo procesamos
-      if (file.size > 10 * 1024 * 1024) {
-        alert('La imagen es demasiado pesada. Intenta con una menor a 10MB.');
+      // 1. Validación inicial (puedes subirla a 15MB si quieres, total la vamos a encoger)
+      if (file.size > 15 * 1024 * 1024) {
+        alert('La imagen es demasiado pesada. Intenta con una menor a 15MB.');
         return;
       }
 
-      setImagenFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+      try {
+        // 2. Definimos las reglas de compresión
+        const opciones = {
+          maxSizeMB: 0.7, // Intentamos que pese menos de 700KB
+          maxWidthOrHeight: 1200, // Si es un poster de 4000px, lo baja a 1200px
+          useWebWorker: true,
+          fileType: 'image/webp', // ¡MAGIA! Lo convierte a WebP automáticamente
+        };
+
+        // 3. Ejecutamos la compresión
+        // Mostramos un mensaje o loader si tienes uno: setCargandoImagen(true);
+        const archivoOptimizado = await imageCompression(file, opciones);
+
+        // 4. Guardamos el archivo YA comprimido en tu estado
+        // Importante: Le cambiamos el nombre para que termine en .webp
+        const archivoFinal = new File(
+          [archivoOptimizado],
+          `${file.name.split('.')[0]}.webp`,
+          {
+            type: 'image/webp',
+          },
+        );
+
+        setImagenFile(archivoFinal);
+
+        // 5. La vista previa (Preview) ahora será de la imagen ligera
+        setPreviewUrl(URL.createObjectURL(archivoFinal));
+
+        console.log('Imagen optimizada con éxito');
+      } catch (error) {
+        console.error('Error al optimizar:', error);
+        // Si algo falla, guardamos la original por si acaso
+        setImagenFile(file);
+        setPreviewUrl(URL.createObjectURL(file));
+      }
+      setComprimiendo(false);
     }
   };
 
@@ -477,11 +515,13 @@ export default function InventarioPage() {
                 </div>
               </div>
               <button
-                disabled={subiendoImg}
-                className="w-full py-4 bg-black text-white rounded-2xl font-black uppercase text-xs shadow-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+                disabled={subiendoImg || comprimiendo} // Bloquea en ambos casos
+                className="..."
               >
                 {subiendoImg ? (
                   <Loader2 className="animate-spin" size={16} />
+                ) : comprimiendo ? (
+                  'Optimizando...' // Feedback visual de que la App está trabajando
                 ) : editando ? (
                   'Actualizar'
                 ) : (
