@@ -146,7 +146,7 @@ export default function CatalogoPublico({
         // --- ELEGIR API SEGÚN MONEDA ---
         const urlTasa =
           monedaConfig === 'EUR'
-            ? 'https://ve.dolarapi.com/v1/euro/oficial'
+            ? 'https://ve.dolarapi.com/v1/euros/oficial'
             : 'https://ve.dolarapi.com/v1/dolares/oficial';
 
         const res = await fetch(urlTasa);
