@@ -306,7 +306,9 @@ export default function CatalogoPublico({
         </h1>
 
         <div className="mt-4 px-4 py-1.5 bg-emerald-50 text-emerald-600 rounded-full inline-block border border-emerald-100 text-[9px] font-black uppercase">
-          Tasa: {moneda === 'EUR' ? '€' : 'Bs.'} {tasa.toFixed(2)}
+          {tasa > 0
+            ? `Tasa: ${moneda === 'EUR' ? '€' : 'Bs.'} ${tasa.toFixed(2)}`
+            : 'Tasa no disponible'}
         </div>
       </div>
 
