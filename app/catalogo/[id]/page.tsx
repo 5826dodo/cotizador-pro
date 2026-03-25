@@ -123,7 +123,10 @@ export default function CatalogoPublico({
     }
   };
 
-  // NUEVO EFFECT PARA DATOS INICIALES
+  // 1. Añade este estado arriba con los demás
+  const [moneda, setMoneda] = useState('BS');
+
+  // 2. Actualiza el useEffect de carga inicial
   useEffect(() => {
     const cargarDatosBase = async () => {
       if (!empresaId) return;
@@ -133,7 +136,22 @@ export default function CatalogoPublico({
           .select('*')
           .eq('id', empresaId)
           .single();
+
         setEmpresa(emp);
+
+        // --- DETECTAR MONEDA CONFIGURADA ---
+        const monedaConfig = emp?.moneda_secundaria || 'BS';
+        setMoneda(monedaConfig);
+
+        // --- ELEGIR API SEGÚN MONEDA ---
+        const urlTasa =
+          monedaConfig === 'EUR'
+            ? 'https://ve.dolarapi.com/v1/euro/oficial'
+            : 'https://ve.dolarapi.com/v1/dolares/oficial';
+
+        const res = await fetch(urlTasa);
+        const d = await res.json();
+        setTasa(d.promedio || 0);
 
         const { data: cats } = await supabase
           .from('categorias')
@@ -142,11 +160,6 @@ export default function CatalogoPublico({
           .order('nombre');
         setCategorias(cats || []);
 
-        const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
-        const d = await res.json();
-        setTasa(d.promedio || 0);
-
-        // Cargamos los primeros productos
         await obtenerProductos(empresaId, true);
       } finally {
         setLoading(false);
@@ -238,8 +251,7 @@ export default function CatalogoPublico({
       mensaje += `• ${i.cant}x ${i.nombre}${desc} - $${(i.precio * i.cant).toFixed(2)}%0A`;
     });
 
-    mensaje += `%0A*TOTAL:* *$${totalDolar.toFixed(2)}*%0A*Bs. ${(totalDolar * tasa).toFixed(2)}*%0A%0A_Enviado desde Ventiq_`;
-
+    mensaje += `%0A*TOTAL:* *$${totalDolar.toFixed(2)}*%0A*${moneda === 'EUR' ? '€' : 'Bs.'} ${(totalDolar * tasa).toFixed(2)}*%0A%0A_Enviado desde Ventiq_`;
     // Construcción de URL con el teléfono validado
     const url = `https://wa.me/${telefonoLimpio}?text=${mensaje}`;
     window.open(url, '_blank');
@@ -292,8 +304,9 @@ export default function CatalogoPublico({
         <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">
           {empresa?.nombre}
         </h1>
+
         <div className="mt-4 px-4 py-1.5 bg-emerald-50 text-emerald-600 rounded-full inline-block border border-emerald-100 text-[9px] font-black uppercase">
-          Tasa: Bs. {tasa.toFixed(2)}
+          Tasa: {moneda === 'EUR' ? '€' : 'Bs.'} {tasa.toFixed(2)}
         </div>
       </div>
 
@@ -388,6 +401,10 @@ export default function CatalogoPublico({
                   )}
                   <p className="text-orange-500 font-black text-xl leading-none">
                     ${p.precio.toFixed(2)}
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-bold mt-1">
+                    ≈ {moneda === 'EUR' ? '€' : 'Bs.'}{' '}
+                    {(p.precio * tasa).toFixed(2)}
                   </p>
                   <div className="mt-4 flex items-center gap-2">
                     {cant === 0 ? (
@@ -579,7 +596,8 @@ export default function CatalogoPublico({
                   </p>
                 </div>
                 <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
-                  Bs. {(totalDolar * tasa).toFixed(2)}
+                  {moneda === 'EUR' ? '€' : 'Bs.'}{' '}
+                  {(totalDolar * tasa).toFixed(2)}
                 </p>
               </div>
 
