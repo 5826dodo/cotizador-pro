@@ -28,7 +28,7 @@ export default function CotizarPage() {
   const [mostrarModalResumen, setMostrarModalResumen] = useState(false);
   const [observaciones, setObservaciones] = useState('');
   const [busquedaCliente, setBusquedaCliente] = useState('');
-  const [tasaBCV, setTasaBCV] = useState<number>(382.63);
+  const [tasaBCV, setTasaBCV] = useState<number>(0);
   const [monedaPrincipal, setMonedaPrincipal] = useState<'USD' | 'BS'>('USD');
   const [miEmpresaId, setMiEmpresaId] = useState<string | null>(null);
   const [datosEmpresa, setDatosEmpresa] = useState<any>(null); // Estado para el perfil de empresa
@@ -645,6 +645,7 @@ export default function CotizarPage() {
                 <input
                   type="number"
                   step="any"
+                  placeholder="Cargando..."
                   value={tasaBCV === 0 ? '' : tasaBCV}
                   onChange={(e) => setTasaBCV(parseFloat(e.target.value) || 0)}
                   className="text-3xl font-black text-slate-800 bg-transparent border-b-4 border-orange-500 outline-none w-40 px-2"
@@ -740,7 +741,8 @@ export default function CotizarPage() {
                                 : 'text-orange-500'
                             }`}
                           >
-                            ${p.precio.toLocaleString()}
+                            {etiquetaMoneda === 'EUR' ? '€' : '$'}{' '}
+                            {p.precio.toLocaleString()}
                           </span>
 
                           {monedaPrincipal === 'BS' && (
