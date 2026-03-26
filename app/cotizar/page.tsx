@@ -224,7 +224,9 @@ export default function CotizarPage() {
       doc.text(doc.splitTextToSize(notasExtra || 'Por definir', 135), 50, 86);
 
       // --- TABLA ---
-      const simbolo = monedaPrincipal === 'BS' ? 'Bs.' : '$';
+      const simbolo =
+        monedaPrincipal === 'BS' ? 'Bs.' : etiquetaMoneda === 'EUR' ? '€' : '$';
+
       const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
 
       // --- TABLA ---
