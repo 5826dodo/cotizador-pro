@@ -1094,8 +1094,12 @@ function TarjetaProductoCarrito({
           <p
             className={`font-black text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}
           >
-            {/* CAMBIO AQUÍ: Símbolo dinámico y multiplicación por factor si es BS */}
-            {etiquetaMoneda === 'EUR' ? '€' : '$'}{' '}
+            {/* Lógica de 3 niveles: BS > EUR > USD */}
+            {monedaPrincipal === 'BS'
+              ? 'Bs.'
+              : etiquetaMoneda === 'EUR'
+                ? '€'
+                : '$'}{' '}
             {(item.precio * item.cantidad * factor).toLocaleString('es-VE', {
               minimumFractionDigits: 2,
             })}
