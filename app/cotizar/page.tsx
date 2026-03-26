@@ -819,7 +819,8 @@ export default function CotizarPage() {
                   Total a Cobrar
                 </span>
                 <span className="text-5xl font-black text-white tracking-tighter italic">
-                  ${calcularTotal().toLocaleString()}
+                  {etiquetaMoneda === 'EUR' ? '€' : '$'}
+                  {calcularTotal().toLocaleString()}
                 </span>
                 <div className="mt-2 bg-orange-600 px-4 py-1 rounded-full shadow-lg shadow-orange-900/40">
                   <span className="text-lg font-black text-white italic">
@@ -1094,7 +1095,7 @@ function TarjetaProductoCarrito({
             className={`font-black text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}
           >
             {/* CAMBIO AQUÍ: Símbolo dinámico y multiplicación por factor si es BS */}
-            {simbolo}{' '}
+            {etiquetaMoneda === 'EUR' ? '€' : '$'}{' '}
             {(item.precio * item.cantidad * factor).toLocaleString('es-VE', {
               minimumFractionDigits: 2,
             })}
