@@ -632,11 +632,17 @@ export default function CotizarPage() {
           <section className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-6">
             <div className="flex items-center gap-4">
               <div className="bg-orange-600 p-4 rounded-2xl shadow-lg shadow-orange-200">
-                <DollarSign className="text-white" size={28} />
+                {/* CAMBIO: Icono dinámico según la moneda de la empresa */}
+                {etiquetaMoneda === 'EUR' ? (
+                  <span className="text-white text-2xl font-black">€</span>
+                ) : (
+                  <DollarSign className="text-white" size={28} />
+                )}
               </div>
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                  Tasa BCV (Bs/$)
+                  {/* CAMBIO: Texto dinámico (Bs/$ o Bs/€) */}
+                  Tasa BCV (Bs/{etiquetaMoneda === 'EUR' ? '€' : '$'})
                 </p>
                 <input
                   type="number"
