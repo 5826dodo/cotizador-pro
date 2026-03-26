@@ -68,7 +68,7 @@ export default function CotizarPage() {
             setDatosEmpresa(empresaData);
 
             // 2. Extraemos la moneda (EUR o USD)
-            const monedaConfig = empresaData.moneda_trabajo || 'USD';
+            const monedaConfig = empresaData.moneda_secundaria || 'USD';
 
             // 3. ACTUALIZAMOS EL ESTADO PARA LA VISTA
             setEtiquetaMoneda(monedaConfig);
