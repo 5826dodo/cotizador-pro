@@ -39,29 +39,17 @@ export default function CotizarPage() {
   >('cotizacion');
   const [estadoPago, setEstadoPago] = useState('pendiente_pago');
   const [montoPagado, setMontoPagado] = useState(0);
+  // Añade esta línea junto a tus otros estados (como tasaBCV)
+  const [etiquetaMoneda, setEtiquetaMoneda] = useState<'USD' | 'EUR'>('USD');
 
   useEffect(() => {
     const cargarDatos = async () => {
-      // --- NUEVO: Obtener Tasa BCV Automática ---
-      try {
-        const resTasa = await fetch(
-          'https://ve.dolarapi.com/v1/dolares/oficial',
-        );
-        const dataTasa = await resTasa.json();
-        if (dataTasa && dataTasa.promedio) {
-          setTasaBCV(dataTasa.promedio);
-        }
-      } catch (e) {
-        console.error('No se pudo obtener la tasa automáticamente', e);
-        // Mantiene el valor por defecto si falla
-      }
-
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (user) {
-        // Obtenemos empresa_id y los DATOS de la empresa mediante un Join
+        // 1. Obtenemos el perfil y la info de la empresa de una vez
         const { data: perfil } = await supabase
           .from('perfiles')
           .select('empresa_id, empresas(*)')
@@ -70,16 +58,43 @@ export default function CotizarPage() {
 
         if (perfil?.empresa_id) {
           setMiEmpresaId(perfil.empresa_id);
-          setDatosEmpresa(perfil.empresas); // Guardamos la info de la empresa
 
-          // Cargar Clientes
+          // Manejamos si empresas viene como objeto o array (por el join de Supabase)
+          const empresaEfectiva = Array.isArray(perfil.empresas)
+            ? perfil.empresas[0]
+            : perfil.empresas;
+
+          setDatosEmpresa(empresaEfectiva);
+
+          // --- LÓGICA DE MONEDA DINÁMICA ---
+          // Tomamos la moneda de la configuración (o USD por defecto)
+          const monedaConfig = empresaEfectiva?.moneda_trabajo || 'USD';
+          setEtiquetaMoneda(monedaConfig);
+
+          try {
+            // Si la empresa usa EUR, consultamos la tasa de Euro, si no, la de Dólar
+            const endpoint =
+              monedaConfig === 'EUR' ? 'euros/oficial' : 'dolares/oficial';
+
+            const resTasa = await fetch(
+              `https://ve.dolarapi.com/v1/${endpoint}`,
+            );
+            const dataTasa = await resTasa.json();
+
+            if (dataTasa && dataTasa.promedio) {
+              setTasaBCV(dataTasa.promedio);
+            }
+          } catch (e) {
+            console.error('Error al sincronizar tasa con el Navbar:', e);
+          }
+
+          // --- CARGA DE DATOS RESTANTES ---
           const { data: c } = await supabase
             .from('clientes')
             .select('*')
             .eq('empresa_id', perfil.empresa_id)
             .order('nombre');
 
-          // Cargar Productos
           const { data: p } = await supabase
             .from('productos')
             .select('*')
