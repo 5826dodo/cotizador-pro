@@ -628,12 +628,20 @@ export default function CotizarPage() {
           <section className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-6">
             <div className="flex items-center gap-4">
               <div className="bg-orange-600 p-4 rounded-2xl shadow-lg shadow-orange-200">
-                <DollarSign className="text-white" size={28} />
+                {/* ÍCONO DINÁMICO: Si es EUR muestra €, si no, muestra el DollarSign */}
+                {etiquetaMoneda === 'EUR' ? (
+                  <span className="text-white text-2xl font-black px-1">€</span>
+                ) : (
+                  <DollarSign className="text-white" size={28} />
+                )}
               </div>
+
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                  Tasa BCV (Bs/$)
+                  {/* TEXTO DINÁMICO: Cambia Bs/$ por Bs/€ según la empresa */}
+                  Tasa BCV (Bs/{etiquetaMoneda === 'EUR' ? '€' : '$'})
                 </p>
+
                 <input
                   type="number"
                   step="any"
@@ -645,13 +653,15 @@ export default function CotizarPage() {
             </div>
 
             {/* Switch Moneda Ventiq */}
+            {/* Switch Moneda Ventiq */}
             <div className="flex bg-slate-100 p-1.5 rounded-2xl">
               <button
                 onClick={() => setMonedaPrincipal('USD')}
                 className={`px-8 py-3 rounded-xl font-black text-[10px] transition-all uppercase ${monedaPrincipal === 'USD' ? 'bg-[#1A1C1E] text-white shadow-lg' : 'text-slate-400'}`}
               >
-                USD $
+                {etiquetaMoneda} {etiquetaMoneda === 'EUR' ? '€' : '$'}
               </button>
+
               <button
                 onClick={() => setMonedaPrincipal('BS')}
                 className={`px-8 py-3 rounded-xl font-black text-[10px] transition-all uppercase ${monedaPrincipal === 'BS' ? 'bg-orange-600 text-white shadow-lg' : 'text-slate-400'}`}
