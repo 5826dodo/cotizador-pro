@@ -59,36 +59,51 @@ export default function CotizarPage() {
         if (perfil?.empresa_id) {
           setMiEmpresaId(perfil.empresa_id);
 
-          // 1. FORZAMOS obtener el objeto de la empresa correctamente
-          const empresaData = Array.isArray(perfil.empresas)
+          // Manejamos si empresas viene como objeto o array (por el join de Supabase)
+          const empresaEfectiva = Array.isArray(perfil.empresas)
             ? perfil.empresas[0]
             : perfil.empresas;
 
-          if (empresaData) {
-            setDatosEmpresa(empresaData);
+          setDatosEmpresa(empresaEfectiva);
 
-            // 2. Extraemos la moneda (EUR o USD)
-            const monedaConfig = empresaData.moneda_secundaria || 'USD';
+          // --- LÓGICA DE MONEDA DINÁMICA ---
+          // Tomamos la moneda de la configuración (o USD por defecto)
+          const monedaConfig = empresaEfectiva?.moneda_secundaria || 'USD';
+          setEtiquetaMoneda(monedaConfig);
 
-            // 3. ACTUALIZAMOS EL ESTADO PARA LA VISTA
-            setEtiquetaMoneda(monedaConfig);
+          try {
+            // Si la empresa usa EUR, consultamos la tasa de Euro, si no, la de Dólar
+            const endpoint =
+              monedaConfig === 'EUR' ? 'euros/oficial' : 'dolares/oficial';
 
-            // 4. Cargamos la tasa correspondiente
-            try {
-              const endpoint =
-                monedaConfig === 'EUR' ? 'euros/oficial' : 'dolares/oficial';
-              const resTasa = await fetch(
-                `https://ve.dolarapi.com/v1/${endpoint}`,
-              );
-              const dataTasa = await resTasa.json();
+            const resTasa = await fetch(
+              `https://ve.dolarapi.com/v1/${endpoint}`,
+            );
+            const dataTasa = await resTasa.json();
 
-              if (dataTasa && dataTasa.promedio) {
-                setTasaBCV(dataTasa.promedio);
-              }
-            } catch (e) {
-              console.error('Error API:', e);
+            if (dataTasa && dataTasa.promedio) {
+              setTasaBCV(dataTasa.promedio);
             }
+          } catch (e) {
+            console.error('Error al sincronizar tasa con el Navbar:', e);
           }
+
+          // --- CARGA DE DATOS RESTANTES ---
+          const { data: c } = await supabase
+            .from('clientes')
+            .select('*')
+            .eq('empresa_id', perfil.empresa_id)
+            .order('nombre');
+
+          const { data: p } = await supabase
+            .from('productos')
+            .select('*')
+            .eq('empresa_id', perfil.empresa_id)
+            .gt('stock', 0)
+            .order('nombre');
+
+          if (c) setClientes(c);
+          if (p) setProductosInventario(p);
         }
       }
     };
