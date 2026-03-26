@@ -40,64 +40,46 @@ export default function CotizarPage() {
   const [estadoPago, setEstadoPago] = useState('pendiente_pago');
   const [montoPagado, setMontoPagado] = useState(0);
 
-  // 1. Cambiamos el nombre del estado para que sea genérico
-  const [tasaCambio, setTasaCambio] = useState<number>(0);
-  const [etiquetaMoneda, setEtiquetaMoneda] = useState<'USD' | 'EUR'>('USD');
-
   useEffect(() => {
     const cargarDatos = async () => {
+      // --- NUEVO: Obtener Tasa BCV Automática ---
+      try {
+        const resTasa = await fetch(
+          'https://ve.dolarapi.com/v1/dolares/oficial',
+        );
+        const dataTasa = await resTasa.json();
+        if (dataTasa && dataTasa.promedio) {
+          setTasaBCV(dataTasa.promedio);
+        }
+      } catch (e) {
+        console.error('No se pudo obtener la tasa automáticamente', e);
+        // Mantiene el valor por defecto si falla
+      }
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (user) {
+        // Obtenemos empresa_id y los DATOS de la empresa mediante un Join
         const { data: perfil } = await supabase
           .from('perfiles')
           .select('empresa_id, empresas(*)')
           .eq('id', user.id)
           .single();
 
-        // EXPLICACIÓN: perfil.empresas viene como [ {id: 1, nombre: '...' } ]
-        // Necesitamos el primer elemento:
-        const datosEmpresaRaw = perfil?.empresas;
-        const empresaEfectiva = Array.isArray(datosEmpresaRaw)
-          ? datosEmpresaRaw[0]
-          : datosEmpresaRaw;
-
-        if (perfil?.empresa_id && empresaEfectiva) {
+        if (perfil?.empresa_id) {
           setMiEmpresaId(perfil.empresa_id);
-          setDatosEmpresa(empresaEfectiva); // Guardamos el objeto, no el array
+          setDatosEmpresa(perfil.empresas); // Guardamos la info de la empresa
 
-          // --- DINAMISMO SEGURO ---
-          // Ahora sí, empresaEfectiva tiene la propiedad moneda_trabajo
-          const monedaConfig = empresaEfectiva.moneda_trabajo || 'USD';
-          setEtiquetaMoneda(monedaConfig as 'USD' | 'EUR');
-
-          try {
-            // Ajuste de endpoints según la estructura de dolarapi.com
-            // Usualmente es /v1/dolares o /v1/euros
-            const endpoint =
-              monedaConfig === 'EUR' ? 'euros/oficial' : 'dolares/oficial';
-
-            const resTasa = await fetch(
-              `https://ve.dolarapi.com/v1/${endpoint}`,
-            );
-            const dataTasa = await resTasa.json();
-
-            if (dataTasa && dataTasa.promedio) {
-              setTasaCambio(dataTasa.promedio);
-            }
-          } catch (e) {
-            console.error('Error al obtener tasa:', e);
-          }
-
-          // ... Resto de tu carga de Clientes y Productos (usa perfil.empresa_id)
+          // Cargar Clientes
           const { data: c } = await supabase
             .from('clientes')
             .select('*')
             .eq('empresa_id', perfil.empresa_id)
             .order('nombre');
 
+          // Cargar Productos
           const { data: p } = await supabase
             .from('productos')
             .select('*')
@@ -258,7 +240,6 @@ export default function CotizarPage() {
       if (tipoOperacion === 'venta_directa') {
         const finalY = (doc as any).lastAutoTable.finalY + 15;
         const simbolo = monedaPrincipal === 'BS' ? 'Bs.' : '$';
-
         const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
 
         // El TOTAL siempre se multiplica por el factor para mostrarlo en la moneda elegida
@@ -632,17 +613,11 @@ export default function CotizarPage() {
           <section className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-6">
             <div className="flex items-center gap-4">
               <div className="bg-orange-600 p-4 rounded-2xl shadow-lg shadow-orange-200">
-                {/* CAMBIO: Icono dinámico según la moneda de la empresa */}
-                {etiquetaMoneda === 'EUR' ? (
-                  <span className="text-white text-2xl font-black">€</span>
-                ) : (
-                  <DollarSign className="text-white" size={28} />
-                )}
+                <DollarSign className="text-white" size={28} />
               </div>
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                  {/* CAMBIO: Texto dinámico (Bs/$ o Bs/€) */}
-                  Tasa BCV (Bs/{etiquetaMoneda === 'EUR' ? '€' : '$'})
+                  Tasa BCV (Bs/$)
                 </p>
                 <input
                   type="number"
@@ -740,8 +715,7 @@ export default function CotizarPage() {
                                 : 'text-orange-500'
                             }`}
                           >
-                            {etiquetaMoneda === 'EUR' ? '€' : '$'}{' '}
-                            {p.precio.toLocaleString()}
+                            ${p.precio.toLocaleString()}
                           </span>
 
                           {monedaPrincipal === 'BS' && (
@@ -813,13 +787,10 @@ export default function CotizarPage() {
             <div className="mt-10 pt-8 border-t border-white/10">
               <div className="flex flex-col items-end mb-8">
                 <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] mb-2">
-                  Total a Cobrar {etiquetaMoneda}
+                  Total a Cobrar
                 </span>
                 <span className="text-5xl font-black text-white tracking-tighter italic">
-                  {etiquetaMoneda === 'EUR' ? '€' : '$'}{' '}
-                  {calcularTotal().toLocaleString('es-VE', {
-                    minimumFractionDigits: 2,
-                  })}
+                  ${calcularTotal().toLocaleString()}
                 </span>
                 <div className="mt-2 bg-orange-600 px-4 py-1 rounded-full shadow-lg shadow-orange-900/40">
                   <span className="text-lg font-black text-white italic">
@@ -860,20 +831,17 @@ export default function CotizarPage() {
               </div>
               <div className="text-left">
                 <p className="text-[10px] font-black text-slate-400 uppercase">
-                  Total {etiquetaMoneda}
+                  Total
                 </p>
                 <p className="text-2xl font-black">
                   <div className="flex flex-col items-end mb-6">
                     <span className="text-sm font-black text-slate-400 uppercase tracking-widest">
-                      Total a Pagar {etiquetaMoneda}
+                      Total a Pagar
                     </span>
 
                     {/* Monto en Dólares siempre destacado */}
                     <span className="text-4xl font-black text-orange-700 leading-tight">
-                      {etiquetaMoneda === 'EUR' ? '€' : '$'}{' '}
-                      {calcularTotal().toLocaleString('es-VE', {
-                        minimumFractionDigits: 2,
-                      })}
+                      ${calcularTotal().toLocaleString()}
                     </span>
 
                     {/* Monto en Bolívares justo debajo como referencia principal */}
@@ -957,10 +925,7 @@ export default function CotizarPage() {
                 <span className="font-black text-slate-400">TOTAL</span>
                 <div className="text-right">
                   <span className="text-3xl font-black text-orange-700 block">
-                    {etiquetaMoneda === 'EUR' ? '€' : '$'}{' '}
-                    {calcularTotal().toLocaleString('es-VE', {
-                      minimumFractionDigits: 2,
-                    })}
+                    ${calcularTotal().toLocaleString()}
                   </span>
                   {monedaPrincipal === 'BS' && (
                     <span className="text-sm font-bold text-emerald-600">
