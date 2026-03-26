@@ -1006,7 +1006,16 @@ function TarjetaProductoCarrito({
   setCarrito,
   carrito,
   isDark = false,
+  // --- NUEVOS PROPS ---
+  etiquetaMoneda,
+  monedaPrincipal,
+  tasaBCV,
 }: any) {
+  // Definimos el símbolo y el factor igual que en el resto de la app
+  const simbolo =
+    monedaPrincipal === 'BS' ? 'Bs.' : etiquetaMoneda === 'EUR' ? '€' : '$';
+  const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
+
   return (
     <div
       className={`p-4 rounded-3xl mb-3 border ${
@@ -1030,7 +1039,6 @@ function TarjetaProductoCarrito({
       </div>
 
       <div className="flex items-center justify-between gap-4">
-        {/* Campo Cantidad con Label y Estilo visible */}
         <div className="flex-1">
           <label
             className={`text-[9px] font-black uppercase mb-1 block ${isDark ? 'text-orange-400' : 'text-slate-400'}`}
@@ -1085,7 +1093,11 @@ function TarjetaProductoCarrito({
           <p
             className={`font-black text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}
           >
-            ${(item.precio * item.cantidad).toLocaleString()}
+            {/* CAMBIO AQUÍ: Símbolo dinámico y multiplicación por factor si es BS */}
+            {simbolo}{' '}
+            {(item.precio * item.cantidad * factor).toLocaleString('es-VE', {
+              minimumFractionDigits: 2,
+            })}
           </p>
         </div>
       </div>
