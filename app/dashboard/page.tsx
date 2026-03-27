@@ -59,6 +59,11 @@ export default function InventarioPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [subiendoImg, setSubiendoImg] = useState(false);
   const [comprimiendo, setComprimiendo] = useState(false);
+  const [imagenError, setImagenError] = useState<string | null>(null);
+  const [imagenInfo, setImagenInfo] = useState<{
+    original: string;
+    comprimido: string;
+  } | null>(null);
   // Guardamos la objectURL activa para poder revocarla
   const objectUrlRef = useRef<string | null>(null);
 
@@ -77,6 +82,11 @@ export default function InventarioPage() {
   const mostrarMensaje = (texto: string) => {
     setMensaje(texto);
     setTimeout(() => setMensaje(''), 3000);
+  };
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   /** Revoca la objectURL anterior y asigna una nueva */
@@ -183,8 +193,14 @@ export default function InventarioPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Limpiar estados anteriores
+    setImagenError(null);
+    setImagenInfo(null);
+
     if (file.size > 15 * 1024 * 1024) {
-      alert('La imagen es demasiado pesada. Intenta con una menor a 15 MB.');
+      setImagenError(
+        `La imagen pesa ${formatBytes(file.size)} y supera el límite de 15 MB. Usa una foto más liviana.`,
+      );
       return;
     }
 
@@ -205,10 +221,17 @@ export default function InventarioPage() {
       );
 
       setImagenFile(archivoFinal);
+      setImagenInfo({
+        original: formatBytes(file.size),
+        comprimido: formatBytes(archivoFinal.size),
+      });
       // FIX #7 — gestionamos la objectURL con asignarPreview
       asignarPreview(URL.createObjectURL(archivoFinal));
     } catch (error) {
       console.error('Error al optimizar imagen:', error);
+      setImagenError(
+        'No se pudo procesar la imagen. Intenta con otro archivo.',
+      );
       setImagenFile(file);
       asignarPreview(URL.createObjectURL(file));
     } finally {
@@ -350,6 +373,8 @@ export default function InventarioPage() {
     setUnidad('UNIDADES');
     setCategoriaId('');
     setImagenFile(null);
+    setImagenError(null);
+    setImagenInfo(null);
     // FIX #7 — revocamos la objectURL al cancelar
     asignarPreview(null);
   };
@@ -401,11 +426,16 @@ export default function InventarioPage() {
                   alt="Preview"
                 />
               ) : (
-                <div className="w-24 h-24 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-300">
+                <div
+                  className={`w-24 h-24 rounded-2xl flex items-center justify-center transition-all ${imagenError ? 'bg-red-50 text-red-300' : 'bg-slate-100 text-slate-300'}`}
+                >
                   <Camera size={32} />
                 </div>
               )}
-              <label className="cursor-pointer text-[10px] font-black uppercase text-slate-400 group-hover:text-orange-500">
+
+              <label
+                className={`cursor-pointer text-[10px] font-black uppercase transition-all ${comprimiendo ? 'text-orange-400' : imagenError ? 'text-red-400' : 'text-slate-400 group-hover:text-orange-500'}`}
+              >
                 {comprimiendo
                   ? 'Optimizando...'
                   : previewUrl
@@ -419,6 +449,26 @@ export default function InventarioPage() {
                   disabled={comprimiendo}
                 />
               </label>
+
+              {/* ERROR de tamaño */}
+              {imagenError && (
+                <p className="text-[9px] font-bold text-red-500 text-center leading-tight px-1">
+                  ⚠️ {imagenError}
+                </p>
+              )}
+
+              {/* INFO de compresión: original → comprimido */}
+              {imagenInfo && !imagenError && (
+                <div className="flex items-center gap-1 text-[9px] font-black">
+                  <span className="text-slate-400 line-through">
+                    {imagenInfo.original}
+                  </span>
+                  <span className="text-slate-300">→</span>
+                  <span className="text-emerald-500">
+                    {imagenInfo.comprimido}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* CAMPOS PRINCIPALES */}
