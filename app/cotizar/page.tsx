@@ -802,6 +802,7 @@ export default function CotizarPage() {
                     actualizarItem={actualizarItem}
                     setCarrito={setCarrito}
                     carrito={carrito}
+                    etiquetaMoneda={etiquetaMoneda}
                     monedaPrincipal={monedaPrincipal}
                     tasaBCV={tasaBCV}
                     isDark={true} // Una prop opcional si quieres que el texto sea blanco en el fondo oscuro
@@ -930,6 +931,7 @@ export default function CotizarPage() {
                     actualizarItem={actualizarItem}
                     setCarrito={setCarrito}
                     carrito={carrito}
+                    etiquetaMoneda={etiquetaMoneda}
                     monedaPrincipal={monedaPrincipal}
                     tasaBCV={tasaBCV}
                   />
