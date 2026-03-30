@@ -505,13 +505,21 @@ export default function CotizarPage() {
     );
   };
 
+  // Reemplazo de la función antigua
   const descontarInventario = async (items: any[]) => {
-    for (const item of items) {
-      const { error } = await supabase
-        .from('productos')
-        .update({ stock: item.stock - item.cantidad })
-        .eq('id', item.id);
-      if (error) console.error('Error stock:', item.nombre);
+    // Enviamos solo los datos necesarios (id y cantidad) simplificados
+    const itemsSimplificados = items.map((i) => ({
+      id: i.id,
+      cantidad: i.cantidad,
+    }));
+
+    const { error } = await supabase.rpc('procesar_descuento_inventario', {
+      items: itemsSimplificados,
+    });
+
+    if (error) {
+      console.error('Error al descontar inventario:', error.message);
+      throw new Error('No se pudo actualizar el inventario');
     }
   };
 
