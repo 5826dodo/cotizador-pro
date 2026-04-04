@@ -15,22 +15,20 @@ import {
   Loader2,
 } from 'lucide-react';
 
+// ── Imagen con skeleton ───────────────────────────────────────
 function ImagenConCarga({ url, nombre }: { url: string; nombre: string }) {
   const [cargada, setCargada] = useState(false);
-
   return (
     <div className="relative w-full h-full">
-      {/* SKELETON: Fondo gris que pulsa mientras carga */}
       {!cargada && (
         <div className="absolute inset-0 bg-slate-200 animate-pulse" />
       )}
-
       <img
         src={url}
         alt={nombre}
         loading="lazy"
         decoding="async"
-        onLoad={() => setCargada(true)} // Se dispara cuando la imagen termina de bajar
+        onLoad={() => setCargada(true)}
         className={`w-full h-full object-cover transition-all duration-700 ease-in-out ${
           cargada ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
         }`}
@@ -39,6 +37,7 @@ function ImagenConCarga({ url, nombre }: { url: string; nombre: string }) {
   );
 }
 
+// ── Componente principal ──────────────────────────────────────
 export default function CatalogoPublico({
   params,
 }: {
@@ -56,33 +55,29 @@ export default function CatalogoPublico({
   const [loading, setLoading] = useState(true);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [pedidoEnviado, setPedidoEnviado] = useState(false);
+  const [enviando, setEnviando] = useState(false);
   const [categorias, setCategorias] = useState<any[]>([]);
   const [catSeleccionada, setCatSeleccionada] = useState('todas');
-
   const [nombreCliente, setNombreCliente] = useState('');
-
+  const [moneda, setMoneda] = useState('BS');
   const [pagina, setPagina] = useState(0);
   const [tieneMas, setTieneMas] = useState(true);
   const [cargandoMas, setCargandoMas] = useState(false);
   const ITEMS_POR_PAGINA = 12;
 
-  // --- EFECTO AGRESIVO PARA OCULTAR NAVBAR ---
+  // Ocultar navbar de la app (esta es una vista pública)
   useEffect(() => {
     const style = document.createElement('style');
     style.id = 'hide-navbar-forced';
     style.innerHTML = `
-      nav, header, aside, [role="navigation"] { display: none !important; opacity: 0 !important; pointer-events: none !important; }
+      nav, header, aside, [role="navigation"] { display: none !important; }
       body { padding-top: 0 !important; }
     `;
     document.head.appendChild(style);
-
-    return () => {
-      const el = document.getElementById('hide-navbar-forced');
-      if (el) el.remove();
-    };
+    return () => document.getElementById('hide-navbar-forced')?.remove();
   }, []);
 
-  // NUEVA FUNCIÓN PARA TRAER PRODUCTOS
+  // ── Carga de productos paginados ──────────────────────────
   const obtenerProductos = async (idEmpresa: string, reiniciar = false) => {
     try {
       const nuevaPagina = reiniciar ? 0 : pagina;
@@ -100,9 +95,8 @@ export default function CatalogoPublico({
         .order('nombre', { ascending: true })
         .range(desde, hasta);
 
-      if (catSeleccionada !== 'todas') {
+      if (catSeleccionada !== 'todas')
         query = query.eq('categoria_id', catSeleccionada);
-      }
 
       const { data, error } = await query;
       if (error) throw error;
@@ -110,12 +104,11 @@ export default function CatalogoPublico({
       if (reiniciar) {
         setProductos(data || []);
         setPagina(1);
-        setTieneMas(data?.length === ITEMS_POR_PAGINA);
       } else {
         setProductos((prev) => [...prev, ...(data || [])]);
         setPagina(nuevaPagina + 1);
-        setTieneMas(data?.length === ITEMS_POR_PAGINA);
       }
+      setTieneMas((data?.length ?? 0) === ITEMS_POR_PAGINA);
     } catch (err) {
       console.error(err);
     } finally {
@@ -123,10 +116,7 @@ export default function CatalogoPublico({
     }
   };
 
-  // 1. Añade este estado arriba con los demás
-  const [moneda, setMoneda] = useState('BS');
-
-  // 2. Actualiza el useEffect de carga inicial
+  // ── Carga inicial ─────────────────────────────────────────
   useEffect(() => {
     const cargarDatosBase = async () => {
       if (!empresaId) return;
@@ -139,11 +129,9 @@ export default function CatalogoPublico({
 
         setEmpresa(emp);
 
-        // --- DETECTAR MONEDA CONFIGURADA ---
         const monedaConfig = emp?.moneda_secundaria || 'BS';
         setMoneda(monedaConfig);
 
-        // --- ELEGIR API SEGÚN MONEDA ---
         const urlTasa =
           monedaConfig === 'EUR'
             ? 'https://ve.dolarapi.com/v1/euros/oficial'
@@ -168,14 +156,11 @@ export default function CatalogoPublico({
     cargarDatosBase();
   }, [empresaId]);
 
-  // NUEVO EFFECT PARA CAMBIO DE CATEGORÍA
   useEffect(() => {
-    if (empresaId && !loading) {
-      obtenerProductos(empresaId, true);
-    }
+    if (empresaId && !loading) obtenerProductos(empresaId, true);
   }, [catSeleccionada]);
 
-  // --- LÓGICA DE CARRITO ---
+  // ── Carrito ───────────────────────────────────────────────
   const agregarAlCarrito = (p: any) => {
     setCarrito((prev) => {
       const ex = prev.find((i) => i.id === p.id);
@@ -187,24 +172,20 @@ export default function CatalogoPublico({
     });
   };
 
-  const eliminarDelCarrito = (id: string) => {
-    setCarrito((prev) => prev.filter((item) => item.id !== id));
-  };
+  const eliminarDelCarrito = (id: string) =>
+    setCarrito((prev) => prev.filter((i) => i.id !== id));
 
-  const actualizarCant = (id: string, nuevaCant: number) => {
+  const actualizarCant = (id: string, nuevaCant: number) =>
     setCarrito(
       (prev) =>
         prev
           .map((item) => {
-            if (item.id === id) {
-              if (nuevaCant <= 0) return null;
-              return { ...item, cant: nuevaCant };
-            }
-            return item;
+            if (item.id !== id) return item;
+            if (nuevaCant <= 0) return null;
+            return { ...item, cant: nuevaCant };
           })
           .filter(Boolean) as any[],
     );
-  };
 
   const manejarInputCant = (id: string, valor: string) => {
     const num = parseInt(valor);
@@ -220,60 +201,98 @@ export default function CatalogoPublico({
   };
 
   const validarInputBlur = (id: string, cantActual: any) => {
-    if (cantActual === '' || isNaN(cantActual) || cantActual < 1) {
+    if (cantActual === '' || isNaN(cantActual) || cantActual < 1)
       actualizarCant(id, 1);
-    }
   };
 
   const totalDolar = carrito.reduce((acc, p) => acc + p.precio * p.cant, 0);
 
-  const enviarPedido = () => {
+  // ── Enviar pedido: WhatsApp + guardar en BD ───────────────
+  const enviarPedido = async () => {
     if (!nombreCliente.trim()) {
       alert('Por favor, ingresa tu nombre para completar el pedido.');
       return;
     }
 
-    // VALIDACIÓN DE TELÉFONO
     const telefonoLimpio = empresa?.telefono?.replace(/\D/g, '');
-
     if (!telefonoLimpio || telefonoLimpio.length < 7) {
       alert(
-        '⚠️ Esta empresa aún no ha configurado un número de WhatsApp de atención. Por favor, contacta al administrador.',
+        '⚠️ Esta empresa aún no ha configurado un número de WhatsApp de atención.',
       );
       return;
     }
 
-    let mensaje = `*NUEVO PEDIDO - ${empresa.nombre.toUpperCase()}*%0A`;
-    mensaje += `*Cliente:* ${nombreCliente.toUpperCase()}%0A%0A`;
+    setEnviando(true);
 
-    carrito.forEach((i) => {
-      const desc = i.descripcion ? ` (${i.descripcion})` : '';
-      mensaje += `• ${i.cant}x ${i.nombre}${desc} - $${(i.precio * i.cant).toFixed(2)}%0A`;
-    });
+    try {
+      // 1. Guardar pedido en Supabase ─────────────────────────
+      // Normalizamos los productos al formato que usará CotizarPage
+      const productosNormalizados = carrito.map((i) => ({
+        id: i.id,
+        nombre: i.nombre,
+        precio: i.precio,
+        cantidad: i.cant, // <-- CotizarPage usa "cantidad"
+        cant: i.cant, // <-- guardamos ambos por compatibilidad
+        unidad_medida: i.unidad_medida || 'UNIDADES',
+        imagen_url: i.imagen_url || null,
+        stock: i.stock,
+      }));
 
-    mensaje += `%0A*TOTAL:* *$${totalDolar.toFixed(2)}*%0A*${moneda === 'EUR' ? '€' : 'Bs.'} ${(totalDolar * tasa).toFixed(2)}*%0A%0A_Enviado desde Ventiq_`;
-    // Construcción de URL con el teléfono validado
-    const url = `https://wa.me/${telefonoLimpio}?text=${mensaje}`;
-    window.open(url, '_blank');
+      const { error: errorPedido } = await supabase
+        .from('pedidos_catalogo')
+        .insert([
+          {
+            empresa_id: empresaId,
+            nombre_cliente: nombreCliente.trim(),
+            productos: productosNormalizados,
+            total: totalDolar,
+            estado: 'pendiente',
+          },
+        ]);
 
-    // Limpiar carrito
-    setCarrito([]);
-    setNombreCliente('');
-    setIsCartOpen(false);
-    setPedidoEnviado(true);
-    setTimeout(() => setPedidoEnviado(false), 5000);
+      if (errorPedido) {
+        // No bloqueamos el flujo si falla el guardado; el WhatsApp igual se envía
+        console.error('Error al guardar pedido:', errorPedido.message);
+      }
+
+      // 2. Enviar por WhatsApp ───────────────────────────────
+      let mensaje = `*NUEVO PEDIDO - ${empresa.nombre.toUpperCase()}*%0A`;
+      mensaje += `*Cliente:* ${nombreCliente.toUpperCase()}%0A%0A`;
+
+      carrito.forEach((i) => {
+        const desc = i.descripcion ? ` (${i.descripcion})` : '';
+        mensaje += `• ${i.cant}x ${i.nombre}${desc} - $${(i.precio * i.cant).toFixed(2)}%0A`;
+      });
+
+      mensaje += `%0A*TOTAL:* *$${totalDolar.toFixed(2)}*%0A`;
+      mensaje += `*${moneda === 'EUR' ? '€' : 'Bs.'} ${(totalDolar * tasa).toFixed(2)}*%0A%0A`;
+      mensaje += `_Enviado desde Ventiq_`;
+
+      window.open(`https://wa.me/${telefonoLimpio}?text=${mensaje}`, '_blank');
+
+      // 3. Limpiar y mostrar confirmación ───────────────────
+      setCarrito([]);
+      setNombreCliente('');
+      setIsCartOpen(false);
+      setPedidoEnviado(true);
+      setTimeout(() => setPedidoEnviado(false), 5000);
+    } finally {
+      setEnviando(false);
+    }
   };
 
+  // ── Loading ───────────────────────────────────────────────
   if (loading)
     return (
-      <div className="h-screen flex items-center justify-center bg-white italic">
-        <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+      <div className="h-screen flex items-center justify-center bg-white">
+        <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
 
+  // ── Render ────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-32">
-      {/* MENSAJE DE ÉXITO */}
+      {/* CONFIRMACIÓN */}
       {pedidoEnviado && (
         <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm bg-emerald-600 text-white p-6 rounded-[2rem] shadow-2xl flex items-center gap-4 animate-in fade-in zoom-in slide-in-from-top-10 duration-500">
           <CheckCircle2 size={40} className="flex-shrink-0" />
@@ -282,7 +301,7 @@ export default function CatalogoPublico({
               ¡Pedido Enviado!
             </p>
             <p className="text-[10px] opacity-90 font-bold">
-              Hemos vaciado tu carrito. Revisa tu WhatsApp.
+              Tu pedido fue registrado. Revisa tu WhatsApp.
             </p>
           </div>
         </div>
@@ -304,7 +323,6 @@ export default function CatalogoPublico({
         <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">
           {empresa?.nombre}
         </h1>
-
         <div className="mt-4 px-4 py-1.5 bg-emerald-50 text-emerald-600 rounded-full inline-block border border-emerald-100 text-[9px] font-black uppercase">
           {tasa > 0
             ? `Tasa: ${moneda === 'EUR' ? '€' : 'Bs.'} ${tasa.toFixed(2)}`
@@ -360,20 +378,18 @@ export default function CatalogoPublico({
       {/* GRID PRODUCTOS */}
       <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {productos
-          .filter((p) => {
-            const matchBusqueda = p.nombre
-              .toLowerCase()
-              .includes(filtro.toLowerCase());
-            const matchCategoria = true;
-            return matchBusqueda && matchCategoria;
-          })
+          .filter((p) => p.nombre.toLowerCase().includes(filtro.toLowerCase()))
           .map((p) => {
             const itemEnCarrito = carrito.find((i) => i.id === p.id);
             const cant = itemEnCarrito?.cant || 0;
             return (
               <div
                 key={p.id}
-                className={`bg-white p-5 rounded-[2.8rem] flex flex-row items-center gap-5 border-2 transition-all ${cant > 0 ? 'border-orange-500 shadow-xl' : 'border-transparent shadow-sm'}`}
+                className={`bg-white p-5 rounded-[2.8rem] flex flex-row items-center gap-5 border-2 transition-all ${
+                  cant > 0
+                    ? 'border-orange-500 shadow-xl'
+                    : 'border-transparent shadow-sm'
+                }`}
               >
                 <div className="relative w-24 h-24 flex-shrink-0">
                   <div className="w-full h-full bg-slate-100 rounded-3xl overflow-hidden border border-slate-50 relative">
@@ -391,11 +407,11 @@ export default function CatalogoPublico({
                     </div>
                   )}
                 </div>
+
                 <div className="flex-1 min-w-0">
                   <h3 className="font-black text-slate-800 text-xs uppercase leading-tight mb-1 truncate">
                     {p.nombre}
                   </h3>
-                  {/* NUEVO: Mostrar descripción/talla si existe */}
                   {p.descripcion && (
                     <p className="text-[10px] text-slate-400 font-medium leading-tight mb-2 line-clamp-1">
                       {p.descripcion}
@@ -408,6 +424,7 @@ export default function CatalogoPublico({
                     ≈ {moneda === 'EUR' ? '€' : 'Bs.'}{' '}
                     {(p.precio * tasa).toFixed(2)}
                   </p>
+
                   <div className="mt-4 flex items-center gap-2">
                     {cant === 0 ? (
                       <button
@@ -455,7 +472,8 @@ export default function CatalogoPublico({
             );
           })}
       </div>
-      {/* PEGAR JUSTO AQUÍ ABAJO DEL GRID */}
+
+      {/* VER MÁS */}
       {tieneMas && (
         <div className="flex justify-center mt-12 mb-24 px-6">
           <button
@@ -463,6 +481,9 @@ export default function CatalogoPublico({
             disabled={cargandoMas}
             className="w-full max-w-xs py-5 bg-white border-2 border-slate-100 text-slate-500 rounded-[2.5rem] font-black uppercase text-[10px] tracking-[0.2em] shadow-sm flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-50"
           >
+            {cargandoMas ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : null}
             {cargandoMas ? 'Cargando...' : 'Ver más productos'}
           </button>
         </div>
@@ -493,7 +514,7 @@ export default function CatalogoPublico({
         </div>
       )}
 
-      {/* DRAWER DEL CARRITO */}
+      {/* DRAWER CARRITO */}
       {isCartOpen && (
         <div className="fixed inset-0 z-[100] flex justify-end">
           <div
@@ -512,6 +533,7 @@ export default function CatalogoPublico({
                 <X size={24} />
               </button>
             </div>
+
             <div className="flex-1 overflow-y-auto p-8 space-y-4">
               {carrito.map((item) => (
                 <div
@@ -520,7 +542,7 @@ export default function CatalogoPublico({
                 >
                   <button
                     onClick={() => eliminarDelCarrito(item.id)}
-                    className="absolute -top-1 -right-1 bg-red-50 text-red-500 p-2 rounded-full border border-red-100 shadow-sm opacity-100 transition-opacity"
+                    className="absolute -top-1 -right-1 bg-red-50 text-red-500 p-2 rounded-full border border-red-100 shadow-sm"
                   >
                     <Trash2 size={12} />
                   </button>
@@ -572,8 +594,9 @@ export default function CatalogoPublico({
                 </div>
               ))}
             </div>
+
             <div className="p-8 border-t bg-slate-50/50 space-y-6">
-              {/* CAMPO DE NOMBRE DEL CLIENTE */}
+              {/* Nombre del cliente */}
               <div className="space-y-2">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4">
                   Tus Datos
@@ -587,7 +610,7 @@ export default function CatalogoPublico({
                 />
               </div>
 
-              {/* RESUMEN DE TOTALES */}
+              {/* Totales */}
               <div className="flex items-center justify-between px-2">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">
@@ -603,22 +626,28 @@ export default function CatalogoPublico({
                 </p>
               </div>
 
-              {/* BOTÓN WHATSAPP MEJORADO */}
+              {/* Botón WhatsApp */}
               <button
                 onClick={enviarPedido}
-                disabled={!nombreCliente.trim()}
+                disabled={!nombreCliente.trim() || enviando}
                 className={`w-full py-6 rounded-[2.2rem] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl transition-all ${
-                  nombreCliente.trim()
+                  nombreCliente.trim() && !enviando
                     ? 'bg-[#25D366] text-white hover:brightness-105 active:scale-[0.98]'
                     : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                 }`}
               >
-                <MessageCircle size={22} strokeWidth={3} />
-                {!empresa?.telefono
-                  ? 'WhatsApp no configurado' // <--- Alerta visual previa
-                  : nombreCliente.trim()
-                    ? 'Enviar a WhatsApp'
-                    : 'Escribe tu nombre'}
+                {enviando ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : (
+                  <MessageCircle size={22} strokeWidth={3} />
+                )}
+                {enviando
+                  ? 'Registrando...'
+                  : !empresa?.telefono
+                    ? 'WhatsApp no configurado'
+                    : nombreCliente.trim()
+                      ? 'Enviar Pedido'
+                      : 'Escribe tu nombre'}
               </button>
             </div>
           </div>

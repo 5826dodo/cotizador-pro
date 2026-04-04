@@ -1,9 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
 import {
   Trash2,
   Plus,
@@ -16,12 +15,30 @@ import {
   ChevronDown,
   X,
   Printer,
+  Bell,
+  CheckCircle2,
+  UserPlus,
+  Users,
+  Clock,
+  AlertCircle,
+  Loader2,
+  Package,
 } from 'lucide-react';
 
-// ─────────────────────────────────────────────────────────────
-// FUNCIÓN: Imprime recibo para ticketera 80mm
-// Abre una ventana nueva con HTML optimizado para impresión
-// ─────────────────────────────────────────────────────────────
+// ── Tipos ─────────────────────────────────────────────────────
+type TipoOperacion = 'cotizacion' | 'venta_directa';
+type ModoOperacion = 'completo' | 'ticketera';
+
+interface PedidoCatalogo {
+  id: string;
+  nombre_cliente: string;
+  productos: any[];
+  total: number;
+  estado: 'pendiente' | 'procesado' | 'cancelado';
+  created_at: string;
+}
+
+// ── imprimirTicket ────────────────────────────────────────────
 function imprimirTicket({
   empresa,
   cliente,
@@ -50,7 +67,6 @@ function imprimirTicket({
   const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
   const totalEnMoneda = total * factor;
   const deuda = totalEnMoneda - montoPagado;
-
   const fechaHora = new Date().toLocaleString('es-VE', {
     day: '2-digit',
     month: '2-digit',
@@ -98,47 +114,36 @@ function imprimirTicket({
     .div-solid { border-top:1px solid #111; margin:5px 0; }
     .div-dash  { border-top:1px dashed #aaa; margin:5px 0; }
     .emp-nombre { font-size:15px; font-weight:900; text-transform:uppercase; letter-spacing:1px; }
-    .titulo { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:2px; margin:4px 0; }
     table { width:100%; border-collapse:collapse; }
     .total-row td { font-size:14px; font-weight:900; padding:4px 2px; }
-    .sello { display:inline-block; border:2px solid; border-radius:4px; padding:3px 10px;
-             font-size:13px; font-weight:900; letter-spacing:2px; text-transform:uppercase; margin-top:4px; }
+    .sello { display:inline-block; border:2px solid; border-radius:4px; padding:3px 10px; font-size:13px; font-weight:900; letter-spacing:2px; text-transform:uppercase; margin-top:4px; }
     .pagado   { border-color:#16a34a; color:#16a34a; }
     .abono    { border-color:#ca8a04; color:#ca8a04; }
     .pendiente{ border-color:#dc2626; color:#dc2626; }
     .footer { font-size:9px; color:#666; text-align:center; margin-top:8px; }
     @media print { body { width:72mm; } }
   </style></head><body>
-
   <div class="center" style="padding:4px 0 2px;">
     <div class="emp-nombre">${empresa?.nombre || 'MI EMPRESA'}</div>
     ${empresa?.rif ? `<div style="font-size:10px;">RIF: ${empresa.rif}</div>` : ''}
     ${empresa?.telefono ? `<div style="font-size:10px;">Telf: ${empresa.telefono}</div>` : ''}
     ${empresa?.direccion ? `<div style="font-size:9px;color:#555;">${empresa.direccion}</div>` : ''}
   </div>
-
   <div class="div-solid"></div>
   <div class="center">
-    <div class="titulo">RECIBO DE VENTA</div>
+    <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:2px;">RECIBO DE VENTA</div>
     <div style="font-size:10px;">N° ${numeroRecibo}</div>
     <div style="font-size:10px;">${fechaHora}</div>
   </div>
   <div class="div-dash"></div>
-
   <div style="font-size:10px;margin-bottom:4px;">
     <span class="bold">CLIENTE: </span>
-    ${
-      cliente
-        ? `${cliente.nombre.toUpperCase()}${cliente.apellido ? ' ' + cliente.apellido.toUpperCase() : ''}`
-        : 'CONSUMIDOR FINAL'
-    }
+    ${cliente ? `${cliente.nombre?.toUpperCase()}${cliente.apellido ? ' ' + cliente.apellido.toUpperCase() : ''}` : 'CONSUMIDOR FINAL'}
     ${cliente?.cedula ? `<br/><span class="bold">CI/RIF: </span>${cliente.cedula}` : ''}
   </div>
   <div class="div-dash"></div>
-
   <table><tbody>${lineasProductos}</tbody></table>
   <div class="div-solid"></div>
-
   <table>
     <tr class="total-row">
       <td class="bold">TOTAL</td>
@@ -167,30 +172,11 @@ function imprimirTicket({
         : ''
     }
   </table>
-
-  <div style="margin:6px 0;">
-    <span class="sello ${selloClase}">${estadoTexto}</span>
-  </div>
-
-  ${
-    observaciones
-      ? `<div class="div-dash"></div>
-  <div style="font-size:9px;color:#555;"><span class="bold">NOTAS: </span>${observaciones}</div>`
-      : ''
-  }
-
+  <div style="margin:6px 0;"><span class="sello ${selloClase}">${estadoTexto}</span></div>
+  ${observaciones ? `<div class="div-dash"></div><div style="font-size:9px;color:#555;"><span class="bold">NOTAS: </span>${observaciones}</div>` : ''}
   <div class="div-dash"></div>
-  <div class="footer">
-    <div>¡Gracias por su compra!</div>
-    <div style="margin-top:2px;">${empresa?.nombre || ''}</div>
-  </div>
-
-  <script>
-    window.onload = function() {
-      window.print();
-      window.onafterprint = function() { window.close(); };
-    };
-  </script>
+  <div class="footer"><div>¡Gracias por su compra!</div><div style="margin-top:2px;">${empresa?.nombre || ''}</div></div>
+  <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};</script>
   </body></html>`;
 
   const ventana = window.open('', '_blank', 'width=320,height=600');
@@ -200,14 +186,268 @@ function imprimirTicket({
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// COMPONENTE PRINCIPAL
-// ─────────────────────────────────────────────────────────────
+// ── Panel de pedidos del catálogo ────────────────────────────
+function PanelPedidosCatalogo({
+  pedidos,
+  clientes,
+  cargandoPedidos,
+  onCargarPedido,
+  onCancelarPedido,
+}: {
+  pedidos: PedidoCatalogo[];
+  clientes: any[];
+  cargandoPedidos: boolean;
+  onCargarPedido: (
+    pedido: PedidoCatalogo,
+    clienteId: string | null,
+    nombreLibre: string,
+  ) => void;
+  onCancelarPedido: (id: string) => void;
+}) {
+  const [pedidoExpandido, setPedidoExpandido] = useState<string | null>(null);
+  // Para cada pedido pendiente, el usuario puede vincular un cliente existente o dejarlo como nombre libre
+  const [vinculaciones, setVinculaciones] = useState<
+    Record<string, { clienteId: string; busqueda: string }>
+  >({});
+
+  const getVinculacion = (id: string) =>
+    vinculaciones[id] || { clienteId: '', busqueda: '' };
+
+  const setVinculacion = (
+    id: string,
+    data: { clienteId: string; busqueda: string },
+  ) => setVinculaciones((prev) => ({ ...prev, [id]: data }));
+
+  if (cargandoPedidos) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="animate-spin text-orange-500" size={32} />
+      </div>
+    );
+  }
+
+  if (pedidos.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="w-16 h-16 bg-slate-100 rounded-3xl flex items-center justify-center mb-4">
+          <Package size={28} className="text-slate-300" />
+        </div>
+        <p className="font-black text-slate-400 uppercase text-xs tracking-widest">
+          Sin pedidos pendientes
+        </p>
+        <p className="text-slate-300 text-[10px] mt-1 font-medium">
+          Los pedidos del catálogo aparecerán aquí
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {pedidos.map((pedido) => {
+        const expandido = pedidoExpandido === pedido.id;
+        const vinc = getVinculacion(pedido.id);
+        const clientesFiltrados = clientes.filter((c) =>
+          `${c.nombre} ${c.apellido || ''} ${c.cedula || ''}`
+            .toLowerCase()
+            .includes(vinc.busqueda.toLowerCase()),
+        );
+        const fechaRelativa = (() => {
+          const diff = Date.now() - new Date(pedido.created_at).getTime();
+          const mins = Math.floor(diff / 60000);
+          if (mins < 60) return `hace ${mins} min`;
+          const hrs = Math.floor(mins / 60);
+          if (hrs < 24) return `hace ${hrs}h`;
+          return `hace ${Math.floor(hrs / 24)}d`;
+        })();
+
+        return (
+          <div
+            key={pedido.id}
+            className="bg-white rounded-[2rem] border-2 border-slate-100 overflow-hidden transition-all"
+          >
+            {/* Cabecera del pedido */}
+            <button
+              onClick={() => setPedidoExpandido(expandido ? null : pedido.id)}
+              className="w-full p-5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-orange-100 rounded-2xl flex items-center justify-center flex-shrink-0">
+                  <Users size={18} className="text-orange-600" />
+                </div>
+                <div>
+                  <p className="font-black text-slate-800 text-sm uppercase leading-none">
+                    {pedido.nombre_cliente}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1">
+                      <Clock size={9} /> {fechaRelativa}
+                    </span>
+                    <span className="text-[9px] font-black text-orange-600">
+                      ${pedido.total.toFixed(2)}
+                    </span>
+                    <span className="text-[9px] text-slate-400">
+                      · {pedido.productos.length} producto
+                      {pedido.productos.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <ChevronDown
+                size={18}
+                className={`text-slate-400 transition-transform ${expandido ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {/* Detalle expandido */}
+            {expandido && (
+              <div className="border-t border-slate-100 p-5 space-y-4 bg-slate-50/50">
+                {/* Lista de productos del pedido */}
+                <div className="space-y-2">
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                    Productos solicitados
+                  </p>
+                  {pedido.productos.map((prod: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="flex justify-between items-center bg-white p-3 rounded-2xl border border-slate-100"
+                    >
+                      <div>
+                        <p className="font-black text-xs text-slate-800 uppercase">
+                          {prod.nombre}
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          {prod.cant || prod.cantidad}{' '}
+                          {prod.unidad_medida || 'UNID.'} × $
+                          {prod.precio.toFixed(2)}
+                        </p>
+                      </div>
+                      <p className="font-black text-sm text-orange-600">
+                        $
+                        {(prod.precio * (prod.cant || prod.cantidad)).toFixed(
+                          2,
+                        )}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Vincular cliente */}
+                <div className="space-y-2">
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1">
+                    <UserPlus size={10} /> Vincular cliente (opcional)
+                  </p>
+
+                  {vinc.clienteId ? (
+                    // Cliente seleccionado
+                    <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 p-3 rounded-2xl">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 size={16} className="text-emerald-600" />
+                        <p className="font-black text-xs text-emerald-800 uppercase">
+                          {clientes.find((c) => c.id === vinc.clienteId)
+                            ?.nombre || 'Cliente'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() =>
+                          setVinculacion(pedido.id, {
+                            clienteId: '',
+                            busqueda: '',
+                          })
+                        }
+                        className="text-slate-400 hover:text-red-400"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    // Buscador de clientes
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Buscar cliente existente..."
+                        value={vinc.busqueda}
+                        onChange={(e) =>
+                          setVinculacion(pedido.id, {
+                            clienteId: '',
+                            busqueda: e.target.value,
+                          })
+                        }
+                        className="w-full p-3 bg-white border-2 border-slate-200 rounded-2xl text-xs font-bold outline-none focus:border-orange-400 transition-colors"
+                      />
+                      {vinc.busqueda.length >= 2 &&
+                        clientesFiltrados.length > 0 && (
+                          <div className="absolute z-10 left-0 right-0 mt-1 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden max-h-40 overflow-y-auto">
+                            {clientesFiltrados.slice(0, 5).map((c) => (
+                              <button
+                                key={c.id}
+                                onClick={() =>
+                                  setVinculacion(pedido.id, {
+                                    clienteId: c.id,
+                                    busqueda: `${c.nombre} ${c.apellido || ''}`,
+                                  })
+                                }
+                                className="w-full text-left px-4 py-3 hover:bg-orange-50 border-b border-slate-50 last:border-none"
+                              >
+                                <p className="font-black text-xs text-slate-800 uppercase">
+                                  {c.nombre} {c.apellido}
+                                </p>
+                                <p className="text-[10px] text-slate-400">
+                                  CI/RIF: {c.cedula || c.rif || 'N/A'}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                    </div>
+                  )}
+
+                  {!vinc.clienteId && (
+                    <p className="text-[9px] text-slate-400 font-medium ml-2">
+                      Si no vinculas, la venta se registrará como{' '}
+                      <strong>"{pedido.nombre_cliente}"</strong>
+                    </p>
+                  )}
+                </div>
+
+                {/* Acciones */}
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() =>
+                      onCargarPedido(
+                        pedido,
+                        vinc.clienteId || null,
+                        pedido.nombre_cliente,
+                      )
+                    }
+                    className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                  >
+                    <ShoppingCart size={14} /> Cargar en Venta
+                  </button>
+                  <button
+                    onClick={() => onCancelarPedido(pedido.id)}
+                    className="px-4 py-3 bg-red-50 text-red-400 hover:bg-red-100 rounded-2xl font-black text-[10px] uppercase transition-all"
+                    title="Cancelar pedido"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Componente principal ──────────────────────────────────────
 export default function CotizarPage() {
   const [clientes, setClientes] = useState<any[]>([]);
   const [productosInventario, setProductosInventario] = useState<any[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any>(null);
+  const [nombreClienteLibre, setNombreClienteLibre] = useState(''); // para pedidos sin cliente registrado
   const [carrito, setCarrito] = useState<any[]>([]);
   const [cargando, setCargando] = useState(false);
   const [mostrarModalResumen, setMostrarModalResumen] = useState(false);
@@ -218,17 +458,19 @@ export default function CotizarPage() {
   const [miEmpresaId, setMiEmpresaId] = useState<string | null>(null);
   const [datosEmpresa, setDatosEmpresa] = useState<any>(null);
   const [mostrarListaClientes, setMostrarListaClientes] = useState(false);
-  const [tipoOperacion, setTipoOperacion] = useState<
-    'cotizacion' | 'venta_directa'
-  >('cotizacion');
+  const [tipoOperacion, setTipoOperacion] =
+    useState<TipoOperacion>('cotizacion');
   const [estadoPago, setEstadoPago] = useState('pendiente_pago');
   const [montoPagado, setMontoPagado] = useState(0);
   const [etiquetaMoneda, setEtiquetaMoneda] = useState<'USD' | 'EUR'>('USD');
-  // NUEVO: modo leído desde la configuración de empresa
-  const [modoOperacion, setModoOperacion] = useState<'completo' | 'ticketera'>(
-    'completo',
-  );
+  const [modoOperacion, setModoOperacion] = useState<ModoOperacion>('completo');
 
+  // ── Estados para pedidos del catálogo ──────────────────────
+  const [pedidosCatalogo, setPedidosCatalogo] = useState<PedidoCatalogo[]>([]);
+  const [cargandoPedidos, setCargandoPedidos] = useState(false);
+  const [tabActiva, setTabActiva] = useState<'venta' | 'pedidos'>('venta');
+
+  // ── Carga inicial ─────────────────────────────────────────
   useEffect(() => {
     const cargarDatos = async () => {
       const {
@@ -250,8 +492,7 @@ export default function CotizarPage() {
         : perfil.empresas;
       setDatosEmpresa(emp);
 
-      // NUEVO: aplicar modo de operación
-      const modo: 'completo' | 'ticketera' = emp?.modo_operacion || 'completo';
+      const modo: ModoOperacion = emp?.modo_operacion || 'completo';
       setModoOperacion(modo);
       if (modo === 'ticketera') setTipoOperacion('venta_directa');
 
@@ -283,6 +524,9 @@ export default function CotizarPage() {
 
       if (c) setClientes(c);
       if (p) setProductosInventario(p);
+
+      // Cargar pedidos pendientes del catálogo
+      await cargarPedidosPendientes(perfil.empresa_id);
     };
     cargarDatos();
   }, []);
@@ -291,6 +535,64 @@ export default function CotizarPage() {
     document.body.style.overflow = mostrarModalResumen ? 'hidden' : 'unset';
   }, [mostrarModalResumen]);
 
+  // ── Pedidos del catálogo ──────────────────────────────────
+  const cargarPedidosPendientes = async (idEmpresa: string) => {
+    setCargandoPedidos(true);
+    const { data, error } = await supabase
+      .from('pedidos_catalogo')
+      .select('*')
+      .eq('empresa_id', idEmpresa)
+      .eq('estado', 'pendiente')
+      .order('created_at', { ascending: false });
+
+    if (!error && data) setPedidosCatalogo(data as PedidoCatalogo[]);
+    setCargandoPedidos(false);
+  };
+
+  /**
+   * Carga un pedido del catálogo en el carrito de venta.
+   * Si clienteId existe, busca el cliente en la lista; si no, guarda el nombre libre.
+   */
+  const cargarPedidoEnVenta = useCallback(
+    (pedido: PedidoCatalogo, clienteId: string | null, nombreLibre: string) => {
+      // Normalizar productos al formato del carrito de CotizarPage
+      const productosNormalizados = pedido.productos.map((p: any) => ({
+        ...p,
+        cantidad: p.cantidad ?? p.cant ?? 1,
+        stock: p.stock ?? 9999, // fallback por si no tiene stock en el JSON
+      }));
+
+      setCarrito(productosNormalizados);
+      setTipoOperacion('venta_directa');
+
+      if (clienteId) {
+        const clienteObj = clientes.find((c) => c.id === clienteId);
+        setClienteSeleccionado(clienteObj || null);
+        setNombreClienteLibre('');
+      } else {
+        setClienteSeleccionado(null);
+        setNombreClienteLibre(nombreLibre);
+      }
+
+      // Cambiar a la tab de venta para ver el carrito cargado
+      setTabActiva('venta');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    [clientes],
+  );
+
+  const cancelarPedidoCatalogo = async (id: string) => {
+    if (!confirm('¿Cancelar este pedido?')) return;
+    const { error } = await supabase
+      .from('pedidos_catalogo')
+      .update({ estado: 'cancelado' })
+      .eq('id', id);
+    if (!error) {
+      setPedidosCatalogo((prev) => prev.filter((p) => p.id !== id));
+    }
+  };
+
+  // ── Carrito helpers ───────────────────────────────────────
   const actualizarItem = (
     id: string,
     campo: 'precio' | 'cantidad',
@@ -317,7 +619,7 @@ export default function CotizarPage() {
       setCarrito([...carrito, { ...prod, cantidad: 1 }]);
   };
 
-  // ── PDF (modo completo) ──────────────────────────────────────
+  // ── PDF ───────────────────────────────────────────────────
   const descargarPDF = (
     cliente: any,
     items: any[],
@@ -376,12 +678,15 @@ export default function CotizarPage() {
       doc.text('RIF / C.I.:', 20, 79);
       doc.text('NOTAS:', 20, 86);
       doc.setFont('helvetica', 'normal');
+      const nombreMostrar = cliente
+        ? `${cliente.nombre?.toUpperCase()} ${cliente.apellido?.toUpperCase() || ''}`
+        : nombreClienteLibre.toUpperCase() || 'CONSUMIDOR FINAL';
+      doc.text(nombreMostrar, 50, 72);
       doc.text(
-        `${cliente.nombre.toUpperCase()} ${cliente.apellido?.toUpperCase() || ''}`,
+        cliente ? `${cliente.cedula || cliente.rif || 'N/A'}` : 'N/A',
         50,
-        72,
+        79,
       );
-      doc.text(`${cliente.cedula || cliente.rif || 'N/A'}`, 50, 79);
       doc.text(doc.splitTextToSize(notas || 'Por definir', 135), 50, 86);
 
       const simbolo =
@@ -429,7 +734,6 @@ export default function CotizarPage() {
         doc.roundedRect(14, finalY, 50, 18, 3, 3);
         doc.setFontSize(14);
         doc.text(textoS, 39, finalY + 11, { align: 'center' });
-
         doc.setTextColor(30, 41, 59);
         doc.setFontSize(12);
         doc.text(
@@ -438,6 +742,7 @@ export default function CotizarPage() {
           finalY + 5,
           { align: 'right' },
         );
+
         if (estadoPago === 'pago_parcial') {
           doc.setFontSize(10);
           doc.setTextColor(100, 116, 139);
@@ -468,7 +773,7 @@ export default function CotizarPage() {
       }
 
       doc.save(
-        `${tipoOperacion === 'venta_directa' ? 'Nota_Entrega' : 'Cotizacion'}_${cliente.nombre}.pdf`,
+        `${tipoOperacion === 'venta_directa' ? 'Nota_Entrega' : 'Cotizacion'}_${nombreMostrar}.pdf`,
       );
     } catch (err) {
       console.error(err);
@@ -484,7 +789,7 @@ export default function CotizarPage() {
     moneda: string,
     tasa: number,
   ) => {
-    let telefono = cliente.telefono;
+    let telefono = cliente?.telefono;
     if (!telefono) {
       const t = prompt('Ingresa el número de WhatsApp (ej: 584121234567):');
       if (!t) return;
@@ -498,34 +803,35 @@ export default function CotizarPage() {
           `🔹 *${i.nombre.trim()}*\n    Cant: ${i.cantidad} ${i.unidad_medida || 'UNID.'} -> ${simbolo}${(i.precio * i.cantidad * factor).toLocaleString('es-VE')}`,
       )
       .join('\n\n');
-    const msg = `🏗️ *${datosEmpresa?.nombre || 'MI EMPRESA'}*\n----\n👤 *Cliente:* ${cliente.nombre}\n📍 *Entrega:* ${notas || 'Retiro en tienda'}\n\n${lista}\n\n💵 *TOTAL: ${simbolo} ${(total * factor).toLocaleString('es-VE')}*\n----\n¡Estamos para servirle!`;
+    const msg = `🏗️ *${datosEmpresa?.nombre || 'MI EMPRESA'}*\n----\n👤 *Cliente:* ${cliente?.nombre || nombreClienteLibre}\n📍 *Entrega:* ${notas || 'Retiro en tienda'}\n\n${lista}\n\n💵 *TOTAL: ${simbolo} ${(total * factor).toLocaleString('es-VE')}*\n----\n¡Estamos para servirle!`;
     window.open(
       `https://wa.me/${telefono.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`,
       '_blank',
     );
   };
 
-  // Reemplazo de la función antigua
   const descontarInventario = async (items: any[]) => {
-    // Enviamos solo los datos necesarios (id y cantidad) simplificados
     const itemsSimplificados = items.map((i) => ({
       id: i.id,
       cantidad: i.cantidad,
     }));
-
     const { error } = await supabase.rpc('procesar_descuento_inventario', {
       items: itemsSimplificados,
     });
-
     if (error) {
       console.error('Error al descontar inventario:', error.message);
       throw new Error('No se pudo actualizar el inventario');
     }
   };
 
-  const procesarVenta = async () => {
-    if (modoOperacion === 'completo' && !clienteSeleccionado)
-      return alert('Selecciona un cliente');
+  // ── Procesar venta ────────────────────────────────────────
+  const procesarVenta = async (pedidoCatalogoId?: string) => {
+    if (
+      modoOperacion === 'completo' &&
+      !clienteSeleccionado &&
+      !nombreClienteLibre
+    )
+      return alert('Selecciona un cliente o ingresa un nombre');
     if (carrito.length === 0) return alert('Agrega productos al carrito');
     if (!miEmpresaId) return alert('Error de sesión');
 
@@ -541,6 +847,7 @@ export default function CotizarPage() {
         .insert([
           {
             cliente_id: clienteSeleccionado?.id || null,
+            nombre_cliente_libre: nombreClienteLibre || null, // campo extra para clientes sin registro
             productos_seleccionados: carrito,
             total,
             empresa_id: miEmpresaId,
@@ -569,14 +876,25 @@ export default function CotizarPage() {
             monto_bs: monedaPrincipal === 'BS' ? montoPagado : 0,
             monto_usd: monedaPrincipal === 'USD' ? montoPagado : 0,
             tasa_aplicada: tasaBCV,
-            observacion: `Venta directa - ${clienteSeleccionado?.nombre || 'Consumidor Final'}`,
+            observacion: `Venta directa - ${clienteSeleccionado?.nombre || nombreClienteLibre || 'Consumidor Final'}`,
           },
         ]);
       }
 
       if (esVenta) await descontarInventario(carrito);
 
-      // ── COMPROBANTE según modo ──
+      // Marcar pedido del catálogo como procesado si corresponde
+      if (pedidoCatalogoId) {
+        await supabase
+          .from('pedidos_catalogo')
+          .update({ estado: 'procesado' })
+          .eq('id', pedidoCatalogoId);
+        setPedidosCatalogo((prev) =>
+          prev.filter((p) => p.id !== pedidoCatalogoId),
+        );
+      }
+
+      // Comprobante
       if (modoOperacion === 'ticketera') {
         imprimirTicket({
           empresa: datosEmpresa,
@@ -605,8 +923,10 @@ export default function CotizarPage() {
         }, 500);
       }
 
+      // Limpiar
       setCarrito([]);
       setClienteSeleccionado(null);
+      setNombreClienteLibre('');
       setObservaciones('');
       setMontoPagado(0);
       setMostrarModalResumen(false);
@@ -644,7 +964,7 @@ export default function CotizarPage() {
           <option value="pagado">✅ Pagado Total</option>
         </select>
         {estadoPago !== 'pendiente_pago' && (
-          <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+          <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-2">
               Monto Recibido ({monedaPrincipal === 'BS' ? 'Bs.' : '$'})
             </label>
@@ -665,39 +985,55 @@ export default function CotizarPage() {
     );
   };
 
-  // ─────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────
   return (
     <main
       style={{ overscrollBehaviorY: 'contain', touchAction: 'pan-x pan-y' }}
       className="min-h-screen bg-slate-50 p-4 md:p-8 pb-32"
     >
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
-        {/* ── IZQUIERDA ── */}
+        {/* ── IZQUIERDA: tabs + contenido ── */}
         <div className="flex-1 space-y-6">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h1 className="text-4xl font-black text-slate-800 tracking-tighter">
-                {tipoOperacion === 'cotizacion' ? 'Cotizar' : 'Venta Directa'}
-              </h1>
-              {modoOperacion === 'ticketera' && (
-                <span className="inline-flex items-center gap-1 mt-1 text-[9px] font-black bg-orange-100 text-orange-600 px-3 py-1 rounded-full uppercase tracking-widest">
-                  <Printer size={10} /> Modo Ticketera
-                </span>
-              )}
+          {/* Tabs: Nueva Venta | Pedidos del Catálogo */}
+          <div className="flex items-center gap-4">
+            <div className="flex bg-slate-200 p-1.5 rounded-2xl shadow-inner">
+              <button
+                onClick={() => setTabActiva('venta')}
+                className={`px-6 py-2.5 rounded-xl text-[10px] font-black transition-all uppercase ${tabActiva === 'venta' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500'}`}
+              >
+                {modoOperacion === 'ticketera'
+                  ? '🖨️ Punto de Venta'
+                  : '📋 Nueva Venta'}
+              </button>
+              <button
+                onClick={() => {
+                  setTabActiva('pedidos');
+                  if (miEmpresaId) cargarPedidosPendientes(miEmpresaId);
+                }}
+                className={`relative px-6 py-2.5 rounded-xl text-[10px] font-black transition-all uppercase ${tabActiva === 'pedidos' ? 'bg-orange-600 text-white shadow-lg shadow-orange-200' : 'text-slate-500'}`}
+              >
+                <Bell size={12} className="inline mr-1" />
+                Pedidos del Catálogo
+                {pedidosCatalogo.length > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-slate-200">
+                    {pedidosCatalogo.length}
+                  </span>
+                )}
+              </button>
             </div>
 
-            {/* Switch solo en modo completo */}
-            {modoOperacion === 'completo' && (
-              <div className="flex bg-slate-200 p-1.5 rounded-2xl shadow-inner">
+            {/* Switch Cotización/Venta (solo en tab venta y modo completo) */}
+            {tabActiva === 'venta' && modoOperacion === 'completo' && (
+              <div className="flex bg-slate-200 p-1.5 rounded-2xl shadow-inner ml-auto">
                 <button
                   onClick={() => setTipoOperacion('cotizacion')}
-                  className={`px-6 py-2.5 rounded-xl text-[10px] font-black transition-all italic uppercase ${tipoOperacion === 'cotizacion' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500'}`}
+                  className={`px-5 py-2 rounded-xl text-[10px] font-black transition-all uppercase ${tipoOperacion === 'cotizacion' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500'}`}
                 >
                   Cotización
                 </button>
                 <button
                   onClick={() => setTipoOperacion('venta_directa')}
-                  className={`px-6 py-2.5 rounded-xl text-[10px] font-black transition-all italic uppercase ${tipoOperacion === 'venta_directa' ? 'bg-orange-600 text-white shadow-lg shadow-orange-200' : 'text-slate-500'}`}
+                  className={`px-5 py-2 rounded-xl text-[10px] font-black transition-all uppercase ${tipoOperacion === 'venta_directa' ? 'bg-orange-600 text-white shadow-lg shadow-orange-200' : 'text-slate-500'}`}
                 >
                   Venta Directa
                 </button>
@@ -705,291 +1041,415 @@ export default function CotizarPage() {
             )}
           </div>
 
-          {/* CLIENTE */}
-          <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 relative">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block ml-2">
-              {modoOperacion === 'ticketera'
-                ? 'Cliente (Opcional)'
-                : 'Cliente (Selecciona o busca)'}
-            </label>
-            <div className="relative">
-              <button
-                onClick={() => setMostrarListaClientes(!mostrarListaClientes)}
-                className="w-full pl-6 pr-12 py-5 bg-slate-50 rounded-[1.5rem] text-left border-2 border-slate-100 text-xl font-bold flex justify-between items-center"
-              >
-                <span
-                  className={
-                    clienteSeleccionado ? 'text-slate-800' : 'text-slate-400'
-                  }
-                >
-                  {clienteSeleccionado
-                    ? `${clienteSeleccionado.nombre} ${clienteSeleccionado.apellido || ''}`
-                    : modoOperacion === 'ticketera'
-                      ? 'Consumidor Final (sin selección)'
-                      : 'Toca para ver lista de clientes...'}
-                </span>
-                <ChevronDown size={24} className="text-slate-400" />
-              </button>
-
-              {/* Botón limpiar cliente en modo ticketera */}
-              {modoOperacion === 'ticketera' && clienteSeleccionado && (
+          {/* ── TAB: PEDIDOS DEL CATÁLOGO ── */}
+          {tabActiva === 'pedidos' && (
+            <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="font-black text-slate-800 text-lg uppercase tracking-tighter">
+                    Pedidos Pendientes
+                  </h2>
+                  <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                    Del catálogo público · toca un pedido para cargarlo en venta
+                  </p>
+                </div>
                 <button
-                  onClick={() => setClienteSeleccionado(null)}
-                  className="absolute right-14 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-400"
+                  onClick={() =>
+                    miEmpresaId && cargarPedidosPendientes(miEmpresaId)
+                  }
+                  className="p-3 bg-slate-100 hover:bg-orange-100 text-slate-400 hover:text-orange-600 rounded-2xl transition-all"
+                  title="Actualizar"
                 >
-                  <X size={18} />
+                  <Loader2
+                    size={16}
+                    className={cargandoPedidos ? 'animate-spin' : ''}
+                  />
                 </button>
+              </div>
+
+              <PanelPedidosCatalogo
+                pedidos={pedidosCatalogo}
+                clientes={clientes}
+                cargandoPedidos={cargandoPedidos}
+                onCargarPedido={cargarPedidoEnVenta}
+                onCancelarPedido={cancelarPedidoCatalogo}
+              />
+            </section>
+          )}
+
+          {/* ── TAB: NUEVA VENTA ── */}
+          {tabActiva === 'venta' && (
+            <>
+              {/* Aviso si el carrito viene de un pedido del catálogo */}
+              {nombreClienteLibre && carrito.length > 0 && (
+                <div className="bg-orange-50 border-2 border-orange-200 p-4 rounded-[2rem] flex items-center gap-3">
+                  <AlertCircle
+                    size={20}
+                    className="text-orange-500 flex-shrink-0"
+                  />
+                  <div className="flex-1">
+                    <p className="font-black text-orange-800 text-xs uppercase">
+                      Pedido cargado de:{' '}
+                      <span className="text-orange-600">
+                        {nombreClienteLibre}
+                      </span>
+                    </p>
+                    <p className="text-[10px] text-orange-500 font-medium">
+                      Cliente del catálogo · revisa y ajusta antes de confirmar
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setNombreClienteLibre('');
+                      setCarrito([]);
+                    }}
+                    className="text-orange-400 hover:text-red-500"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               )}
 
-              {mostrarListaClientes && (
-                <div className="absolute z-[100] left-0 right-0 mt-2 bg-white rounded-[1.5rem] shadow-2xl border border-slate-300 overflow-hidden">
-                  <div className="p-4 border-b border-slate-100 bg-slate-50">
+              {/* CLIENTE */}
+              <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 relative">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block ml-2">
+                  {modoOperacion === 'ticketera'
+                    ? 'Cliente (Opcional)'
+                    : 'Cliente'}
+                </label>
+
+                {/* Si hay nombre libre del catálogo, lo mostramos editable */}
+                {nombreClienteLibre && !clienteSeleccionado ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 bg-orange-50 border-2 border-orange-200 p-4 rounded-2xl">
+                      <Users size={16} className="text-orange-500" />
+                      <input
+                        type="text"
+                        value={nombreClienteLibre}
+                        onChange={(e) => setNombreClienteLibre(e.target.value)}
+                        className="flex-1 bg-transparent font-black text-orange-800 text-sm uppercase outline-none"
+                      />
+                    </div>
+                    <button
+                      onClick={() => setNombreClienteLibre('')}
+                      className="text-[10px] font-black text-slate-400 hover:text-orange-500 ml-2 uppercase"
+                    >
+                      + Vincular con cliente registrado
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <button
+                      onClick={() =>
+                        setMostrarListaClientes(!mostrarListaClientes)
+                      }
+                      className="w-full pl-6 pr-12 py-5 bg-slate-50 rounded-[1.5rem] text-left border-2 border-slate-100 text-xl font-bold flex justify-between items-center"
+                    >
+                      <span
+                        className={
+                          clienteSeleccionado
+                            ? 'text-slate-800'
+                            : 'text-slate-400'
+                        }
+                      >
+                        {clienteSeleccionado
+                          ? `${clienteSeleccionado.nombre} ${clienteSeleccionado.apellido || ''}`
+                          : modoOperacion === 'ticketera'
+                            ? 'Consumidor Final'
+                            : 'Selecciona un cliente...'}
+                      </span>
+                      <ChevronDown size={24} className="text-slate-400" />
+                    </button>
+
+                    {modoOperacion === 'ticketera' && clienteSeleccionado && (
+                      <button
+                        onClick={() => setClienteSeleccionado(null)}
+                        className="absolute right-14 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-400"
+                      >
+                        <X size={18} />
+                      </button>
+                    )}
+
+                    {mostrarListaClientes && (
+                      <div className="absolute z-[100] left-0 right-0 mt-2 bg-white rounded-[1.5rem] shadow-2xl border border-slate-300 overflow-hidden">
+                        <div className="p-4 border-b border-slate-100 bg-slate-50">
+                          <input
+                            type="text"
+                            placeholder="Escribe para filtrar..."
+                            className="w-full p-3 bg-white border border-slate-300 rounded-xl outline-none"
+                            onChange={(e) => setBusquedaCliente(e.target.value)}
+                          />
+                        </div>
+                        {modoOperacion === 'ticketera' && (
+                          <div
+                            onClick={() => {
+                              setClienteSeleccionado(null);
+                              setMostrarListaClientes(false);
+                            }}
+                            className="p-4 hover:bg-orange-50 cursor-pointer border-b border-slate-100 bg-slate-50"
+                          >
+                            <p className="font-bold text-slate-500 uppercase text-sm">
+                              👤 Consumidor Final
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              Venta sin cliente registrado
+                            </p>
+                          </div>
+                        )}
+                        <div className="max-h-[300px] overflow-y-auto">
+                          {clientes
+                            .filter((c) =>
+                              `${c.nombre} ${c.cedula}`
+                                .toLowerCase()
+                                .includes(busquedaCliente.toLowerCase()),
+                            )
+                            .map((c) => (
+                              <div
+                                key={c.id}
+                                onClick={() => {
+                                  setClienteSeleccionado(c);
+                                  setNombreClienteLibre('');
+                                  setMostrarListaClientes(false);
+                                }}
+                                className="p-4 hover:bg-orange-50 cursor-pointer border-b border-slate-50 last:border-none"
+                              >
+                                <p className="font-bold text-slate-800 uppercase">
+                                  {c.nombre} {c.apellido}
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                  CI/RIF: {c.cedula || c.rif}
+                                </p>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+
+              {/* TASA */}
+              <section className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="bg-orange-600 p-4 rounded-2xl shadow-lg shadow-orange-200">
+                    {etiquetaMoneda === 'EUR' ? (
+                      <span className="text-white text-2xl font-black px-1">
+                        €
+                      </span>
+                    ) : (
+                      <DollarSign className="text-white" size={28} />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                      Tasa BCV (Bs/{etiquetaMoneda === 'EUR' ? '€' : '$'})
+                    </p>
                     <input
-                      type="text"
-                      placeholder="Escribe para filtrar..."
-                      className="w-full p-3 bg-white border border-slate-300 rounded-xl outline-none"
-                      onChange={(e) => setBusquedaCliente(e.target.value)}
+                      type="number"
+                      step="any"
+                      placeholder="Cargando..."
+                      value={tasaBCV === 0 ? '' : tasaBCV}
+                      onChange={(e) =>
+                        setTasaBCV(parseFloat(e.target.value) || 0)
+                      }
+                      className="text-3xl font-black text-slate-800 bg-transparent border-b-4 border-orange-500 outline-none w-40 px-2"
                     />
                   </div>
-                  {modoOperacion === 'ticketera' && (
-                    <div
-                      onClick={() => {
-                        setClienteSeleccionado(null);
-                        setMostrarListaClientes(false);
-                      }}
-                      className="p-4 hover:bg-orange-50 cursor-pointer border-b border-slate-100 bg-slate-50"
-                    >
-                      <p className="font-bold text-slate-500 uppercase text-sm">
-                        👤 Consumidor Final
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        Venta sin cliente registrado
-                      </p>
-                    </div>
-                  )}
-                  <div className="max-h-[300px] overflow-y-auto">
-                    {clientes
-                      .filter((c) =>
-                        `${c.nombre} ${c.cedula}`
-                          .toLowerCase()
-                          .includes(busquedaCliente.toLowerCase()),
-                      )
-                      .map((c) => (
-                        <div
-                          key={c.id}
-                          onClick={() => {
-                            setClienteSeleccionado(c);
-                            setMostrarListaClientes(false);
-                          }}
-                          className="p-4 hover:bg-orange-50 cursor-pointer border-b border-slate-50 last:border-none"
-                        >
-                          <p className="font-bold text-slate-800 uppercase">
-                            {c.nombre} {c.apellido}
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            CI/RIF: {c.cedula || c.rif}
-                          </p>
-                        </div>
-                      ))}
-                  </div>
                 </div>
-              )}
-            </div>
-          </section>
+                <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+                  <button
+                    onClick={() => setMonedaPrincipal('USD')}
+                    className={`px-8 py-3 rounded-xl font-black text-[10px] transition-all uppercase ${monedaPrincipal === 'USD' ? 'bg-[#1A1C1E] text-white shadow-lg' : 'text-slate-400'}`}
+                  >
+                    {etiquetaMoneda} {etiquetaMoneda === 'EUR' ? '€' : '$'}
+                  </button>
+                  <button
+                    onClick={() => setMonedaPrincipal('BS')}
+                    className={`px-8 py-3 rounded-xl font-black text-[10px] transition-all uppercase ${monedaPrincipal === 'BS' ? 'bg-orange-600 text-white shadow-lg' : 'text-slate-400'}`}
+                  >
+                    BS.
+                  </button>
+                </div>
+              </section>
 
-          {/* TASA */}
-          <section className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-wrap items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="bg-orange-600 p-4 rounded-2xl shadow-lg shadow-orange-200">
-                {etiquetaMoneda === 'EUR' ? (
-                  <span className="text-white text-2xl font-black px-1">€</span>
-                ) : (
-                  <DollarSign className="text-white" size={28} />
-                )}
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                  Tasa BCV (Bs/{etiquetaMoneda === 'EUR' ? '€' : '$'})
-                </p>
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="Cargando..."
-                  value={tasaBCV === 0 ? '' : tasaBCV}
-                  onChange={(e) => setTasaBCV(parseFloat(e.target.value) || 0)}
-                  className="text-3xl font-black text-slate-800 bg-transparent border-b-4 border-orange-500 outline-none w-40 px-2"
-                />
-              </div>
-            </div>
-            <div className="flex bg-slate-100 p-1.5 rounded-2xl">
-              <button
-                onClick={() => setMonedaPrincipal('USD')}
-                className={`px-8 py-3 rounded-xl font-black text-[10px] transition-all uppercase ${monedaPrincipal === 'USD' ? 'bg-[#1A1C1E] text-white shadow-lg' : 'text-slate-400'}`}
-              >
-                {etiquetaMoneda} {etiquetaMoneda === 'EUR' ? '€' : '$'}
-              </button>
-              <button
-                onClick={() => setMonedaPrincipal('BS')}
-                className={`px-8 py-3 rounded-xl font-black text-[10px] transition-all uppercase ${monedaPrincipal === 'BS' ? 'bg-orange-600 text-white shadow-lg' : 'text-slate-400'}`}
-              >
-                BS.
-              </button>
-            </div>
-          </section>
-
-          {/* PRODUCTOS */}
-          <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-            <div className="relative mb-6">
-              <Search
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                size={24}
-              />
-              <input
-                type="text"
-                placeholder="Buscar producto..."
-                className="w-full pl-14 pr-4 py-5 bg-slate-50 rounded-[1.5rem] outline-none ring-2 ring-slate-100 text-xl font-medium"
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-[500px] overflow-y-auto pr-2">
-              {productosInventario
-                .filter((p) =>
-                  p.nombre.toLowerCase().includes(busqueda.toLowerCase()),
-                )
-                .map((p) => {
-                  const esStockCritico = p.stock <= 5;
-                  const inCarrito = carrito.find((i) => i.id === p.id);
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => agregarAlCarrito(p)}
-                      className={`p-6 rounded-[2.5rem] border-2 text-left transition-all relative group ${
-                        inCarrito
-                          ? 'border-orange-500 bg-orange-50/30 shadow-lg shadow-orange-100'
-                          : esStockCritico
-                            ? 'border-red-100 bg-red-50/20 shadow-sm'
-                            : 'border-white bg-white hover:border-slate-200'
-                      }`}
-                    >
-                      {esStockCritico && !inCarrito && (
-                        <div className="absolute -top-2 -left-2 bg-red-500 text-white text-[8px] font-black px-3 py-1 rounded-full shadow-lg animate-pulse uppercase tracking-tighter z-10">
-                          Stock Bajo
-                        </div>
-                      )}
-                      {inCarrito && (
-                        <div className="absolute -top-3 -right-3 bg-orange-600 text-white font-black w-11 h-11 rounded-full flex items-center justify-center shadow-xl text-lg ring-4 ring-white animate-in zoom-in">
-                          {inCarrito.cantidad}
-                        </div>
-                      )}
-                      <p
-                        className={`font-black text-xl mb-2 italic uppercase tracking-tighter ${esStockCritico ? 'text-red-700' : 'text-slate-800 group-hover:text-orange-600'}`}
-                      >
-                        {p.nombre}
-                      </p>
-                      <div className="flex justify-between items-end">
-                        <div className="flex flex-col">
-                          <span
-                            className={`text-2xl font-black leading-none ${esStockCritico ? 'text-red-600' : 'text-orange-500'}`}
-                          >
-                            {etiquetaMoneda === 'EUR' ? '€' : '$'}{' '}
-                            {p.precio.toLocaleString()}
-                          </span>
-                          {monedaPrincipal === 'BS' && (
-                            <span className="text-[11px] font-black text-emerald-600 mt-1 uppercase tracking-tighter">
-                              ≈ Bs.{' '}
-                              {(p.precio * tasaBCV).toLocaleString('es-VE', {
-                                minimumFractionDigits: 2,
-                              })}
-                            </span>
-                          )}
-                        </div>
-                        <span
-                          className={`text-[10px] font-bold px-3 py-1 rounded-lg ${esStockCritico ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 text-slate-500'}`}
+              {/* PRODUCTOS */}
+              <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                <div className="relative mb-6">
+                  <Search
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                    size={24}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Buscar producto..."
+                    className="w-full pl-14 pr-4 py-5 bg-slate-50 rounded-[1.5rem] outline-none ring-2 ring-slate-100 text-xl font-medium"
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-[500px] overflow-y-auto pr-2">
+                  {productosInventario
+                    .filter((p) =>
+                      p.nombre.toLowerCase().includes(busqueda.toLowerCase()),
+                    )
+                    .map((p) => {
+                      const esStockCritico = p.stock <= 5;
+                      const inCarrito = carrito.find((i) => i.id === p.id);
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => agregarAlCarrito(p)}
+                          className={`p-6 rounded-[2.5rem] border-2 text-left transition-all relative group ${
+                            inCarrito
+                              ? 'border-orange-500 bg-orange-50/30 shadow-lg shadow-orange-100'
+                              : esStockCritico
+                                ? 'border-red-100 bg-red-50/20 shadow-sm'
+                                : 'border-white bg-white hover:border-slate-200'
+                          }`}
                         >
-                          Stock: {p.stock}
-                        </span>
-                      </div>
-                      <div className="mt-4 w-full h-1 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full transition-all duration-500 ${esStockCritico ? 'bg-red-500' : 'bg-orange-400'}`}
-                          style={{
-                            width: `${Math.min((p.stock / 20) * 100, 100)}%`,
-                          }}
-                        />
-                      </div>
-                    </button>
-                  );
-                })}
-            </div>
-          </section>
+                          {esStockCritico && !inCarrito && (
+                            <div className="absolute -top-2 -left-2 bg-red-500 text-white text-[8px] font-black px-3 py-1 rounded-full shadow-lg animate-pulse uppercase z-10">
+                              Stock Bajo
+                            </div>
+                          )}
+                          {inCarrito && (
+                            <div className="absolute -top-3 -right-3 bg-orange-600 text-white font-black w-11 h-11 rounded-full flex items-center justify-center shadow-xl text-lg ring-4 ring-white animate-in zoom-in">
+                              {inCarrito.cantidad}
+                            </div>
+                          )}
+                          <p
+                            className={`font-black text-xl mb-2 italic uppercase tracking-tighter ${esStockCritico ? 'text-red-700' : 'text-slate-800 group-hover:text-orange-600'}`}
+                          >
+                            {p.nombre}
+                          </p>
+                          <div className="flex justify-between items-end">
+                            <div className="flex flex-col">
+                              <span
+                                className={`text-2xl font-black leading-none ${esStockCritico ? 'text-red-600' : 'text-orange-500'}`}
+                              >
+                                {etiquetaMoneda === 'EUR' ? '€' : '$'}{' '}
+                                {p.precio.toLocaleString()}
+                              </span>
+                              {monedaPrincipal === 'BS' && (
+                                <span className="text-[11px] font-black text-emerald-600 mt-1 uppercase">
+                                  ≈ Bs.{' '}
+                                  {(p.precio * tasaBCV).toLocaleString(
+                                    'es-VE',
+                                    { minimumFractionDigits: 2 },
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                            <span
+                              className={`text-[10px] font-bold px-3 py-1 rounded-lg ${esStockCritico ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 text-slate-500'}`}
+                            >
+                              Stock: {p.stock}
+                            </span>
+                          </div>
+                          <div className="mt-4 w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all duration-500 ${esStockCritico ? 'bg-red-500' : 'bg-orange-400'}`}
+                              style={{
+                                width: `${Math.min((p.stock / 20) * 100, 100)}%`,
+                              }}
+                            />
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+              </section>
+            </>
+          )}
         </div>
 
-        {/* ── DERECHA ESCRITORIO ── */}
+        {/* ── DERECHA: Resumen escritorio ── */}
         <div className="hidden lg:block w-[450px]">
           <div className="bg-[#1A1C1E] p-8 rounded-[3rem] shadow-2xl border-t-8 border-orange-600 sticky top-8 text-white">
-            <h2 className="text-2xl font-black mb-10 italic uppercase tracking-tighter flex justify-between items-center">
+            <h2 className="text-2xl font-black mb-6 italic uppercase tracking-tighter flex justify-between items-center">
               Resumen <ShoppingCart className="text-orange-500" />
             </h2>
-            <div className="max-h-[400px] overflow-y-auto pr-2 custom-scroll-dark space-y-4">
-              {carrito.map((item) => (
-                <TarjetaProductoCarrito
-                  key={`esc-${item.id}`}
-                  item={item}
-                  actualizarItem={actualizarItem}
-                  setCarrito={setCarrito}
-                  carrito={carrito}
-                  etiquetaMoneda={etiquetaMoneda}
-                  monedaPrincipal={monedaPrincipal}
-                  tasaBCV={tasaBCV}
-                  isDark={true}
-                />
-              ))}
-            </div>
-            {renderSeccionPago()}
-            <div className="mt-10 pt-8 border-t border-white/10">
-              <div className="flex flex-col items-end mb-8">
-                <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] mb-2">
-                  Total a Cobrar
-                </span>
-                <span className="text-5xl font-black text-white tracking-tighter italic">
-                  {etiquetaMoneda === 'EUR' ? '€' : '$'}
-                  {calcularTotal().toLocaleString()}
-                </span>
-                <div className="mt-2 bg-orange-600 px-4 py-1 rounded-full shadow-lg shadow-orange-900/40">
-                  <span className="text-lg font-black text-white italic">
-                    Bs. {(calcularTotal() * tasaBCV).toLocaleString('es-VE')}
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={() => procesarVenta()}
-                disabled={cargando}
-                className="w-full py-6 rounded-[2rem] font-black text-xl text-white bg-orange-600 hover:bg-orange-500 shadow-xl shadow-orange-900/40 transition-all active:scale-95 uppercase italic tracking-tighter flex items-center justify-center gap-3"
-              >
-                {cargando ? (
-                  'PROCESANDO...'
-                ) : (
-                  <>
-                    {modoOperacion === 'ticketera' ? (
-                      <Printer size={22} />
-                    ) : (
-                      <FileText size={22} />
-                    )}
-                    {tipoOperacion === 'cotizacion'
-                      ? 'Confirmar Presupuesto'
-                      : modoOperacion === 'ticketera'
-                        ? 'Cobrar e Imprimir'
-                        : 'Registrar Venta'}
-                  </>
+
+            {carrito.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Package size={32} className="text-white/20 mb-3" />
+                <p className="text-white/30 font-black uppercase text-xs tracking-widest">
+                  Carrito vacío
+                </p>
+                {pedidosCatalogo.length > 0 && (
+                  <button
+                    onClick={() => setTabActiva('pedidos')}
+                    className="mt-4 text-[10px] font-black text-orange-400 uppercase flex items-center gap-1"
+                  >
+                    <Bell size={12} /> {pedidosCatalogo.length} pedido
+                    {pedidosCatalogo.length > 1 ? 's' : ''} del catálogo
+                  </button>
                 )}
-              </button>
-            </div>
+              </div>
+            ) : (
+              <>
+                <div className="max-h-[320px] overflow-y-auto pr-2 custom-scroll-dark space-y-4 mb-4">
+                  {carrito.map((item) => (
+                    <TarjetaProductoCarrito
+                      key={`esc-${item.id}`}
+                      item={item}
+                      actualizarItem={actualizarItem}
+                      setCarrito={setCarrito}
+                      carrito={carrito}
+                      etiquetaMoneda={etiquetaMoneda}
+                      monedaPrincipal={monedaPrincipal}
+                      tasaBCV={tasaBCV}
+                      isDark={true}
+                    />
+                  ))}
+                </div>
+                {renderSeccionPago()}
+                <div className="mt-6 pt-6 border-t border-white/10">
+                  <div className="flex flex-col items-end mb-6">
+                    <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] mb-2">
+                      Total a Cobrar
+                    </span>
+                    <span className="text-5xl font-black text-white tracking-tighter italic">
+                      {etiquetaMoneda === 'EUR' ? '€' : '$'}
+                      {calcularTotal().toLocaleString()}
+                    </span>
+                    <div className="mt-2 bg-orange-600 px-4 py-1 rounded-full shadow-lg shadow-orange-900/40">
+                      <span className="text-lg font-black text-white italic">
+                        Bs.{' '}
+                        {(calcularTotal() * tasaBCV).toLocaleString('es-VE')}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => procesarVenta()}
+                    disabled={cargando}
+                    className="w-full py-6 rounded-[2rem] font-black text-xl text-white bg-orange-600 hover:bg-orange-500 disabled:opacity-40 shadow-xl shadow-orange-900/40 transition-all active:scale-95 uppercase italic tracking-tighter flex items-center justify-center gap-3"
+                  >
+                    {cargando ? (
+                      'PROCESANDO...'
+                    ) : (
+                      <>
+                        {modoOperacion === 'ticketera' ? (
+                          <Printer size={22} />
+                        ) : (
+                          <FileText size={22} />
+                        )}
+                        {tipoOperacion === 'cotizacion'
+                          ? 'Confirmar Presupuesto'
+                          : modoOperacion === 'ticketera'
+                            ? 'Cobrar e Imprimir'
+                            : 'Registrar Venta'}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ── FLOTANTE MÓVIL ── */}
+      {/* FLOTANTE MÓVIL */}
       {carrito.length > 0 && !mostrarModalResumen && (
         <div className="lg:hidden fixed bottom-8 left-4 right-4 z-[90]">
           <button
@@ -1026,7 +1486,7 @@ export default function CotizarPage() {
         </div>
       )}
 
-      {/* ── MODAL MÓVIL ── */}
+      {/* MODAL MÓVIL */}
       {mostrarModalResumen && (
         <div className="lg:hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex flex-col justify-end">
           <div
@@ -1084,7 +1544,7 @@ export default function CotizarPage() {
               <button
                 onClick={() => procesarVenta()}
                 disabled={cargando}
-                className={`w-full py-5 rounded-[2rem] font-black text-xl text-white shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3 ${tipoOperacion === 'cotizacion' ? 'bg-orange-600' : 'bg-emerald-600'}`}
+                className={`w-full py-5 rounded-[2rem] font-black text-xl text-white shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3 disabled:opacity-40 ${tipoOperacion === 'cotizacion' ? 'bg-orange-600' : 'bg-emerald-600'}`}
               >
                 {modoOperacion === 'ticketera' ? (
                   <Printer size={20} />
@@ -1118,9 +1578,7 @@ export default function CotizarPage() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// COMPONENTE AUXILIAR
-// ─────────────────────────────────────────────────────────────
+// ── TarjetaProductoCarrito ────────────────────────────────────
 function TarjetaProductoCarrito({
   item,
   actualizarItem,
