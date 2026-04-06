@@ -470,6 +470,10 @@ export default function CotizarPage() {
   const [cargandoPedidos, setCargandoPedidos] = useState(false);
   const [tabActiva, setTabActiva] = useState<'venta' | 'pedidos'>('venta');
 
+  const [pedidoCatalogoIdActivo, setPedidoCatalogoIdActivo] = useState<
+    string | null
+  >(null);
+
   // ── Carga inicial ─────────────────────────────────────────
   useEffect(() => {
     const cargarDatos = async () => {
@@ -564,6 +568,9 @@ export default function CotizarPage() {
 
       setCarrito(productosNormalizados);
       setTipoOperacion('venta_directa');
+
+      // GUARDAR EL ID PARA USARLO LUEGO EN PROCESARVENTA
+      setPedidoCatalogoIdActivo(pedido.id); // <--- ESTA ES LA CLAVE
 
       if (clienteId) {
         const clienteObj = clientes.find((c) => c.id === clienteId);
@@ -825,7 +832,7 @@ export default function CotizarPage() {
   };
 
   // ── Procesar venta ────────────────────────────────────────
-  const procesarVenta = async (pedidoCatalogoId?: string) => {
+  const procesarVenta = async (pedidoCatalogoId?: string | null) => {
     if (
       modoOperacion === 'completo' &&
       !clienteSeleccionado &&
@@ -927,6 +934,7 @@ export default function CotizarPage() {
       setCarrito([]);
       setClienteSeleccionado(null);
       setNombreClienteLibre('');
+      setPedidoCatalogoIdActivo(null);
       setObservaciones('');
       setMontoPagado(0);
       setMostrarModalResumen(false);
@@ -1421,7 +1429,9 @@ export default function CotizarPage() {
                     </div>
                   </div>
                   <button
-                    onClick={() => procesarVenta()}
+                    onClick={() =>
+                      procesarVenta(pedidoCatalogoIdActivo ?? undefined)
+                    }
                     disabled={cargando}
                     className="w-full py-6 rounded-[2rem] font-black text-xl text-white bg-orange-600 hover:bg-orange-500 disabled:opacity-40 shadow-xl shadow-orange-900/40 transition-all active:scale-95 uppercase italic tracking-tighter flex items-center justify-center gap-3"
                   >
@@ -1542,7 +1552,9 @@ export default function CotizarPage() {
                 </div>
               </div>
               <button
-                onClick={() => procesarVenta()}
+                onClick={() =>
+                  procesarVenta(pedidoCatalogoIdActivo ?? undefined)
+                }
                 disabled={cargando}
                 className={`w-full py-5 rounded-[2rem] font-black text-xl text-white shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3 disabled:opacity-40 ${tipoOperacion === 'cotizacion' ? 'bg-orange-600' : 'bg-emerald-600'}`}
               >
