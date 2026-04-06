@@ -888,8 +888,23 @@ export default function CotizarPage() {
         ]);
       }
 
-      if (esVenta) await descontarInventario(carrito);
+      if (esVenta) {
+        await descontarInventario(carrito);
 
+        // ACTUALIZACIÓN INMEDIATA DEL STOCK EN PANTALLA
+        setProductosInventario((prev) =>
+          prev.map((prod) => {
+            const itemVendido = carrito.find((item) => item.id === prod.id);
+            if (itemVendido) {
+              return {
+                ...prod,
+                stock: prod.stock - itemVendido.cantidad,
+              };
+            }
+            return prod;
+          }),
+        );
+      }
       // Marcar pedido del catálogo como procesado si corresponde
       if (pedidoCatalogoId) {
         await supabase
