@@ -24,29 +24,37 @@ function ModalReceta({
 
   useEffect(() => {
     const cargarReceta = async () => {
-      const { data } = await supabase
-        .from('recetas')
-        .select('*, p_insumo:productos!insumo_id(*)')
-        .eq('producto_final_id', producto.id);
-      if (data) {
-        setIngredientes(
-          data.map((r: any) => ({
-            id: r.insumo_id,
-            nombre: r.p_insumo.nombre,
-            costo: r.p_insumo.costo_compra || 0,
-            cantidad: r.cantidad_requerida,
-            unidad: r.p_insumo.unidad_medida,
-          })),
-        );
+      try {
+        const { data, error } = await supabase
+          .from('recetas')
+          .select('*, p_insumo:productos!insumo_id(*)')
+          .eq('producto_final_id', producto?.id);
+
+        if (error) throw error;
+
+        if (data) {
+          setIngredientes(
+            data.map((r: any) => ({
+              id: r.insumo_id,
+              nombre: r.p_insumo?.nombre || 'Insumo no encontrado',
+              costo: Number(r.p_insumo?.costo_compra) || 0,
+              cantidad: Number(r.cantidad_requerida) || 0,
+              unidad: r.p_insumo?.unidad_medida || 'unid',
+            })),
+          );
+        }
+      } catch (err) {
+        console.error('Error cargando receta:', err);
       }
     };
-    cargarReceta();
-  }, [producto.id, supabase]);
+    if (producto?.id) cargarReceta();
+  }, [producto?.id, supabase]);
 
-  const insumosFiltrados = productos.filter(
+  // Filtrado seguro
+  const insumosFiltrados = (productos || []).filter(
     (p: any) =>
-      p.id !== producto.id &&
-      p.nombre.toLowerCase().includes(busqueda.toLowerCase()),
+      p.id !== producto?.id &&
+      p.nombre?.toLowerCase().includes(busqueda.toLowerCase()),
   );
 
   const agregarIngrediente = (insumo: any) => {
@@ -56,81 +64,102 @@ function ModalReceta({
       {
         id: insumo.id,
         nombre: insumo.nombre,
-        costo: insumo.costo_compra || 0,
+        costo: Number(insumo.costo_compra) || 0,
         cantidad: 0,
-        unidad: insumo.unidad_medida,
+        unidad: insumo.unidad_medida || 'unid',
       },
     ]);
     setBusqueda('');
   };
 
+  // CÁLCULOS BLINDADOS (Evitan el error .toFixed de undefined)
   const costoTotal = ingredientes.reduce(
     (acc, i) => acc + (Number(i.costo) || 0) * (Number(i.cantidad) || 0),
     0,
   );
 
+  const precioProducto = Number(producto?.precio) || 0;
   const margen =
-    Number(producto.precio) > 0
-      ? ((Number(producto.precio) - costoTotal) / Number(producto.precio)) * 100
+    precioProducto > 0
+      ? ((precioProducto - costoTotal) / precioProducto) * 100
       : 0;
+
   const guardarReceta = async () => {
+    if (!producto?.id) return;
     setCargando(true);
-    await supabase
-      .from('recetas')
-      .delete()
-      .eq('producto_final_id', producto.id);
-    const nuevasFilas = ingredientes.map((i) => ({
-      producto_final_id: producto.id,
-      insumo_id: i.id,
-      cantidad_requerida: i.cantidad,
-      empresa_id: empresaId,
-    }));
-    const { error } = await supabase.from('recetas').insert(nuevasFilas);
-    if (!error) alert('Receta guardada exitosamente');
-    setCargando(false);
-    onClose();
+    try {
+      await supabase
+        .from('recetas')
+        .delete()
+        .eq('producto_final_id', producto.id);
+
+      const nuevasFilas = ingredientes.map((i) => ({
+        producto_final_id: producto.id,
+        insumo_id: i.id,
+        cantidad_requerida: i.cantidad,
+        empresa_id: empresaId,
+      }));
+
+      if (nuevasFilas.length > 0) {
+        const { error } = await supabase.from('recetas').insert(nuevasFilas);
+        if (error) throw error;
+      }
+      alert('Receta guardada');
+      onClose();
+    } catch (err) {
+      alert('Error al guardar');
+      console.error(err);
+    } finally {
+      setCargando(false);
+    }
   };
 
+  // Si no hay producto, no renderizamos nada para no bloquear
+  if (!producto) return null;
+
   return (
-    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[999] flex items-center justify-center p-4">
-      {/* Añadí z-[999] y oscurecí más el fondo para que notes si aparece */}
-      <div className="bg-white rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl relative">
+    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white rounded-[2.5rem] w-full max-w-2xl my-auto overflow-hidden shadow-2xl relative border border-white/20">
         <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div>
             <h2 className="font-black text-xl text-slate-800 uppercase tracking-tight">
-              Receta de {producto.nombre}
+              Receta: {producto.nombre}
             </h2>
-            <p className="text-[10px] text-slate-400 font-bold">
-              CONFIGURA LOS INSUMOS Y CALCULA TU COSTO REAL
+            <p className="text-[10px] text-slate-400 font-bold uppercase">
+              Ajusta los insumos para calcular rentabilidad
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+            className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400"
           >
-            <X size={20} />
+            <X size={24} />
           </button>
         </div>
 
-        <div className="p-8 space-y-6 max-h-[50vh] overflow-y-auto">
+        <div className="p-8 space-y-6 max-h-[50vh] overflow-y-auto bg-white">
           <div className="relative">
             <input
               type="text"
-              placeholder="BUSCAR INGREDIENTE..."
+              placeholder="BUSCAR INGREDIENTE (EJ. CARNE, CEBOLLA...)"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              className="w-full bg-slate-100 border-2 border-transparent p-4 rounded-2xl outline-none focus:border-ventiq-orange focus:bg-white transition-all font-bold text-sm"
+              className="w-full bg-slate-100 border-2 border-transparent p-4 rounded-2xl outline-none focus:border-ventiq-orange focus:bg-white transition-all font-bold text-sm text-slate-700"
             />
             {busqueda.length > 0 && (
-              <div className="absolute top-full left-0 right-0 bg-white border shadow-xl rounded-2xl mt-2 z-10 overflow-hidden">
+              <div className="absolute top-full left-0 right-0 bg-white border shadow-2xl rounded-2xl mt-2 z-[10000] overflow-hidden">
                 {insumosFiltrados.slice(0, 5).map((p: any) => (
                   <button
                     key={p.id}
                     onClick={() => agregarIngrediente(p)}
-                    className="w-full text-left p-4 hover:bg-orange-50 border-b last:border-0 flex justify-between font-bold text-sm uppercase"
+                    className="w-full text-left p-4 hover:bg-orange-50 border-b last:border-0 flex justify-between items-center"
                   >
-                    {p.nombre}{' '}
-                    <span className="text-slate-400">STOCK: {p.stock}</span>
+                    <span className="font-bold text-sm uppercase text-slate-700">
+                      {p.nombre}
+                    </span>
+                    <span className="text-[10px] font-black bg-slate-100 px-2 py-1 rounded text-slate-500 uppercase">
+                      Stock: {p.stock}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -138,6 +167,11 @@ function ModalReceta({
           </div>
 
           <div className="space-y-3">
+            {ingredientes.length === 0 && (
+              <p className="text-center py-10 text-slate-300 font-bold uppercase text-[10px] tracking-widest">
+                No hay ingredientes agregados
+              </p>
+            )}
             {ingredientes.map((ing) => (
               <div
                 key={ing.id}
@@ -148,31 +182,39 @@ function ModalReceta({
                     {ing.nombre}
                   </p>
                   <p className="text-[10px] text-slate-400 font-bold">
-                    COSTO: ${ing.costo.toFixed(2)}
+                    COSTO UNIT: ${ing.costo.toFixed(2)}
                   </p>
                 </div>
-                <input
-                  type="number"
-                  step="0.001"
-                  value={ing.cantidad}
-                  onChange={(e) =>
-                    setIngredientes(
-                      ingredientes.map((i) =>
-                        i.id === ing.id
-                          ? { ...i, cantidad: parseFloat(e.target.value) || 0 }
-                          : i,
-                      ),
-                    )
-                  }
-                  className="w-24 bg-white border-2 border-slate-200 p-2 rounded-xl text-center font-black text-sm outline-none focus:border-ventiq-orange"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={ing.cantidad}
+                    onChange={(e) =>
+                      setIngredientes(
+                        ingredientes.map((i) =>
+                          i.id === ing.id
+                            ? {
+                                ...i,
+                                cantidad: parseFloat(e.target.value) || 0,
+                              }
+                            : i,
+                        ),
+                      )
+                    }
+                    className="w-24 bg-white border-2 border-slate-200 p-2 rounded-xl text-center font-black text-sm outline-none focus:border-ventiq-orange text-slate-700"
+                  />
+                  <span className="text-[10px] font-bold text-slate-400 uppercase w-8">
+                    {ing.unidad}
+                  </span>
+                </div>
                 <button
                   onClick={() =>
                     setIngredientes(ingredientes.filter((i) => i.id !== ing.id))
                   }
-                  className="text-red-300 hover:text-red-500 transition-colors"
+                  className="text-slate-300 hover:text-red-500 transition-colors"
                 >
-                  <Trash2 size={16} />
+                  <Trash2 size={18} />
                 </button>
               </div>
             ))}
@@ -183,7 +225,7 @@ function ModalReceta({
           <div className="flex gap-8">
             <div>
               <p className="text-[9px] font-black text-slate-400 uppercase">
-                Costo Producción
+                Costo Total
               </p>
               <p className="text-xl font-black text-emerald-400">
                 ${costoTotal.toFixed(2)}
@@ -191,7 +233,7 @@ function ModalReceta({
             </div>
             <div>
               <p className="text-[9px] font-black text-slate-400 uppercase">
-                Rentabilidad
+                Margen Real
               </p>
               <p
                 className={`text-xl font-black ${margen < 30 ? 'text-red-400' : 'text-emerald-400'}`}
