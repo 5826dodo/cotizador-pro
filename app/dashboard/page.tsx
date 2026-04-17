@@ -2,7 +2,14 @@
 import imageCompression from 'browser-image-compression';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Loader2, Package, Camera, X } from 'lucide-react';
+import {
+  Loader2,
+  Package,
+  Camera,
+  X,
+  Trash2,
+  CheckCircle2,
+} from 'lucide-react';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 interface Categoria {
@@ -36,7 +43,235 @@ const UNIDADES_MEDIDA = [
 ] as const;
 const ITEMS_POR_PAGINA = 12;
 
-// ── Componente ─────────────────────────────────────────────────────────────
+// ── Componente Modal de Recetas ─────────────────────────────────────────────
+function ModalReceta({
+  producto,
+  productos,
+  onClose,
+  empresaId,
+  supabase,
+}: any) {
+  const [busqueda, setBusqueda] = useState('');
+  const [ingredientes, setIngredientes] = useState<any[]>([]);
+  const [cargando, setCargando] = useState(false);
+
+  useEffect(() => {
+    const cargarReceta = async () => {
+      if (!producto?.id) return;
+      try {
+        const { data, error } = await supabase
+          .from('recetas')
+          .select('*, p_insumo:productos!insumo_id(*)')
+          .eq('producto_final_id', producto.id);
+
+        if (error) throw error;
+        if (data) {
+          setIngredientes(
+            data.map((r: any) => ({
+              id: r.insumo_id,
+              nombre: r.p_insumo?.nombre || 'Insumo no encontrado',
+              costo: Number(r.p_insumo?.costo_compra) || 0,
+              cantidad: Number(r.cantidad_requerida) || 0,
+              unidad: r.p_insumo?.unidad_medida || 'unid',
+            })),
+          );
+        }
+      } catch (err) {
+        console.error('Error cargando receta:', err);
+      }
+    };
+    cargarReceta();
+  }, [producto?.id, supabase]);
+
+  const insumosFiltrados = (productos || []).filter(
+    (p: any) =>
+      p.id !== producto?.id &&
+      p.nombre?.toLowerCase().includes(busqueda.toLowerCase()),
+  );
+
+  const costoTotal = ingredientes.reduce(
+    (acc, i) => acc + Number(i.costo || 0) * Number(i.cantidad || 0),
+    0,
+  );
+  const precioVenta = Number(producto?.precio || 0);
+  const margen =
+    precioVenta > 0 ? ((precioVenta - costoTotal) / precioVenta) * 100 : 0;
+
+  const guardarReceta = async () => {
+    if (!producto?.id) return;
+    setCargando(true);
+    try {
+      await supabase
+        .from('recetas')
+        .delete()
+        .eq('producto_final_id', producto.id);
+      const nuevasFilas = ingredientes.map((i) => ({
+        producto_final_id: producto.id,
+        insumo_id: i.id,
+        cantidad_requerida: i.cantidad,
+        empresa_id: empresaId,
+      }));
+      if (nuevasFilas.length > 0) {
+        const { error } = await supabase.from('recetas').insert(nuevasFilas);
+        if (error) throw error;
+      }
+      onClose();
+    } catch (err) {
+      console.error(err);
+      alert('Error al guardar');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
+      <div className="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl relative flex flex-col overflow-hidden border border-white/20">
+        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <div>
+            <h2 className="font-black text-xl text-slate-800 uppercase tracking-tight">
+              Receta: {producto?.nombre}
+            </h2>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+              Calculadora de rentabilidad
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400"
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="p-8 space-y-6 max-h-[50vh] overflow-y-auto bg-white">
+          <input
+            type="text"
+            placeholder="BUSCAR INGREDIENTE..."
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="w-full bg-slate-100 border-2 border-transparent p-4 rounded-2xl outline-none focus:ring-2 ring-orange-500 font-bold text-sm text-slate-600"
+          />
+          {busqueda && (
+            <div className="bg-white border shadow-2xl rounded-2xl overflow-hidden mt-[-15px] z-10 relative">
+              {insumosFiltrados.slice(0, 5).map((p: any) => (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    if (!ingredientes.find((i) => i.id === p.id)) {
+                      setIngredientes([
+                        ...ingredientes,
+                        {
+                          id: p.id,
+                          nombre: p.nombre,
+                          costo: p.costo_compra,
+                          cantidad: 0,
+                          unidad: p.unidad_medida,
+                        },
+                      ]);
+                    }
+                    setBusqueda('');
+                  }}
+                  className="w-full text-left p-4 hover:bg-orange-50 border-b last:border-0 font-bold text-xs uppercase flex justify-between text-slate-600"
+                >
+                  {p.nombre}{' '}
+                  <span className="text-slate-400 font-black">
+                    STOCK: {p.stock}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {ingredientes.map((ing) => (
+              <div
+                key={ing.id}
+                className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100"
+              >
+                <div className="flex-1">
+                  <p className="font-black text-xs text-slate-700 uppercase">
+                    {ing.nombre}
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">
+                    Costo: ${Number(ing.costo || 0).toFixed(2)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={ing.cantidad}
+                    onChange={(e) =>
+                      setIngredientes(
+                        ingredientes.map((i) =>
+                          i.id === ing.id
+                            ? {
+                                ...i,
+                                cantidad: parseFloat(e.target.value) || 0,
+                              }
+                            : i,
+                        ),
+                      )
+                    }
+                    className="w-20 bg-white border-2 border-slate-200 p-2 rounded-xl text-center font-black text-sm outline-none focus:border-orange-500 text-slate-700"
+                  />
+                  <span className="text-[10px] font-black text-slate-400 uppercase w-8">
+                    {ing.unidad || 'unid'}
+                  </span>
+                </div>
+                <button
+                  onClick={() =>
+                    setIngredientes(ingredientes.filter((i) => i.id !== ing.id))
+                  }
+                  className="text-slate-300 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-8 bg-slate-900 text-white flex items-center justify-between">
+          <div className="flex gap-8">
+            <div>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                Costo Total
+              </p>
+              <p className="text-xl font-black text-emerald-400">
+                ${costoTotal.toFixed(2)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                Margen Real
+              </p>
+              <p
+                className={`text-xl font-black ${margen < 30 ? 'text-red-400' : 'text-emerald-400'}`}
+              >
+                {margen.toFixed(1)}%
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={guardarReceta}
+            disabled={cargando}
+            className="bg-orange-500 hover:bg-orange-600 px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center gap-2"
+          >
+            {cargando ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <CheckCircle2 size={18} />
+            )}{' '}
+            GUARDAR
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Componente Principal ───────────────────────────────────────────────────
 export default function InventarioPage() {
   const supabase = createClient();
 
@@ -50,9 +285,13 @@ export default function InventarioPage() {
   const [descripcion, setDescripcion] = useState('');
   const [precio, setPrecio] = useState('');
   const [stock, setStock] = useState('');
+  const [costoCompra, setCostoCompra] = useState(''); // Nuevo campo
   const [unidad, setUnidad] = useState<string>('UNIDADES');
   const [categoriaId, setCategoriaId] = useState('');
   const [editando, setEditando] = useState<Producto | null>(null);
+
+  // — Estados Receta
+  const [productoParaReceta, setProductoParaReceta] = useState<any>(null);
 
   // — Imagen
   const [imagenFile, setImagenFile] = useState<File | null>(null);
@@ -64,7 +303,6 @@ export default function InventarioPage() {
     original: string;
     comprimido: string;
   } | null>(null);
-  // Guardamos la objectURL activa para poder revocarla
   const objectUrlRef = useRef<string | null>(null);
 
   // — Catálogo
@@ -72,7 +310,7 @@ export default function InventarioPage() {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [mensaje, setMensaje] = useState('');
 
-  // — Paginación  (usamos ref para evitar closures stale)
+  // — Paginación
   const paginaRef = useRef(0);
   const [tieneMas, setTieneMas] = useState(true);
   const [cargandoMas, setCargandoMas] = useState(false);
@@ -89,7 +327,6 @@ export default function InventarioPage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  /** Revoca la objectURL anterior y asigna una nueva */
   const asignarPreview = (url: string | null) => {
     if (objectUrlRef.current) {
       URL.revokeObjectURL(objectUrlRef.current);
@@ -101,19 +338,12 @@ export default function InventarioPage() {
     setPreviewUrl(url);
   };
 
-  // Limpieza al desmontar
   useEffect(() => {
     return () => {
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     };
   }, []);
 
-  // ── Datos ────────────────────────────────────────────────────────────────
-
-  /**
-   * FIX #5 — pagina se pasa como parámetro para evitar closures stale.
-   * FIX #1 — una sola llamada al inicializar (reiniciar=true).
-   */
   const obtenerProductos = useCallback(
     async (idEmpresa: string, reiniciar = false) => {
       const paginaActual = reiniciar ? 0 : paginaRef.current;
@@ -143,7 +373,6 @@ export default function InventarioPage() {
         }
         setTieneMas(nuevos.length === ITEMS_POR_PAGINA);
       }
-
       setCargandoMas(false);
     },
     [supabase],
@@ -165,8 +394,6 @@ export default function InventarioPage() {
         if (perfil) {
           setEmpresaId(perfil.empresa_id);
           setNombreEmpresa((perfil.empresas as any)?.nombre || 'Mi Empresa');
-
-          // FIX #1 — una sola llamada, con reiniciar=true
           await obtenerProductos(perfil.empresa_id, true);
 
           const { data: cats } = await supabase
@@ -179,33 +406,19 @@ export default function InventarioPage() {
       }
       setCargando(false);
     };
-
     inicializarDatos();
   }, [obtenerProductos, supabase]);
 
-  // ── Imagen ───────────────────────────────────────────────────────────────
-
-  /**
-   * FIX #4 — eliminamos optimizarImagen (canvas manual).
-   * Solo usamos imageCompression aquí; subirImagen sube directamente el File.
-   */
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Limpiar estados anteriores
     setImagenError(null);
     setImagenInfo(null);
-
     if (file.size > 15 * 1024 * 1024) {
-      setImagenError(
-        `La imagen pesa ${formatBytes(file.size)} y supera el límite de 15 MB. Usa una foto más liviana.`,
-      );
+      setImagenError(`Supera el límite de 15 MB.`);
       return;
     }
-
     setComprimiendo(true);
-
     try {
       const archivoOptimizado = await imageCompression(file, {
         maxSizeMB: 0.7,
@@ -213,25 +426,20 @@ export default function InventarioPage() {
         useWebWorker: true,
         fileType: 'image/webp',
       });
-
       const archivoFinal = new File(
         [archivoOptimizado],
         `${file.name.split('.')[0]}.webp`,
         { type: 'image/webp' },
       );
-
       setImagenFile(archivoFinal);
       setImagenInfo({
         original: formatBytes(file.size),
         comprimido: formatBytes(archivoFinal.size),
       });
-      // FIX #7 — gestionamos la objectURL con asignarPreview
       asignarPreview(URL.createObjectURL(archivoFinal));
     } catch (error) {
-      console.error('Error al optimizar imagen:', error);
-      setImagenError(
-        'No se pudo procesar la imagen. Intenta con otro archivo.',
-      );
+      console.error(error);
+      setImagenError('Error al procesar.');
       setImagenFile(file);
       asignarPreview(URL.createObjectURL(file));
     } finally {
@@ -239,26 +447,17 @@ export default function InventarioPage() {
     }
   };
 
-  /**
-   * FIX #4 — ya no comprime aquí; sube directamente el archivo ya optimizado.
-   */
   const subirImagen = async (file: File): Promise<string> => {
     const fileName = `${empresaId}/${crypto.randomUUID()}.webp`;
-
     const { error: uploadError } = await supabase.storage
       .from('productos')
       .upload(fileName, file, { contentType: 'image/webp', upsert: true });
-
     if (uploadError) throw uploadError;
-
     const {
       data: { publicUrl },
     } = supabase.storage.from('productos').getPublicUrl(fileName);
-
     return publicUrl;
   };
-
-  // ── CRUD ─────────────────────────────────────────────────────────────────
 
   const guardarProducto = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -267,16 +466,14 @@ export default function InventarioPage() {
 
     try {
       let finalImageUrl: string | null = editando?.imagen_url ?? null;
-
-      if (imagenFile) {
-        finalImageUrl = await subirImagen(imagenFile);
-      }
+      if (imagenFile) finalImageUrl = await subirImagen(imagenFile);
 
       const payload = {
         nombre,
         descripcion,
         precio: parseFloat(precio),
         stock: parseFloat(stock),
+        costo_compra: parseFloat(costoCompra) || 0, // Nuevo campo
         unidad_medida: unidad,
         empresa_id: empresaId,
         imagen_url: finalImageUrl,
@@ -298,68 +495,47 @@ export default function InventarioPage() {
       }
 
       if (!error) {
-        mostrarMensaje(editando ? '✅ Actualizado' : '🚀 Producto Registrado');
+        mostrarMensaje(editando ? '✅ Actualizado' : '🚀 Registrado');
         cancelarEdicion();
         obtenerProductos(empresaId, true);
       }
     } catch (err: any) {
-      alert('Error al guardar: ' + err.message);
+      alert('Error: ' + err.message);
     } finally {
       setSubiendoImg(false);
     }
   };
 
   const eliminarProducto = async (id: string) => {
-    if (
-      !confirm(
-        '¿Deseas retirar este producto del catálogo? No se borrará del historial de ventas.',
-      )
-    )
-      return;
-
+    if (!confirm('¿Archivar producto?')) return;
     try {
-      const { error } = await supabase
-        .from('productos')
-        .update({ activo: false })
-        .eq('id', id)
-        .eq('empresa_id', empresaId);
-
-      if (error) throw error;
+      await supabase.from('productos').update({ activo: false }).eq('id', id);
       if (empresaId) obtenerProductos(empresaId, true);
-      mostrarMensaje('📦 Producto archivado');
+      mostrarMensaje('📦 Archivado');
     } catch (err: any) {
-      alert('Error al desactivar: ' + err.message);
+      alert(err.message);
     }
   };
 
   const reactivarProducto = async (id: string) => {
-    if (!confirm('¿Deseas activar este producto nuevamente en tu catálogo?'))
-      return;
-
     try {
-      const { error } = await supabase
-        .from('productos')
-        .update({ activo: true })
-        .eq('id', id)
-        .eq('empresa_id', empresaId);
-
-      if (error) throw error;
+      await supabase.from('productos').update({ activo: true }).eq('id', id);
       if (empresaId) obtenerProductos(empresaId, true);
-      mostrarMensaje('✅ Producto reactivado');
+      mostrarMensaje('✅ Reactivado');
     } catch (err: any) {
-      alert('Error al reactivar: ' + err.message);
+      alert(err.message);
     }
   };
 
-  const prepararEdicion = (prod: Producto) => {
+  const prepararEdicion = (prod: any) => {
     setEditando(prod);
     setNombre(prod.nombre);
     setDescripcion(prod.descripcion || '');
     setPrecio(prod.precio.toString());
     setStock(prod.stock.toString());
+    setCostoCompra((prod.costo_compra || 0).toString()); // Nuevo campo
     setUnidad(prod.unidad_medida || 'UNIDADES');
     setCategoriaId(prod.categoria_id || '');
-    // La URL de Supabase no es una objectURL, no hay que revocarla
     setPreviewUrl(prod.imagen_url ?? null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -370,34 +546,28 @@ export default function InventarioPage() {
     setDescripcion('');
     setPrecio('');
     setStock('');
+    setCostoCompra('');
     setUnidad('UNIDADES');
     setCategoriaId('');
     setImagenFile(null);
     setImagenError(null);
     setImagenInfo(null);
-    // FIX #7 — revocamos la objectURL al cancelar
     asignarPreview(null);
   };
 
-  // ── Render ───────────────────────────────────────────────────────────────
-
   if (cargando)
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-        <Loader2 className="w-12 h-12 text-orange-500 animate-spin" />
-        <p className="mt-4 font-black text-xs uppercase tracking-widest text-slate-400">
-          Sincronizando Almacén...
-        </p>
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin text-orange-500" />
       </div>
     );
 
   return (
     <main className="min-h-screen bg-slate-100 pb-20">
       <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-6">
-        {/* HEADER */}
-        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm flex justify-between items-center">
           <div>
-            <span className="text-[10px] font-black text-orange-500 uppercase tracking-[0.3em]">
+            <span className="text-[10px] font-black text-orange-500 uppercase">
               Sesión: {nombreEmpresa}
             </span>
             <h1 className="text-2xl font-black uppercase tracking-tighter">
@@ -405,20 +575,18 @@ export default function InventarioPage() {
             </h1>
           </div>
           {mensaje && (
-            <div className="bg-emerald-500 text-white px-6 py-2 rounded-full text-xs font-black animate-bounce">
+            <div className="bg-emerald-500 text-white px-6 py-2 rounded-full text-xs font-black">
               {mensaje}
             </div>
           )}
         </div>
 
-        {/* FORMULARIO */}
         <section className="bg-white p-6 md:p-8 rounded-[3rem] shadow-xl border border-white">
           <form
             onSubmit={guardarProducto}
             className="grid grid-cols-1 md:grid-cols-4 gap-6"
           >
-            {/* SUBIDA DE FOTO */}
-            <div className="flex flex-col items-center justify-center space-y-2 border-2 border-dashed border-slate-100 rounded-[2rem] p-4 hover:bg-slate-50 transition-all group relative overflow-hidden">
+            <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-100 rounded-[2rem] p-4 relative overflow-hidden">
               {previewUrl ? (
                 <img
                   src={previewUrl}
@@ -426,21 +594,10 @@ export default function InventarioPage() {
                   alt="Preview"
                 />
               ) : (
-                <div
-                  className={`w-24 h-24 rounded-2xl flex items-center justify-center transition-all ${imagenError ? 'bg-red-50 text-red-300' : 'bg-slate-100 text-slate-300'}`}
-                >
-                  <Camera size={32} />
-                </div>
+                <Camera size={32} className="text-slate-200" />
               )}
-
-              <label
-                className={`cursor-pointer text-[10px] font-black uppercase transition-all ${comprimiendo ? 'text-orange-400' : imagenError ? 'text-red-400' : 'text-slate-400 group-hover:text-orange-500'}`}
-              >
-                {comprimiendo
-                  ? 'Optimizando...'
-                  : previewUrl
-                    ? 'Cambiar Foto'
-                    : 'Subir Foto'}
+              <label className="cursor-pointer text-[10px] font-black uppercase text-slate-400 mt-2">
+                {comprimiendo ? '...' : 'Subir Foto'}
                 <input
                   type="file"
                   className="hidden"
@@ -449,232 +606,133 @@ export default function InventarioPage() {
                   disabled={comprimiendo}
                 />
               </label>
-
-              {/* ERROR de tamaño */}
-              {imagenError && (
-                <p className="text-[9px] font-bold text-red-500 text-center leading-tight px-1">
-                  ⚠️ {imagenError}
-                </p>
-              )}
-
-              {/* INFO de compresión: original → comprimido */}
-              {imagenInfo && !imagenError && (
-                <div className="flex items-center gap-1 text-[9px] font-black">
-                  <span className="text-slate-400 line-through">
-                    {imagenInfo.original}
-                  </span>
-                  <span className="text-slate-300">→</span>
-                  <span className="text-emerald-500">
-                    {imagenInfo.comprimido}
-                  </span>
-                </div>
-              )}
             </div>
 
-            {/* CAMPOS PRINCIPALES */}
             <div className="md:col-span-2 space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
-                  Nombre del Producto
-                </label>
-                <input
-                  placeholder="Ej: Hamburguesa con Queso o Cambio de Aceite"
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  required
-                  className="w-full bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-orange-500 font-bold placeholder:text-slate-300 transition-all"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
-                  Descripción / Detalles (Tallas, Colores, Notas)
-                </label>
-                <textarea
-                  placeholder="Ej: Talla L, Color Azul, o especificaciones del servicio..."
-                  value={descripcion}
-                  onChange={(e) => setDescripcion(e.target.value)}
-                  className="w-full bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-orange-500 font-bold placeholder:text-slate-300 transition-all resize-none"
-                  rows={2}
-                />
-              </div>
+              <input
+                placeholder="Nombre del Producto"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                required
+                className="w-full bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-orange-500 font-bold"
+              />
+              <textarea
+                placeholder="Descripción"
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                className="w-full bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-orange-500 font-bold resize-none"
+                rows={2}
+              />
 
               <div className="grid grid-cols-2 gap-4">
+                <select
+                  value={categoriaId}
+                  onChange={(e) => setCategoriaId(e.target.value)}
+                  className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold text-slate-700"
+                >
+                  <option value="">SIN CAT.</option>
+                  {categorias.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.nombre}
+                    </option>
+                  ))}
+                </select>
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
-                    Categoría
-                  </label>
-                  <select
-                    value={categoriaId}
-                    onChange={(e) => setCategoriaId(e.target.value)}
-                    className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold appearance-none text-slate-700 cursor-pointer border-2 border-transparent focus:border-orange-500 transition-all"
-                  >
-                    <option value="">GENERAL / SIN CAT.</option>
-                    {categorias.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
-                    Precio ($)
+                  <label className="text-[9px] uppercase font-black text-slate-400 ml-2">
+                    Precio Venta ($)
                   </label>
                   <input
                     type="number"
                     step="0.01"
-                    placeholder="0.00"
                     value={precio}
                     onChange={(e) => setPrecio(e.target.value)}
                     required
-                    className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold placeholder:text-slate-300 focus:ring-2 ring-orange-500 transition-all"
+                    className="w-full bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-orange-500 font-bold"
                   />
                 </div>
               </div>
             </div>
 
-            {/* STOCK + BOTONES */}
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
-                    Stock Actual
+                  <label className="text-[9px] uppercase font-black text-slate-400 ml-2">
+                    Stock
                   </label>
                   <input
                     type="number"
                     step="0.01"
-                    placeholder="0.00"
                     value={stock}
                     onChange={(e) => setStock(e.target.value)}
                     required
-                    className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold text-orange-500 focus:ring-2 ring-orange-500 transition-all"
+                    className="w-full bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-orange-500 font-bold"
                   />
                 </div>
-
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
-                    Medida
+                  <label className="text-[9px] uppercase font-black text-slate-400 ml-2">
+                    Costo ($)
                   </label>
-                  <select
-                    value={unidad}
-                    onChange={(e) => setUnidad(e.target.value)}
-                    className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold appearance-none text-slate-700 cursor-pointer border-2 border-transparent focus:border-orange-500 transition-all"
-                  >
-                    {UNIDADES_MEDIDA.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={costoCompra}
+                    onChange={(e) => setCostoCompra(e.target.value)}
+                    className="w-full bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-orange-500 font-bold"
+                  />
                 </div>
               </div>
 
-              {/* FIX #2 — Botón con clases CSS reales */}
+              <select
+                value={unidad}
+                onChange={(e) => setUnidad(e.target.value)}
+                className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold text-slate-700"
+              >
+                {UNIDADES_MEDIDA.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+
               <button
                 type="submit"
                 disabled={subiendoImg || comprimiendo}
-                className="w-full py-4 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-200"
+                className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-orange-200"
               >
-                {subiendoImg ? (
-                  <>
-                    <Loader2 className="animate-spin" size={16} />
-                    Guardando...
-                  </>
-                ) : comprimiendo ? (
-                  <>
-                    <Loader2 className="animate-spin" size={16} />
-                    Optimizando...
-                  </>
-                ) : editando ? (
-                  '✏️ Actualizar Producto'
-                ) : (
-                  '🚀 Registrar Producto'
-                )}
+                {subiendoImg
+                  ? 'Guardando...'
+                  : editando
+                    ? 'Actualizar'
+                    : 'Registrar'}
               </button>
-
               {editando && (
                 <button
                   type="button"
                   onClick={cancelarEdicion}
-                  className="w-full py-3 bg-red-50 text-red-500 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:bg-red-100 transition-all"
+                  className="w-full py-3 bg-red-50 text-red-500 rounded-2xl font-black uppercase text-[10px]"
                 >
-                  <X size={14} /> Cancelar
+                  Cancelar
                 </button>
               )}
             </div>
           </form>
         </section>
 
-        {/* VITRINA ONLINE */}
-        <div className="mb-8 bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-[2.5rem] text-white shadow-xl">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="text-center md:text-left">
-              <h2 className="text-xl font-black uppercase tracking-tighter">
-                Tu Vitrina Online
-              </h2>
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em] mt-1">
-                Comparte este enlace con tus clientes
-              </p>
-            </div>
-
-            <div className="flex flex-wrap justify-center gap-3">
-              <button
-                onClick={() => {
-                  const url = `${window.location.origin}/catalogo/${empresaId}`;
-                  navigator.clipboard.writeText(url);
-                  mostrarMensaje('¡Enlace copiado! 📋');
-                }}
-                className="px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10"
-              >
-                Copiar Link
-              </button>
-
-              <button
-                onClick={() => window.open(`/catalogo/${empresaId}`, '_blank')}
-                className="px-6 py-3 bg-orange-500 hover:bg-orange-600 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-orange-900/20"
-              >
-                Abrir Mi Catálogo 🚀
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* LISTADO */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {productos.map((prod) => {
-            const precioSeguro = prod.precio ? Number(prod.precio) : 0;
-            const stockSeguro = prod.stock ? Number(prod.stock) : 0;
-            const unidadSegura = prod.unidad_medida || 'UNIDADES';
-            const esStockCritico = stockSeguro <= 5;
             const esActivo = prod.activo !== false;
-
             return (
               <div
                 key={prod.id}
-                className={`bg-white p-4 rounded-[2.5rem] shadow-sm border-2 flex flex-col gap-4
-                  ${
-                    !esActivo
-                      ? 'opacity-50 grayscale bg-slate-50 border-dashed'
-                      : esStockCritico
-                        ? 'border-red-100'
-                        : 'border-white'
-                  }`}
+                className={`bg-white p-4 rounded-[2.5rem] shadow-sm border-2 ${!esActivo ? 'opacity-50 grayscale' : 'border-white'}`}
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-20 h-20 bg-slate-100 rounded-2xl overflow-hidden flex-shrink-0 animate-pulse">
+                  <div className="w-20 h-20 bg-slate-100 rounded-2xl overflow-hidden flex-shrink-0">
                     {prod.imagen_url ? (
                       <img
                         src={`${prod.imagen_url}?width=150&quality=50`}
-                        onLoad={(e) =>
-                          e.currentTarget.parentElement!.classList.remove(
-                            'animate-pulse',
-                          )
-                        }
                         className="w-full h-full object-cover"
                         loading="lazy"
-                        alt={prod.nombre}
                       />
                     ) : (
                       <Package
@@ -685,67 +743,41 @@ export default function InventarioPage() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    {!esActivo && (
-                      <span className="text-[8px] font-black bg-slate-800 text-white px-2 py-0.5 rounded-md uppercase mb-2 inline-block">
-                        Fuera de Catálogo
-                      </span>
-                    )}
-                    <div className="flex items-center gap-2 mb-1">
-                      <span
-                        className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${
-                          prod.categorias?.nombre
-                            ? 'bg-orange-100 text-orange-600'
-                            : 'bg-slate-100 text-slate-400'
-                        }`}
-                      >
-                        {prod.categorias?.nombre || 'General'}
-                      </span>
-                    </div>
-
+                    <span className="text-[8px] font-black bg-slate-100 text-slate-400 px-2 py-0.5 rounded-md uppercase">
+                      {prod.categorias?.nombre || 'General'}
+                    </span>
                     <h3 className="font-black text-slate-800 text-sm uppercase truncate">
-                      {prod.nombre || 'Sin nombre'}
+                      {prod.nombre}
                     </h3>
-
-                    {prod.descripcion && (
-                      <p className="text-[10px] text-slate-400 italic truncate mb-1">
-                        {prod.descripcion}
-                      </p>
-                    )}
-
                     <p className="text-orange-500 font-black text-lg">
-                      ${precioSeguro.toFixed(2)}
+                      ${Number(prod.precio).toFixed(2)}
                     </p>
-
-                    <span
-                      className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
-                        esStockCritico
-                          ? 'bg-red-500 text-white'
-                          : 'bg-slate-100 text-slate-400'
-                      }`}
-                    >
-                      Stock: {stockSeguro} {unidadSegura.slice(0, 3)}
+                    <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-400 uppercase">
+                      Stock: {prod.stock}
                     </span>
                   </div>
 
-                  {/* FIX #3 — Botones con clases CSS reales */}
                   <div className="flex flex-col gap-2">
                     <button
-                      type="button"
+                      onClick={() => setProductoParaReceta(prod)}
+                      className="p-2 bg-emerald-50 text-emerald-500 rounded-xl hover:bg-emerald-100 transition-all"
+                      title="Receta"
+                    >
+                      <Package size={16} />
+                    </button>
+                    <button
                       onClick={() => prepararEdicion(prod)}
-                      className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-orange-500 hover:bg-orange-50 transition-all"
-                      title="Editar"
+                      className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-orange-500"
                     >
                       ✏️
                     </button>
                     <button
-                      type="button"
                       onClick={() =>
                         esActivo
                           ? eliminarProducto(prod.id)
                           : reactivarProducto(prod.id)
                       }
-                      className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all"
-                      title={esActivo ? 'Archivar' : 'Reactivar'}
+                      className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-red-500"
                     >
                       {esActivo ? '🗑️' : '🔄'}
                     </button>
@@ -756,26 +788,28 @@ export default function InventarioPage() {
           })}
         </div>
 
-        {/* CARGAR MÁS */}
         {tieneMas && (
           <div className="flex justify-center mt-12 mb-20">
             <button
               onClick={() => empresaId && obtenerProductos(empresaId)}
               disabled={cargandoMas}
-              className="px-8 py-4 bg-white border-2 border-slate-200 text-slate-600 rounded-[2rem] font-black uppercase text-xs hover:border-orange-500 hover:text-orange-500 transition-all flex items-center gap-3 shadow-sm disabled:opacity-50"
+              className="px-8 py-4 bg-white border-2 border-slate-200 rounded-[2rem] font-black uppercase text-xs"
             >
-              {cargandoMas ? (
-                <>
-                  <Loader2 className="animate-spin" size={16} />
-                  Cargando...
-                </>
-              ) : (
-                'Ver más productos'
-              )}
+              {cargandoMas ? 'Cargando...' : 'Ver más'}
             </button>
           </div>
         )}
       </div>
+
+      {productoParaReceta && (
+        <ModalReceta
+          producto={productoParaReceta}
+          productos={productos}
+          empresaId={empresaId}
+          supabase={supabase}
+          onClose={() => setProductoParaReceta(null)}
+        />
+      )}
     </main>
   );
 }
