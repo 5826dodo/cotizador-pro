@@ -118,8 +118,11 @@ function ModalReceta({
   if (!producto) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-[2.5rem] w-full max-w-2xl my-auto overflow-hidden shadow-2xl relative border border-white/20">
+    <div
+      className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 overflow-x-hidden overflow-y-auto"
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+    >
+      <div className="bg-white rounded-[2.5rem] w-full max-w-2xl my-auto shadow-2xl relative border border-white/20 flex flex-col">
         <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div>
             <h2 className="font-black text-xl text-slate-800 uppercase tracking-tight">
@@ -508,7 +511,6 @@ export default function InventarioPage() {
                     <button
                       onClick={() => {
                         setProductoParaReceta(prod);
-                        setMostrarModalReceta(true);
                       }}
                       className="p-2 text-slate-300 hover:text-emerald-500 transition-colors flex flex-col items-center"
                       title="Configurar Receta"
@@ -549,10 +551,7 @@ export default function InventarioPage() {
           productos={productos}
           empresaId={empresaId}
           supabase={supabase}
-          onClose={() => {
-            setProductoParaReceta(null);
-            setMostrarModalReceta(false); // Limpia ambos estados
-          }}
+          onClose={() => setProductoParaReceta(null)}
         />
       )}
     </main>
