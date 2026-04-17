@@ -65,14 +65,14 @@ function ModalReceta({
   };
 
   const costoTotal = ingredientes.reduce(
-    (acc, i) => acc + i.costo * i.cantidad,
+    (acc, i) => acc + (Number(i.costo) || 0) * (Number(i.cantidad) || 0),
     0,
   );
-  const margen =
-    producto.precio > 0
-      ? ((producto.precio - costoTotal) / producto.precio) * 100
-      : 0;
 
+  const margen =
+    Number(producto.precio) > 0
+      ? ((Number(producto.precio) - costoTotal) / Number(producto.precio)) * 100
+      : 0;
   const guardarReceta = async () => {
     setCargando(true);
     await supabase
@@ -92,8 +92,9 @@ function ModalReceta({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-      <div className="bg-white rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[999] flex items-center justify-center p-4">
+      {/* Añadí z-[999] y oscurecí más el fondo para que notes si aparece */}
+      <div className="bg-white rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl relative">
         <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div>
             <h2 className="font-black text-xl text-slate-800 uppercase tracking-tight">
@@ -499,14 +500,17 @@ export default function InventarioPage() {
           )}
         </div>
       </div>
-      {/* Esto hace que si seleccionaste un producto para receta, el modal aparezca mágicamente */}
+      {/* Al final de tu componente InventarioPage */}
       {productoParaReceta && (
         <ModalReceta
           producto={productoParaReceta}
           productos={productos}
           empresaId={empresaId}
           supabase={supabase}
-          onClose={() => setProductoParaReceta(null)}
+          onClose={() => {
+            setProductoParaReceta(null);
+            setMostrarModalReceta(false); // Limpia ambos estados
+          }}
         />
       )}
     </main>
