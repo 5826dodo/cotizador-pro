@@ -1,150 +1,138 @@
 'use client';
 import imageCompression from 'browser-image-compression';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Loader2, Package, Camera, X } from 'lucide-react';
+import {
+  Loader2,
+  Package,
+  Store,
+  Hash,
+  Tag,
+  Trash2,
+  Edit3,
+  X,
+  Upload,
+  Camera,
+} from 'lucide-react';
 
-// ── Tipos ──────────────────────────────────────────────────────────────────
-interface Categoria {
-  id: string;
-  nombre: string;
-  empresa_id: string;
-}
-
-interface Producto {
-  id: string;
-  nombre: string;
-  descripcion?: string;
-  precio: number;
-  stock: number;
-  unidad_medida: string;
-  empresa_id: string;
-  imagen_url?: string | null;
-  categoria_id?: string | null;
-  activo: boolean;
-  created_at: string;
-  categorias?: { nombre: string } | null;
-}
-
-// ── Constantes ─────────────────────────────────────────────────────────────
-const UNIDADES_MEDIDA = [
-  'UNIDADES',
-  'LITROS',
-  'KILOS',
-  'METROS',
-  'PAQUETES',
-] as const;
-const ITEMS_POR_PAGINA = 12;
-
-// ── Componente ─────────────────────────────────────────────────────────────
 export default function InventarioPage() {
   const supabase = createClient();
+  const [nombre, setNombre] = useState('');
+  const [precio, setPrecio] = useState('');
+  const [stock, setStock] = useState('');
+  const [unidad, setUnidad] = useState('UNIDADES');
+  const [productos, setProductos] = useState<any[]>([]);
+  const [mensaje, setMensaje] = useState('');
+  const [editando, setEditando] = useState<any>(null);
 
-  // — Sesión / empresa
+  // Estados para la imagen
+  const [imagenFile, setImagenFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [subiendoImg, setSubiendoImg] = useState(false);
+
   const [empresaId, setEmpresaId] = useState<string | null>(null);
   const [nombreEmpresa, setNombreEmpresa] = useState('');
   const [cargando, setCargando] = useState(true);
 
-  // — Formulario
-  const [nombre, setNombre] = useState('');
+  const unidadesMedida = ['UNIDADES', 'LITROS', 'KILOS', 'METROS', 'PAQUETES'];
+
+  const [categorias, setCategorias] = useState<any[]>([]); // Nuevo
+  const [categoriaId, setCategoriaId] = useState(''); // Nuevo
+
   const [descripcion, setDescripcion] = useState('');
-  const [precio, setPrecio] = useState('');
-  const [stock, setStock] = useState('');
-  const [unidad, setUnidad] = useState<string>('UNIDADES');
-  const [categoriaId, setCategoriaId] = useState('');
-  const [editando, setEditando] = useState<Producto | null>(null);
 
-  // — Imagen
-  const [imagenFile, setImagenFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [subiendoImg, setSubiendoImg] = useState(false);
-  const [comprimiendo, setComprimiendo] = useState(false);
-  // Guardamos la objectURL activa para poder revocarla
-  const objectUrlRef = useRef<string | null>(null);
-
-  // — Catálogo
-  const [productos, setProductos] = useState<Producto[]>([]);
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [mensaje, setMensaje] = useState('');
-
-  // — Paginación  (usamos ref para evitar closures stale)
-  const paginaRef = useRef(0);
+  const [pagina, setPagina] = useState(0);
   const [tieneMas, setTieneMas] = useState(true);
   const [cargandoMas, setCargandoMas] = useState(false);
+  const ITEMS_POR_PAGINA = 12;
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  const [comprimiendo, setComprimiendo] = useState(false);
 
-  const mostrarMensaje = (texto: string) => {
-    setMensaje(texto);
-    setTimeout(() => setMensaje(''), 3000);
-  };
+  const obtenerProductos = async (idEmpresa: string, reiniciar = false) => {
+    const nuevaPagina = reiniciar ? 0 : pagina;
+    if (!reiniciar) setCargandoMas(true);
 
-  /** Revoca la objectURL anterior y asigna una nueva */
-  const asignarPreview = (url: string | null) => {
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
-    }
-    if (url && url.startsWith('blob:')) {
-      objectUrlRef.current = url;
-    }
-    setPreviewUrl(url);
-  };
+    const desde = nuevaPagina * ITEMS_POR_PAGINA;
+    const hasta = desde + ITEMS_POR_PAGINA - 1;
 
-  // Limpieza al desmontar
-  useEffect(() => {
-    return () => {
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-    };
-  }, []);
+    const { data, error } = await supabase
+      .from('productos')
+      .select(`*, categorias ( nombre )`)
+      .eq('empresa_id', idEmpresa)
+      .order('activo', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(desde, hasta);
 
-  // ── Datos ────────────────────────────────────────────────────────────────
-
-  /**
-   * FIX #5 — pagina se pasa como parámetro para evitar closures stale.
-   * FIX #1 — una sola llamada al inicializar (reiniciar=true).
-   */
-  const obtenerProductos = useCallback(
-    async (idEmpresa: string, reiniciar = false) => {
-      const paginaActual = reiniciar ? 0 : paginaRef.current;
-      if (!reiniciar) setCargandoMas(true);
-
-      const desde = paginaActual * ITEMS_POR_PAGINA;
-      const hasta = desde + ITEMS_POR_PAGINA - 1;
-
-      const { data, error } = await supabase
-        .from('productos')
-        .select(`*, categorias ( nombre )`)
-        .eq('empresa_id', idEmpresa)
-        .order('activo', { ascending: false })
-        .order('created_at', { ascending: false })
-        .range(desde, hasta);
-
-      if (error) {
-        console.error(error);
+    if (error) {
+      console.error(error);
+    } else {
+      if (reiniciar) {
+        setProductos(data);
+        setPagina(1);
+        setTieneMas(data.length === ITEMS_POR_PAGINA);
       } else {
-        const nuevos = (data as Producto[]) ?? [];
-        if (reiniciar) {
-          setProductos(nuevos);
-          paginaRef.current = 1;
-        } else {
-          setProductos((prev) => [...prev, ...nuevos]);
-          paginaRef.current = paginaActual + 1;
-        }
-        setTieneMas(nuevos.length === ITEMS_POR_PAGINA);
+        setProductos((prev) => [...prev, ...data]);
+        setPagina(nuevaPagina + 1);
+        setTieneMas(data.length === ITEMS_POR_PAGINA);
       }
+    }
+    setCargandoMas(false);
+  };
 
-      setCargandoMas(false);
-    },
-    [supabase],
-  );
+  // Función para comprimir y redimensionar la imagen antes de subirla
+  const optimizarImagen = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 600; // Suficiente para alta densidad de pixeles en móviles
+          const MAX_HEIGHT = 600;
+          let width = img.width;
+          let height = img.height;
 
+          // Mantener proporción
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          // Convertir a WebP (más ligero) o JPEG con calidad 0.7
+          canvas.toBlob(
+            (blob) => {
+              if (blob) resolve(blob);
+              else reject(new Error('Error al comprimir imagen'));
+            },
+            'image/webp', // Formato moderno de alta compresión
+            0.6, // Calidad (60%)
+          );
+        };
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
+  // Actualiza inicializarDatos para traer las categorías
   useEffect(() => {
     const inicializarDatos = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
       if (user) {
         const { data: perfil } = await supabase
           .from('perfiles')
@@ -156,86 +144,46 @@ export default function InventarioPage() {
           setEmpresaId(perfil.empresa_id);
           setNombreEmpresa((perfil.empresas as any)?.nombre || 'Mi Empresa');
 
-          // FIX #1 — una sola llamada, con reiniciar=true
           await obtenerProductos(perfil.empresa_id, true);
+
+          // CARGAR PRODUCTOS Y CATEGORÍAS
+          await obtenerProductos(perfil.empresa_id);
 
           const { data: cats } = await supabase
             .from('categorias')
             .select('*')
             .eq('empresa_id', perfil.empresa_id)
             .order('nombre');
-          setCategorias((cats as Categoria[]) || []);
+          setCategorias(cats || []);
         }
       }
       setCargando(false);
     };
-
     inicializarDatos();
-  }, [obtenerProductos, supabase]);
+  }, []);
 
-  // ── Imagen ───────────────────────────────────────────────────────────────
+  // Función para subir la imagen al Storage
+  const subirImagen = async (file: File) => {
+    // 1. Optimizamos el archivo antes de cualquier proceso de subida
+    const imagenOptimizada = await optimizarImagen(file);
 
-  /**
-   * FIX #4 — eliminamos optimizarImagen (canvas manual).
-   * Solo usamos imageCompression aquí; subirImagen sube directamente el File.
-   */
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 15 * 1024 * 1024) {
-      alert('La imagen es demasiado pesada. Intenta con una menor a 15 MB.');
-      return;
-    }
-
-    setComprimiendo(true);
-
-    try {
-      const archivoOptimizado = await imageCompression(file, {
-        maxSizeMB: 0.7,
-        maxWidthOrHeight: 1200,
-        useWebWorker: true,
-        fileType: 'image/webp',
-      });
-
-      const archivoFinal = new File(
-        [archivoOptimizado],
-        `${file.name.split('.')[0]}.webp`,
-        { type: 'image/webp' },
-      );
-
-      setImagenFile(archivoFinal);
-      // FIX #7 — gestionamos la objectURL con asignarPreview
-      asignarPreview(URL.createObjectURL(archivoFinal));
-    } catch (error) {
-      console.error('Error al optimizar imagen:', error);
-      setImagenFile(file);
-      asignarPreview(URL.createObjectURL(file));
-    } finally {
-      setComprimiendo(false);
-    }
-  };
-
-  /**
-   * FIX #4 — ya no comprime aquí; sube directamente el archivo ya optimizado.
-   */
-  const subirImagen = async (file: File): Promise<string> => {
-    const fileName = `${empresaId}/${crypto.randomUUID()}.webp`;
+    // 2. Definimos el nombre con extensión .webp ya que forzamos ese formato
+    const fileName = `${empresaId}/${Math.random()}.webp`;
 
     const { error: uploadError } = await supabase.storage
       .from('productos')
-      .upload(fileName, file, { contentType: 'image/webp', upsert: true });
+      .upload(fileName, imagenOptimizada, {
+        contentType: 'image/webp',
+        upsert: true,
+      });
 
     if (uploadError) throw uploadError;
 
     const {
       data: { publicUrl },
     } = supabase.storage.from('productos').getPublicUrl(fileName);
-
     return publicUrl;
   };
-
-  // ── CRUD ─────────────────────────────────────────────────────────────────
 
   const guardarProducto = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -243,8 +191,9 @@ export default function InventarioPage() {
     setSubiendoImg(true);
 
     try {
-      let finalImageUrl: string | null = editando?.imagen_url ?? null;
+      let finalImageUrl = editando?.imagen_url || null;
 
+      // Si hay una nueva imagen seleccionada, la subimos
       if (imagenFile) {
         finalImageUrl = await subirImagen(imagenFile);
       }
@@ -275,7 +224,8 @@ export default function InventarioPage() {
       }
 
       if (!error) {
-        mostrarMensaje(editando ? '✅ Actualizado' : '🚀 Producto Registrado');
+        setMensaje(editando ? '✅ Actualizado' : '🚀 Producto Registrado');
+        setTimeout(() => setMensaje(''), 3000);
         cancelarEdicion();
         obtenerProductos(empresaId, true);
       }
@@ -288,47 +238,49 @@ export default function InventarioPage() {
 
   const eliminarProducto = async (id: string) => {
     if (
-      !confirm(
+      confirm(
         '¿Deseas retirar este producto del catálogo? No se borrará del historial de ventas.',
       )
-    )
-      return;
+    ) {
+      try {
+        const { error } = await supabase
+          .from('productos')
+          .update({ activo: false }) // Cambiamos el estado en lugar de borrar
+          .eq('id', id)
+          .eq('empresa_id', empresaId);
 
-    try {
-      const { error } = await supabase
-        .from('productos')
-        .update({ activo: false })
-        .eq('id', id)
-        .eq('empresa_id', empresaId);
+        if (error) throw error;
 
-      if (error) throw error;
-      if (empresaId) obtenerProductos(empresaId, true);
-      mostrarMensaje('📦 Producto archivado');
-    } catch (err: any) {
-      alert('Error al desactivar: ' + err.message);
+        if (empresaId) obtenerProductos(empresaId, true);
+        setMensaje('📦 Producto archivado');
+        setTimeout(() => setMensaje(''), 3000);
+      } catch (err: any) {
+        alert('Error al desactivar: ' + err.message);
+      }
     }
   };
 
   const reactivarProducto = async (id: string) => {
-    if (!confirm('¿Deseas activar este producto nuevamente en tu catálogo?'))
-      return;
+    if (confirm('¿Deseas activar este producto nuevamente en tu catálogo?')) {
+      try {
+        const { error } = await supabase
+          .from('productos')
+          .update({ activo: true }) // Volvemos a ponerlo en true
+          .eq('id', id)
+          .eq('empresa_id', empresaId);
 
-    try {
-      const { error } = await supabase
-        .from('productos')
-        .update({ activo: true })
-        .eq('id', id)
-        .eq('empresa_id', empresaId);
+        if (error) throw error;
 
-      if (error) throw error;
-      if (empresaId) obtenerProductos(empresaId, true);
-      mostrarMensaje('✅ Producto reactivado');
-    } catch (err: any) {
-      alert('Error al reactivar: ' + err.message);
+        if (empresaId) obtenerProductos(empresaId, true);
+        setMensaje('✅ Producto reactivado');
+        setTimeout(() => setMensaje(''), 3000);
+      } catch (err: any) {
+        alert('Error al reactivar: ' + err.message);
+      }
     }
   };
 
-  const prepararEdicion = (prod: Producto) => {
+  const prepararEdicion = (prod: any) => {
     setEditando(prod);
     setNombre(prod.nombre);
     setDescripcion(prod.descripcion || '');
@@ -336,8 +288,7 @@ export default function InventarioPage() {
     setStock(prod.stock.toString());
     setUnidad(prod.unidad_medida || 'UNIDADES');
     setCategoriaId(prod.categoria_id || '');
-    // La URL de Supabase no es una objectURL, no hay que revocarla
-    setPreviewUrl(prod.imagen_url ?? null);
+    setPreviewUrl(prod.imagen_url);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -350,11 +301,58 @@ export default function InventarioPage() {
     setUnidad('UNIDADES');
     setCategoriaId('');
     setImagenFile(null);
-    // FIX #7 — revocamos la objectURL al cancelar
-    asignarPreview(null);
+    setPreviewUrl(null);
   };
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setComprimiendo(true); // <--- EMPIEZA
+      const file = e.target.files[0];
+
+      // 1. Validación inicial (puedes subirla a 15MB si quieres, total la vamos a encoger)
+      if (file.size > 15 * 1024 * 1024) {
+        alert('La imagen es demasiado pesada. Intenta con una menor a 15MB.');
+        return;
+      }
+
+      try {
+        // 2. Definimos las reglas de compresión
+        const opciones = {
+          maxSizeMB: 0.7, // Intentamos que pese menos de 700KB
+          maxWidthOrHeight: 1200, // Si es un poster de 4000px, lo baja a 1200px
+          useWebWorker: true,
+          fileType: 'image/webp', // ¡MAGIA! Lo convierte a WebP automáticamente
+        };
+
+        // 3. Ejecutamos la compresión
+        // Mostramos un mensaje o loader si tienes uno: setCargandoImagen(true);
+        const archivoOptimizado = await imageCompression(file, opciones);
+
+        // 4. Guardamos el archivo YA comprimido en tu estado
+        // Importante: Le cambiamos el nombre para que termine en .webp
+        const archivoFinal = new File(
+          [archivoOptimizado],
+          `${file.name.split('.')[0]}.webp`,
+          {
+            type: 'image/webp',
+          },
+        );
+
+        setImagenFile(archivoFinal);
+
+        // 5. La vista previa (Preview) ahora será de la imagen ligera
+        setPreviewUrl(URL.createObjectURL(archivoFinal));
+
+        console.log('Imagen optimizada con éxito');
+      } catch (error) {
+        console.error('Error al optimizar:', error);
+        // Si algo falla, guardamos la original por si acaso
+        setImagenFile(file);
+        setPreviewUrl(URL.createObjectURL(file));
+      }
+      setComprimiendo(false);
+    }
+  };
 
   if (cargando)
     return (
@@ -406,23 +404,18 @@ export default function InventarioPage() {
                 </div>
               )}
               <label className="cursor-pointer text-[10px] font-black uppercase text-slate-400 group-hover:text-orange-500">
-                {comprimiendo
-                  ? 'Optimizando...'
-                  : previewUrl
-                    ? 'Cambiar Foto'
-                    : 'Subir Foto'}
+                {previewUrl ? 'Cambiar Foto' : 'Subir Foto'}
                 <input
                   type="file"
                   className="hidden"
                   accept="image/*"
                   onChange={handleImageChange}
-                  disabled={comprimiendo}
                 />
               </label>
             </div>
 
-            {/* CAMPOS PRINCIPALES */}
             <div className="md:col-span-2 space-y-4">
+              {/* Nombre con Placeholder */}
               <div className="space-y-1">
                 <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
                   Nombre del Producto
@@ -435,7 +428,6 @@ export default function InventarioPage() {
                   className="w-full bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-orange-500 font-bold placeholder:text-slate-300 transition-all"
                 />
               </div>
-
               <div className="space-y-1">
                 <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
                   Descripción / Detalles (Tallas, Colores, Notas)
@@ -450,6 +442,7 @@ export default function InventarioPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                {/* Selector de Categoría */}
                 <div className="space-y-1">
                   <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
                     Categoría
@@ -468,6 +461,7 @@ export default function InventarioPage() {
                   </select>
                 </div>
 
+                {/* Precio con Placeholder */}
                 <div className="space-y-1">
                   <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
                     Precio ($)
@@ -485,8 +479,8 @@ export default function InventarioPage() {
               </div>
             </div>
 
-            {/* STOCK + BOTONES */}
             <div className="space-y-4">
+              {/* STOCK Y UNIDAD DE MEDIDA */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] uppercase font-black text-slate-400 ml-2">
@@ -512,7 +506,7 @@ export default function InventarioPage() {
                     onChange={(e) => setUnidad(e.target.value)}
                     className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold appearance-none text-slate-700 cursor-pointer border-2 border-transparent focus:border-orange-500 transition-all"
                   >
-                    {UNIDADES_MEDIDA.map((u) => (
+                    {unidadesMedida.map((u) => (
                       <option key={u} value={u}>
                         {u}
                       </option>
@@ -520,35 +514,25 @@ export default function InventarioPage() {
                   </select>
                 </div>
               </div>
-
-              {/* FIX #2 — Botón con clases CSS reales */}
               <button
-                type="submit"
-                disabled={subiendoImg || comprimiendo}
-                className="w-full py-4 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-200"
+                disabled={subiendoImg || comprimiendo} // Bloquea en ambos casos
+                className="..."
               >
                 {subiendoImg ? (
-                  <>
-                    <Loader2 className="animate-spin" size={16} />
-                    Guardando...
-                  </>
+                  <Loader2 className="animate-spin" size={16} />
                 ) : comprimiendo ? (
-                  <>
-                    <Loader2 className="animate-spin" size={16} />
-                    Optimizando...
-                  </>
+                  'Optimizando...' // Feedback visual de que la App está trabajando
                 ) : editando ? (
-                  '✏️ Actualizar Producto'
+                  'Actualizar'
                 ) : (
-                  '🚀 Registrar Producto'
+                  'Registrar'
                 )}
               </button>
-
               {editando && (
                 <button
                   type="button"
                   onClick={cancelarEdicion}
-                  className="w-full py-3 bg-red-50 text-red-500 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:bg-red-100 transition-all"
+                  className="w-full py-3 bg-red-50 text-red-500 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2"
                 >
                   <X size={14} /> Cancelar
                 </button>
@@ -557,7 +541,7 @@ export default function InventarioPage() {
           </form>
         </section>
 
-        {/* VITRINA ONLINE */}
+        {/* SECCIÓN DE COMPARTIR CATÁLOGO */}
         <div className="mb-8 bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-[2.5rem] text-white shadow-xl">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="text-center md:text-left">
@@ -574,7 +558,7 @@ export default function InventarioPage() {
                 onClick={() => {
                   const url = `${window.location.origin}/catalogo/${empresaId}`;
                   navigator.clipboard.writeText(url);
-                  mostrarMensaje('¡Enlace copiado! 📋');
+                  alert('¡Enlace copiado al portapapeles! 📋');
                 }}
                 className="px-6 py-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10"
               >
@@ -593,7 +577,8 @@ export default function InventarioPage() {
 
         {/* LISTADO */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {productos.map((prod) => {
+          {productos?.map((prod) => {
+            // Seguridad: Si por error un producto no tiene precio o stock, evitamos el crash
             const precioSeguro = prod.precio ? Number(prod.precio) : 0;
             const stockSeguro = prod.stock ? Number(prod.stock) : 0;
             const unidadSegura = prod.unidad_medida || 'UNIDADES';
@@ -603,14 +588,8 @@ export default function InventarioPage() {
             return (
               <div
                 key={prod.id}
-                className={`bg-white p-4 rounded-[2.5rem] shadow-sm border-2 flex flex-col gap-4
-                  ${
-                    !esActivo
-                      ? 'opacity-50 grayscale bg-slate-50 border-dashed'
-                      : esStockCritico
-                        ? 'border-red-100'
-                        : 'border-white'
-                  }`}
+                className={`bg-white p-4 rounded-[2.5rem] shadow-sm border-2 flex flex-col gap-4 
+                ${!esActivo ? 'opacity-50 grayscale bg-slate-50 border-dashed' : esStockCritico ? 'border-red-100' : 'border-white'}`}
               >
                 <div className="flex items-center gap-4">
                   <div className="w-20 h-20 bg-slate-100 rounded-2xl overflow-hidden flex-shrink-0 animate-pulse">
@@ -624,22 +603,18 @@ export default function InventarioPage() {
                         }
                         className="w-full h-full object-cover"
                         loading="lazy"
-                        alt={prod.nombre}
                       />
                     ) : (
-                      <Package
-                        size={24}
-                        className="m-auto mt-8 text-slate-200"
-                      />
+                      <Package size={24} className="m-auto text-slate-200" />
                     )}
                   </div>
-
                   <div className="flex-1 min-w-0">
                     {!esActivo && (
                       <span className="text-[8px] font-black bg-slate-800 text-white px-2 py-0.5 rounded-md uppercase mb-2 inline-block">
                         Fuera de Catálogo
                       </span>
                     )}
+                    {/* CATEGORÍA BADGE */}
                     <div className="flex items-center gap-2 mb-1">
                       <span
                         className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${
@@ -651,51 +626,40 @@ export default function InventarioPage() {
                         {prod.categorias?.nombre || 'General'}
                       </span>
                     </div>
-
                     <h3 className="font-black text-slate-800 text-sm uppercase truncate">
                       {prod.nombre || 'Sin nombre'}
                     </h3>
-
+                    {/* AÑADE ESTO: */}
                     {prod.descripcion && (
                       <p className="text-[10px] text-slate-400 italic truncate mb-1">
                         {prod.descripcion}
                       </p>
                     )}
-
                     <p className="text-orange-500 font-black text-lg">
                       ${precioSeguro.toFixed(2)}
                     </p>
-
                     <span
-                      className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
-                        esStockCritico
-                          ? 'bg-red-500 text-white'
-                          : 'bg-slate-100 text-slate-400'
-                      }`}
+                      className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${esStockCritico ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-400'}`}
                     >
                       Stock: {stockSeguro} {unidadSegura.slice(0, 3)}
                     </span>
                   </div>
-
-                  {/* FIX #3 — Botones con clases CSS reales */}
                   <div className="flex flex-col gap-2">
                     <button
                       type="button"
                       onClick={() => prepararEdicion(prod)}
-                      className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-orange-500 hover:bg-orange-50 transition-all"
-                      title="Editar"
+                      className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-orange-500 transition-all"
                     >
                       ✏️
                     </button>
+                    {/* Si está inactivo, podríamos mostrar un botón de "Reactivar" en lugar de basura */}
                     <button
-                      type="button"
                       onClick={() =>
                         esActivo
                           ? eliminarProducto(prod.id)
                           : reactivarProducto(prod.id)
                       }
-                      className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all"
-                      title={esActivo ? 'Archivar' : 'Reactivar'}
+                      className="..."
                     >
                       {esActivo ? '🗑️' : '🔄'}
                     </button>
@@ -705,8 +669,7 @@ export default function InventarioPage() {
             );
           })}
         </div>
-
-        {/* CARGAR MÁS */}
+        {/* BOTÓN CARGAR MÁS */}
         {tieneMas && (
           <div className="flex justify-center mt-12 mb-20">
             <button
