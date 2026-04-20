@@ -863,20 +863,23 @@ export default function InventarioPage() {
           .eq('id', user.id)
           .single();
 
-        if (perfil && perfil.empresa_id) {
+        if (perfil) {
           setEmpresaId(perfil.empresa_id);
           setNombreEmpresa((perfil.empresas as any)?.nombre || 'Mi Empresa');
-          // Llamada directa con el ID recién obtenido
           await obtenerProductos(perfil.empresa_id, true);
-        } else {
-          setCargando(false);
+
+          const { data: cats } = await supabase
+            .from('categorias')
+            .select('*')
+            .eq('empresa_id', perfil.empresa_id)
+            .order('nombre');
+          setCategorias((cats as Categoria[]) || []);
         }
-      } else {
-        setCargando(false);
       }
+      setCargando(false);
     };
     iniciar();
-  }, [supabase]); // Quitamos obtenerProductos de aquí para evitar bucles innecesarios
+  }, [obtenerProductos, supabase]);
 
   // ── Imagen ─────────────────────────────────────────────────────────────
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
