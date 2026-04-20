@@ -810,45 +810,39 @@ export default function InventarioPage() {
   // ── Productos ──────────────────────────────────────────────────────────
   const obtenerProductos = useCallback(
     async (idEmpresa: string, reiniciar = false) => {
-      // Si estamos cargando o no hay más (y no es reinicio), cancelamos
-      if (cargandoMas || (!reiniciar && !tieneMas)) return;
-
       const paginaActual = reiniciar ? 0 : paginaRef.current;
       if (!reiniciar) setCargandoMas(true);
 
       const desde = paginaActual * ITEMS_POR_PAGINA;
       const hasta = desde + ITEMS_POR_PAGINA - 1;
 
-      try {
-        const { data, error } = await supabase
-          .from('productos')
-          .select(`*, categorias(nombre)`)
-          .eq('empresa_id', idEmpresa)
-          .order('activo', { ascending: false })
-          .order('created_at', { ascending: false })
-          .range(desde, hasta);
+      const { data } = await supabase
+        .from('productos')
+        .select(`*, categorias ( nombre )`)
+        .eq('empresa_id', idEmpresa)
+        .order('activo', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(desde, hasta);
 
-        if (error) throw error;
-
-        if (data) {
-          if (reiniciar) {
-            setProductos(data as Producto[]);
-            paginaRef.current = 1;
-          } else {
-            setProductos((prev) => [...prev, ...(data as Producto[])]);
-            paginaRef.current = paginaActual + 1;
-          }
-          // Si trajo menos de los solicitados, es que ya no hay más en la DB
-          setTieneMas(data.length === ITEMS_POR_PAGINA);
+      if (data) {
+        const nuevos = data as Producto[];
+        if (reiniciar) {
+          setProductos(nuevos);
+          paginaRef.current = 1;
+          cargarCapacidades(idEmpresa, nuevos);
+        } else {
+          setProductos((prev) => {
+            const todos = [...prev, ...nuevos];
+            cargarCapacidades(idEmpresa, todos);
+            return todos;
+          });
+          paginaRef.current = paginaActual + 1;
         }
-      } catch (err) {
-        console.error('Error cargando productos:', err);
-      } finally {
-        setCargandoMas(false);
-        setCargando(false); // Quitamos el loader principal aquí
+        setTieneMas(nuevos.length === ITEMS_POR_PAGINA);
       }
+      setCargandoMas(false);
     },
-    [supabase, cargandoMas, tieneMas],
+    [supabase, cargarCapacidades],
   );
 
   useEffect(() => {
