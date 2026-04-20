@@ -810,20 +810,19 @@ export default function InventarioPage() {
   // ── Productos ──────────────────────────────────────────────────────────
   const obtenerProductos = useCallback(
     async (idEmpresa: string, reiniciar = false) => {
-      // Si no es reinicio, aplicamos los bloqueos de seguridad
-      if (!reiniciar) {
-        if (cargandoMas || !tieneMas) return;
-        setCargandoMas(true);
-      }
+      // Si estamos cargando o no hay más (y no es reinicio), cancelamos
+      if (cargandoMas || (!reiniciar && !tieneMas)) return;
 
       const paginaActual = reiniciar ? 0 : paginaRef.current;
+      if (!reiniciar) setCargandoMas(true);
+
       const desde = paginaActual * ITEMS_POR_PAGINA;
       const hasta = desde + ITEMS_POR_PAGINA - 1;
 
       try {
         const { data, error } = await supabase
           .from('productos')
-          .select(`*`)
+          .select(`*, categorias(nombre)`)
           .eq('empresa_id', idEmpresa)
           .order('activo', { ascending: false })
           .order('created_at', { ascending: false })
@@ -839,13 +838,14 @@ export default function InventarioPage() {
             setProductos((prev) => [...prev, ...(data as Producto[])]);
             paginaRef.current = paginaActual + 1;
           }
+          // Si trajo menos de los solicitados, es que ya no hay más en la DB
           setTieneMas(data.length === ITEMS_POR_PAGINA);
         }
       } catch (err) {
         console.error('Error cargando productos:', err);
       } finally {
         setCargandoMas(false);
-        if (reiniciar) setCargando(false); // Apagamos el loader principal solo en la carga inicial
+        setCargando(false); // Quitamos el loader principal aquí
       }
     },
     [supabase, cargandoMas, tieneMas],
@@ -853,37 +853,34 @@ export default function InventarioPage() {
 
   useEffect(() => {
     const iniciar = async () => {
-      // 1. Obtener usuario
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
       if (user) {
-        // 2. Obtener perfil y empresa_id
         const { data: perfil } = await supabase
           .from('perfiles')
           .select('empresa_id, empresas(nombre)')
           .eq('id', user.id)
           .single();
 
-        if (perfil && perfil.empresa_id) {
-          // 3. Seteamos los estados para el resto de la app
+        if (perfil) {
           setEmpresaId(perfil.empresa_id);
           setNombreEmpresa((perfil.empresas as any)?.nombre || 'Mi Empresa');
-
-          // 4. DISPARO INMEDIATO: Usamos el ID del perfil directamente, no el estado.
           await obtenerProductos(perfil.empresa_id, true);
-        } else {
-          setCargando(false);
-        }
-      } else {
-        setCargando(false);
-      }
-    };
 
+          const { data: cats } = await supabase
+            .from('categorias')
+            .select('*')
+            .eq('empresa_id', perfil.empresa_id)
+            .order('nombre');
+          setCategorias((cats as Categoria[]) || []);
+        }
+      }
+      setCargando(false);
+    };
     iniciar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // El array vacío asegura que solo corra una vez al cargar
+  }, [obtenerProductos, supabase]);
+
   // ── Imagen ─────────────────────────────────────────────────────────────
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
