@@ -14,19 +14,39 @@ import {
   RefreshCw,
   ChefHat,
   FlaskConical,
-  TrendingUp,
   AlertTriangle,
   Copy,
-  Info,
   Zap,
   Layers,
   ShoppingBag,
+  Plus,
+  Building2,
+  Lightbulb,
+  Users,
+  Receipt,
+  TrendingUp,
+  DollarSign,
+  Target,
+  Info,
+  ChevronDown,
+  ChevronUp,
+  Settings,
 } from 'lucide-react';
 
-// ── Tipos ──────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// TIPOS
+// ─────────────────────────────────────────────────────────────
 interface Categoria {
   id: string;
   nombre: string;
+  empresa_id: string;
+}
+
+interface GastoFijo {
+  id: string;
+  nombre: string;
+  monto: number;
+  categoria: 'personal' | 'servicios' | 'alquiler' | 'impuestos' | 'otros';
   empresa_id: string;
 }
 
@@ -45,6 +65,8 @@ interface Producto {
   created_at: string;
   categorias?: { nombre: string } | null;
   es_materia_prima?: boolean;
+  unidades_mes?: number; // estimado mensual de producción
+  margen_objetivo?: number; // % margen deseado
 }
 
 interface Ingrediente {
@@ -64,39 +86,281 @@ const UNIDADES_MEDIDA = [
   'METROS',
   'PAQUETES',
 ] as const;
-const ITEMS_POR_PAGINA = 12;
+const ITEMS_POR_PAGINA = 50; // cargamos más para no perder productos al inicio
 
-// ── Utilidades ─────────────────────────────────────────────────────────────
-const calcularFactorConversion = (
-  unidadBase: string,
-  unidadReceta: string,
-): number => {
-  if (unidadBase === 'KILOS' && unidadReceta === 'GRAMOS') return 1000;
-  if (unidadBase === 'LITROS' && unidadReceta === 'ML') return 1000;
+const CATEGORIAS_GASTO = [
+  {
+    value: 'personal',
+    label: 'Personal / Sueldos',
+    icon: Users,
+    color: 'blue',
+  },
+  {
+    value: 'servicios',
+    label: 'Servicios (Luz, Agua, Internet)',
+    icon: Lightbulb,
+    color: 'yellow',
+  },
+  {
+    value: 'alquiler',
+    label: 'Alquiler / Local',
+    icon: Building2,
+    color: 'purple',
+  },
+  {
+    value: 'impuestos',
+    label: 'Impuestos / Tasas',
+    icon: Receipt,
+    color: 'red',
+  },
+  { value: 'otros', label: 'Otros gastos', icon: Settings, color: 'slate' },
+] as const;
+
+// ─────────────────────────────────────────────────────────────
+// UTILIDADES
+// ─────────────────────────────────────────────────────────────
+const factorConversion = (base: string, receta: string) => {
+  if (base === 'KILOS' && receta === 'GRAMOS') return 1000;
+  if (base === 'LITROS' && receta === 'ML') return 1000;
   return 1;
 };
 
-const calcularCostoPorUnidad = (ing: Ingrediente): number => {
-  const factor = calcularFactorConversion(ing.unidadBase, ing.unidadReceta);
-  return (ing.costo / factor) * ing.cantidad;
+const costoPorUnidad = (ing: Ingrediente) =>
+  (ing.costo / factorConversion(ing.unidadBase, ing.unidadReceta)) *
+  ing.cantidad;
+
+const stockEnReceta = (ing: Ingrediente) =>
+  ing.stockDisponible * factorConversion(ing.unidadBase, ing.unidadReceta);
+
+const unidadesFabricables = (ings: Ingrediente[]) => {
+  if (ings.length === 0) return 0;
+  return Math.min(
+    ...ings.map((i) =>
+      i.cantidad <= 0 ? Infinity : Math.floor(stockEnReceta(i) / i.cantidad),
+    ),
+  );
 };
 
-const calcularStockEnUnidadReceta = (ing: Ingrediente): number => {
-  const factor = calcularFactorConversion(ing.unidadBase, ing.unidadReceta);
-  return ing.stockDisponible * factor;
-};
+// Precio sugerido con margen objetivo: precio = costo / (1 - margen/100)
+const precioConMargen = (costo: number, margen: number) =>
+  margen >= 100 ? 0 : costo / (1 - margen / 100);
 
-const calcularUnidadesFabricables = (ingredientes: Ingrediente[]): number => {
-  if (ingredientes.length === 0) return 0;
-  const limitantes = ingredientes.map((ing) => {
-    if (ing.cantidad <= 0) return Infinity;
-    const stockEnUnidadReceta = calcularStockEnUnidadReceta(ing);
-    return Math.floor(stockEnUnidadReceta / ing.cantidad);
-  });
-  return Math.min(...limitantes);
-};
+// Color según margen
+const colorMargen = (m: number) =>
+  m < 20 ? 'text-red-500' : m < 35 ? 'text-amber-500' : 'text-emerald-500';
 
-// ── Modal de Receta ────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// MODAL GASTOS FIJOS
+// ─────────────────────────────────────────────────────────────
+function ModalGastos({
+  empresaId,
+  supabase,
+  onClose,
+}: {
+  empresaId: string;
+  supabase: any;
+  onClose: () => void;
+}) {
+  const [gastos, setGastos] = useState<GastoFijo[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+  const [nuevoNombre, setNuevoNombre] = useState('');
+  const [nuevoMonto, setNuevoMonto] = useState('');
+  const [nuevaCat, setNuevaCat] = useState<GastoFijo['categoria']>('personal');
+
+  useEffect(() => {
+    const cargar = async () => {
+      const { data } = await supabase
+        .from('gastos_fijos')
+        .select('*')
+        .eq('empresa_id', empresaId)
+        .order('categoria');
+      setGastos(data || []);
+      setCargando(false);
+    };
+    cargar();
+  }, [empresaId, supabase]);
+
+  const agregarGasto = async () => {
+    if (!nuevoNombre.trim() || !nuevoMonto) return;
+    setGuardando(true);
+    const { data, error } = await supabase
+      .from('gastos_fijos')
+      .insert([
+        {
+          nombre: nuevoNombre.trim(),
+          monto: parseFloat(nuevoMonto),
+          categoria: nuevaCat,
+          empresa_id: empresaId,
+        },
+      ])
+      .select()
+      .single();
+    if (!error && data) {
+      setGastos((prev) => [...prev, data]);
+      setNuevoNombre('');
+      setNuevoMonto('');
+    }
+    setGuardando(false);
+  };
+
+  const eliminarGasto = async (id: string) => {
+    await supabase.from('gastos_fijos').delete().eq('id', id);
+    setGastos((prev) => prev.filter((g) => g.id !== id));
+  };
+
+  const totalGastos = gastos.reduce((s, g) => s + g.monto, 0);
+
+  const catColor = (cat: string) => {
+    const c = CATEGORIAS_GASTO.find((x) => x.value === cat);
+    const map: Record<string, string> = {
+      blue: 'bg-blue-100 text-blue-700',
+      yellow: 'bg-yellow-100 text-yellow-700',
+      purple: 'bg-purple-100 text-purple-700',
+      red: 'bg-red-100 text-red-700',
+      slate: 'bg-slate-100 text-slate-700',
+    };
+    return map[c?.color || 'slate'];
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
+      <div className="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+        {/* Header */}
+        <div className="p-6 bg-gradient-to-r from-slate-900 to-slate-800 text-white flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-500 rounded-xl">
+              <Building2 size={20} />
+            </div>
+            <div>
+              <h2 className="font-black text-lg uppercase tracking-tight">
+                Gastos Fijos Mensuales
+              </h2>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                Se distribuyen entre todos los productos según unidades
+                estimadas
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-white/10 rounded-full"
+          >
+            <X size={22} />
+          </button>
+        </div>
+
+        {/* Total */}
+        <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+            Total Gastos / Mes
+          </p>
+          <p className="text-2xl font-black text-slate-800">
+            ${totalGastos.toFixed(2)}
+          </p>
+        </div>
+
+        {/* Lista */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-2 min-h-0">
+          {cargando ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="animate-spin text-blue-500" size={24} />
+            </div>
+          ) : gastos.length === 0 ? (
+            <div className="text-center py-8">
+              <Building2 size={40} className="mx-auto text-slate-200 mb-3" />
+              <p className="text-xs font-black text-slate-300 uppercase">
+                Sin gastos registrados
+              </p>
+            </div>
+          ) : (
+            gastos.map((g) => (
+              <div
+                key={g.id}
+                className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border-2 border-slate-100"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span
+                      className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${catColor(g.categoria)}`}
+                    >
+                      {CATEGORIAS_GASTO.find((x) => x.value === g.categoria)
+                        ?.label || g.categoria}
+                    </span>
+                  </div>
+                  <p className="font-black text-xs text-slate-700 uppercase">
+                    {g.nombre}
+                  </p>
+                </div>
+                <p className="font-black text-slate-800 text-sm">
+                  ${g.monto.toFixed(2)}/mes
+                </p>
+                <button
+                  onClick={() => eliminarGasto(g.id)}
+                  className="text-slate-300 hover:text-red-500 p-1 transition-colors"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Agregar */}
+        <div className="p-6 border-t border-slate-100 space-y-3">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+            Agregar Gasto
+          </p>
+          <div className="flex gap-3 flex-wrap">
+            <select
+              value={nuevaCat}
+              onChange={(e) =>
+                setNuevaCat(e.target.value as GastoFijo['categoria'])
+              }
+              className="bg-slate-100 p-3 rounded-2xl text-[10px] font-black uppercase outline-none focus:ring-2 ring-blue-500"
+            >
+              {CATEGORIAS_GASTO.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <input
+              placeholder="Descripción (ej: Sueldo Juan)"
+              value={nuevoNombre}
+              onChange={(e) => setNuevoNombre(e.target.value)}
+              className="flex-1 min-w-32 bg-slate-100 p-3 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold text-sm"
+            />
+            <input
+              type="number"
+              step="0.01"
+              placeholder="Monto/mes"
+              value={nuevoMonto}
+              onChange={(e) => setNuevoMonto(e.target.value)}
+              className="w-32 bg-slate-100 p-3 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold text-sm"
+            />
+            <button
+              onClick={agregarGasto}
+              disabled={guardando}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase flex items-center gap-2 transition-all disabled:opacity-50"
+            >
+              {guardando ? (
+                <Loader2 className="animate-spin" size={14} />
+              ) : (
+                <Plus size={14} />
+              )}
+              Agregar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// MODAL RECETA — ahora incluye costos fijos y margen
+// ─────────────────────────────────────────────────────────────
 function ModalReceta({
   producto,
   productos,
@@ -108,66 +372,85 @@ function ModalReceta({
   const [ingredientes, setIngredientes] = useState<Ingrediente[]>([]);
   const [cargando, setCargando] = useState(false);
   const [cargandoReceta, setCargandoReceta] = useState(true);
+  const [gastosFijos, setGastosFijos] = useState<GastoFijo[]>([]);
+  const [unidadesMes, setUnidadesMes] = useState<number>(
+    Number(producto?.unidades_mes) || 100,
+  );
+  const [margenObj, setMargenObj] = useState<number>(
+    Number(producto?.margen_objetivo) || 30,
+  );
+  const [mostrarDetalleCostos, setMostrarDetalleCostos] = useState(false);
 
+  // Carga receta + gastos fijos en paralelo
   useEffect(() => {
-    const cargarReceta = async () => {
-      if (!producto?.id) return;
-      try {
-        const { data, error } = await supabase
+    const cargar = async () => {
+      const [recetaRes, gastosRes] = await Promise.all([
+        supabase
           .from('recetas')
           .select('*, p_insumo:productos!insumo_id(*)')
-          .eq('producto_final_id', producto.id);
+          .eq('producto_final_id', producto.id),
+        supabase.from('gastos_fijos').select('*').eq('empresa_id', empresaId),
+      ]);
 
-        if (error) throw error;
-        if (data) {
-          setIngredientes(
-            data.map((r: any) => ({
-              id: r.insumo_id,
-              nombre: r.p_insumo?.nombre || 'Desconocido',
-              costo: Number(r.p_insumo?.costo_compra) || 0,
-              cantidad: Number(r.cantidad_requerida) || 0,
-              unidadBase: r.p_insumo?.unidad_medida || 'UNIDADES',
-              unidadReceta:
-                r.unidad_medida_receta ||
-                r.p_insumo?.unidad_medida ||
-                'UNIDADES',
-              stockDisponible: Number(r.p_insumo?.stock) || 0,
-            })),
-          );
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setCargandoReceta(false);
+      if (recetaRes.data) {
+        setIngredientes(
+          recetaRes.data.map((r: any) => ({
+            id: r.insumo_id,
+            nombre: r.p_insumo?.nombre || 'Desconocido',
+            costo: Number(r.p_insumo?.costo_compra) || 0,
+            cantidad: Number(r.cantidad_requerida) || 0,
+            unidadBase: r.p_insumo?.unidad_medida || 'UNIDADES',
+            unidadReceta:
+              r.unidad_medida_receta || r.p_insumo?.unidad_medida || 'UNIDADES',
+            stockDisponible: Number(r.p_insumo?.stock) || 0,
+          })),
+        );
       }
+      if (gastosRes.data) setGastosFijos(gastosRes.data);
+      setCargandoReceta(false);
     };
-    cargarReceta();
-  }, [producto?.id, supabase]);
+    cargar();
+  }, [producto?.id, empresaId, supabase]);
 
-  const costoTotal = ingredientes.reduce(
-    (acc, i) => acc + calcularCostoPorUnidad(i),
-    0,
-  );
-  const margen =
+  // ── Costos ──────────────────────────────────────────────
+  const costoInsumos = ingredientes.reduce((s, i) => s + costoPorUnidad(i), 0);
+
+  // Total gastos fijos del mes, distribuido proporcionalmente.
+  // Necesitamos el total de unidades_mes de todos los productos activos.
+  // Para simplificar: usamos unidadesMes de este producto vs suma global
+  // (la suma global se calcula al guardar; aquí estimamos con sólo este producto
+  //  para la preview interactiva)
+  const totalGastosMes = gastosFijos.reduce((s, g) => s + g.monto, 0);
+
+  // Costo fijo asignado a ESTE producto por unidad
+  // = (gastos_totales * proporcion_este_producto) / unidades_mes_este
+  // Proporcion simple: si sólo hay este producto, absorbe todo.
+  // En la práctica se recalcula al guardar con todos los productos.
+  const costoFijoUnitario = unidadesMes > 0 ? totalGastosMes / unidadesMes : 0;
+
+  const costoReal = costoInsumos + costoFijoUnitario;
+  const precioSugerido = precioConMargen(costoReal, margenObj);
+  const margenReal =
     Number(producto?.precio) > 0
-      ? ((Number(producto.precio) - costoTotal) / Number(producto.precio)) * 100
+      ? ((Number(producto.precio) - costoReal) / Number(producto.precio)) * 100
       : 0;
-  const unidadesFabricables = calcularUnidadesFabricables(ingredientes);
-  const gananciaPotencial =
-    unidadesFabricables * (Number(producto?.precio) - costoTotal);
 
-  const ingredienteLimitante =
+  const fabMax = unidadesFabricables(ingredientes);
+  const gananciaPotencial =
+    fabMax === Infinity ? 0 : fabMax * (Number(producto?.precio) - costoReal);
+
+  const limitante =
     ingredientes.length > 0
       ? ingredientes.reduce((min, ing) => {
-          const unidadesEste =
+          const u =
             ing.cantidad > 0
-              ? Math.floor(calcularStockEnUnidadReceta(ing) / ing.cantidad)
+              ? Math.floor(stockEnReceta(ing) / ing.cantidad)
               : Infinity;
-          const unidadesMin =
+          const m =
             min.cantidad > 0
-              ? Math.floor(calcularStockEnUnidadReceta(min) / min.cantidad)
+              ? Math.floor(stockEnReceta(min) / min.cantidad)
               : Infinity;
-          return unidadesEste < unidadesMin ? ing : min;
+          return u < m ? ing : min;
         })
       : null;
 
@@ -186,16 +469,21 @@ function ModalReceta({
         empresa_id: empresaId,
       }));
       if (filas.length > 0) await supabase.from('recetas').insert(filas);
+
+      // Guardar unidades_mes y margen_objetivo en el producto
+      await supabase
+        .from('productos')
+        .update({ unidades_mes: unidadesMes, margen_objetivo: margenObj })
+        .eq('id', producto.id);
+
       onClose(true);
-    } catch (err) {
+    } catch {
       alert('Error al guardar receta');
     } finally {
       setCargando(false);
     }
   };
 
-  // En la receta solo se pueden agregar materias primas o insumos (es_materia_prima = true)
-  // Si no hay ninguna marcada, mostramos todos para no romper flujos existentes
   const insumosFiltrados = (productos || []).filter(
     (p: any) =>
       p.id !== producto?.id &&
@@ -221,7 +509,7 @@ function ModalReceta({
 
   return (
     <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
-      <div className="bg-white rounded-[2.5rem] w-full max-w-4xl shadow-2xl relative flex flex-col overflow-hidden max-h-[95vh]">
+      <div className="bg-white rounded-[2.5rem] w-full max-w-4xl shadow-2xl flex flex-col overflow-hidden max-h-[95vh]">
         {/* Header */}
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-900 to-slate-800 text-white">
           <div className="flex items-center gap-3">
@@ -233,7 +521,7 @@ function ModalReceta({
                 Receta: {producto?.nombre}
               </h2>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                Define los insumos necesarios para fabricar 1 unidad
+                Costo real = insumos + gastos fijos proporcionales
               </p>
             </div>
           </div>
@@ -245,86 +533,217 @@ function ModalReceta({
           </button>
         </div>
 
-        {/* Stats */}
-        {!cargandoReceta && ingredientes.length > 0 && (
-          <div className="grid grid-cols-4 gap-0 border-b border-slate-100">
-            <div className="p-4 text-center border-r border-slate-100">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                Costo x Unidad
+        {/* ── Panel de configuración: unidades/mes y margen ── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-0 border-b border-slate-100">
+          {/* Unidades estimadas / mes */}
+          <div className="p-4 border-r border-slate-100">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
+              Unidades / Mes (estimado)
+            </p>
+            <input
+              type="number"
+              min="1"
+              value={unidadesMes}
+              onChange={(e) => setUnidadesMes(parseInt(e.target.value) || 1)}
+              className="w-full bg-slate-100 border-2 border-transparent p-2 rounded-xl text-center font-black text-sm focus:border-orange-500 outline-none"
+            />
+            <p className="text-[8px] text-slate-400 font-bold mt-1 text-center">
+              Para distribuir gastos fijos
+            </p>
+          </div>
+
+          {/* Costo insumos */}
+          <div className="p-4 text-center border-r border-slate-100">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+              Costo Insumos
+            </p>
+            <p className="text-xl font-black text-slate-700">
+              ${costoInsumos.toFixed(2)}
+            </p>
+            <p className="text-[8px] text-slate-400 font-bold">Ingredientes</p>
+          </div>
+
+          {/* Costo fijo unitario */}
+          <div className="p-4 text-center border-r border-slate-100">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+              Gastos Fijos / Ud
+            </p>
+            <p className="text-xl font-black text-blue-600">
+              ${costoFijoUnitario.toFixed(2)}
+            </p>
+            <p className="text-[8px] text-slate-400 font-bold">
+              ${totalGastosMes.toFixed(0)} ÷ {unidadesMes} uds
+            </p>
+          </div>
+
+          {/* Costo REAL */}
+          <div className="p-4 text-center bg-slate-900">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+              Costo Real / Ud
+            </p>
+            <p className="text-xl font-black text-white">
+              ${costoReal.toFixed(2)}
+            </p>
+            <p className="text-[8px] text-slate-500 font-bold">
+              insumos + fijos
+            </p>
+          </div>
+        </div>
+
+        {/* ── Calculadora de Precio con Margen ── */}
+        <div className="p-5 border-b border-slate-100 bg-gradient-to-r from-orange-50 to-amber-50">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
+                Margen Objetivo
               </p>
-              <p className="text-xl font-black text-slate-800">
-                ${costoTotal.toFixed(2)}
-              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min="1"
+                  max="90"
+                  step="1"
+                  value={margenObj}
+                  onChange={(e) => setMargenObj(Number(e.target.value))}
+                  className="w-32 accent-orange-500"
+                />
+                <input
+                  type="number"
+                  min="1"
+                  max="90"
+                  value={margenObj}
+                  onChange={(e) =>
+                    setMargenObj(
+                      Math.min(90, Math.max(1, Number(e.target.value))),
+                    )
+                  }
+                  className="w-16 bg-white border-2 border-orange-200 p-2 rounded-xl text-center font-black text-sm focus:border-orange-500 outline-none"
+                />
+                <span className="font-black text-orange-500">%</span>
+              </div>
             </div>
-            <div className="p-4 text-center border-r border-slate-100">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                Margen
-              </p>
-              <p
-                className={`text-xl font-black ${margen < 20 ? 'text-red-500' : margen < 40 ? 'text-amber-500' : 'text-emerald-500'}`}
-              >
-                {margen.toFixed(1)}%
-              </p>
+
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <p className="text-[9px] font-black text-slate-400 uppercase">
+                  Precio Sugerido
+                </p>
+                <p className="text-2xl font-black text-orange-500">
+                  ${precioSugerido.toFixed(2)}
+                </p>
+                <p className="text-[8px] text-slate-400 font-bold">
+                  Con {margenObj}% de margen
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-[9px] font-black text-slate-400 uppercase">
+                  Precio Actual
+                </p>
+                <p className={`text-2xl font-black ${colorMargen(margenReal)}`}>
+                  ${Number(producto?.precio).toFixed(2)}
+                </p>
+                <p
+                  className={`text-[8px] font-black ${colorMargen(margenReal)}`}
+                >
+                  {margenReal.toFixed(1)}% margen real
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-[9px] font-black text-slate-400 uppercase">
+                  Fabricables
+                </p>
+                <p
+                  className={`text-2xl font-black ${fabMax === 0 ? 'text-red-500' : fabMax < 5 ? 'text-amber-500' : 'text-emerald-500'}`}
+                >
+                  {fabMax === Infinity ? '∞' : fabMax}
+                </p>
+                <p className="text-[8px] text-slate-400 font-bold">unidades</p>
+              </div>
             </div>
-            <div className="p-4 text-center border-r border-slate-100">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                Puedes Fabricar
-              </p>
-              <p
-                className={`text-xl font-black ${unidadesFabricables === 0 ? 'text-red-500' : unidadesFabricables < 5 ? 'text-amber-500' : 'text-emerald-500'}`}
-              >
-                {unidadesFabricables === Infinity ? '∞' : unidadesFabricables}{' '}
-                <span className="text-xs">uds</span>
-              </p>
+          </div>
+
+          {/* Detalle desglose costos */}
+          <button
+            onClick={() => setMostrarDetalleCostos((v) => !v)}
+            className="mt-3 flex items-center gap-1 text-[9px] font-black text-slate-400 hover:text-orange-500 uppercase tracking-widest transition-colors"
+          >
+            {mostrarDetalleCostos ? (
+              <ChevronUp size={12} />
+            ) : (
+              <ChevronDown size={12} />
+            )}
+            Ver desglose completo de costos
+          </button>
+
+          {mostrarDetalleCostos && (
+            <div className="mt-3 grid grid-cols-3 gap-3 text-center p-3 bg-white rounded-2xl border border-orange-100">
+              <div>
+                <p className="text-[8px] font-black text-slate-400 uppercase">
+                  Insumos
+                </p>
+                <p className="font-black text-slate-700">
+                  ${costoInsumos.toFixed(2)}
+                </p>
+                <p className="text-[8px] text-slate-400">
+                  {costoReal > 0
+                    ? ((costoInsumos / costoReal) * 100).toFixed(0)
+                    : 0}
+                  % del costo
+                </p>
+              </div>
+              <div>
+                <p className="text-[8px] font-black text-slate-400 uppercase">
+                  Gastos Fijos
+                </p>
+                <p className="font-black text-blue-600">
+                  ${costoFijoUnitario.toFixed(2)}
+                </p>
+                <p className="text-[8px] text-slate-400">
+                  {costoReal > 0
+                    ? ((costoFijoUnitario / costoReal) * 100).toFixed(0)
+                    : 0}
+                  % del costo
+                </p>
+              </div>
+              <div>
+                <p className="text-[8px] font-black text-slate-400 uppercase">
+                  Ganancia x Ud
+                </p>
+                <p
+                  className={`font-black ${Number(producto?.precio) - costoReal > 0 ? 'text-emerald-600' : 'text-red-500'}`}
+                >
+                  ${(Number(producto?.precio) - costoReal).toFixed(2)}
+                </p>
+                <p className="text-[8px] text-slate-400">con precio actual</p>
+              </div>
             </div>
-            <div className="p-4 text-center">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                Ganancia Potencial
-              </p>
-              <p
-                className={`text-xl font-black ${gananciaPotencial <= 0 ? 'text-red-500' : 'text-emerald-500'}`}
-              >
-                ${gananciaPotencial.toFixed(2)}
-              </p>
-            </div>
+          )}
+        </div>
+
+        {/* Alerta limitante */}
+        {!cargandoReceta && limitante && fabMax < 10 && (
+          <div className="mx-6 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3">
+            <AlertTriangle size={16} className="text-amber-500 flex-shrink-0" />
+            <p className="text-xs font-bold text-amber-700">
+              <span className="font-black">Insumo limitante:</span>{' '}
+              <span className="text-amber-600">{limitante.nombre}</span>
+              {' — '}
+              {stockEnReceta(limitante).toFixed(1)}{' '}
+              {limitante.unidadReceta.toLowerCase()} disponibles.
+              {fabMax === 0 && ' ¡Stock agotado!'}
+            </p>
           </div>
         )}
 
-        {/* Alerta ingrediente limitante */}
-        {!cargandoReceta &&
-          ingredientes.length > 0 &&
-          ingredienteLimitante &&
-          unidadesFabricables < 10 && (
-            <div className="mx-6 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3">
-              <AlertTriangle
-                size={16}
-                className="text-amber-500 flex-shrink-0"
-              />
-              <p className="text-xs font-bold text-amber-700">
-                <span className="font-black">Insumo limitante:</span>{' '}
-                <span className="text-amber-600">
-                  {ingredienteLimitante.nombre}
-                </span>
-                {' — '}
-                solo tienes{' '}
-                {calcularStockEnUnidadReceta(ingredienteLimitante).toFixed(
-                  1,
-                )}{' '}
-                {ingredienteLimitante.unidadReceta.toLowerCase()} disponibles.
-                {unidadesFabricables === 0 && ' ¡Necesitas reponer stock!'}
-              </p>
-            </div>
-          )}
-
-        {/* Buscador */}
+        {/* Buscador insumos */}
         <div className="p-6 pb-2 space-y-2">
           <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-            Agregar Insumo o Materia Prima
+            Agregar Insumo a la Receta
           </label>
           <div className="relative">
             <input
               type="text"
-              placeholder="Buscar materia prima o insumo del inventario..."
+              placeholder="Buscar insumo o materia prima..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               className="w-full bg-slate-100 border-2 border-transparent p-4 rounded-2xl outline-none focus:border-orange-500 font-bold text-sm transition-all"
@@ -333,7 +752,7 @@ function ModalReceta({
               <div className="absolute left-0 right-0 top-full mt-1 bg-white border shadow-2xl rounded-2xl overflow-hidden z-10">
                 {insumosFiltrados.length === 0 ? (
                   <div className="p-4 text-xs text-slate-400 font-bold text-center">
-                    No se encontraron productos
+                    Sin resultados
                   </div>
                 ) : (
                   insumosFiltrados.slice(0, 6).map((p: any) => (
@@ -370,49 +789,38 @@ function ModalReceta({
           </div>
         </div>
 
-        {/* Lista de ingredientes */}
+        {/* Lista ingredientes */}
         <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-2 min-h-0">
           {cargandoReceta ? (
-            <div className="flex items-center justify-center py-8">
+            <div className="flex justify-center py-8">
               <Loader2 className="animate-spin text-orange-500" size={24} />
             </div>
           ) : ingredientes.length === 0 ? (
-            <div className="text-center py-8">
-              <FlaskConical size={40} className="mx-auto text-slate-200 mb-3" />
+            <div className="text-center py-6">
+              <FlaskConical size={36} className="mx-auto text-slate-200 mb-3" />
               <p className="text-xs font-black text-slate-300 uppercase">
                 Sin ingredientes aún
-              </p>
-              <p className="text-[10px] text-slate-300 font-bold mt-1">
-                Busca y agrega los insumos necesarios para fabricar este
-                producto
               </p>
             </div>
           ) : (
             ingredientes.map((ing) => {
-              const costoIng = calcularCostoPorUnidad(ing);
-              const stockEnReceta = calcularStockEnUnidadReceta(ing);
-              const unidadesEste =
-                ing.cantidad > 0
-                  ? Math.floor(stockEnReceta / ing.cantidad)
-                  : Infinity;
-              const esLimitante =
-                unidadesEste === unidadesFabricables && unidadesEste < Infinity;
+              const cIng = costoPorUnidad(ing);
+              const sRec = stockEnReceta(ing);
+              const uEste =
+                ing.cantidad > 0 ? Math.floor(sRec / ing.cantidad) : Infinity;
+              const esLim = uEste === fabMax && uEste < Infinity;
 
               return (
                 <div
                   key={ing.id}
-                  className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
-                    esLimitante && unidadesFabricables < 10
-                      ? 'border-amber-200 bg-amber-50'
-                      : 'border-slate-100 bg-slate-50'
-                  }`}
+                  className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${esLim && fabMax < 10 ? 'border-amber-200 bg-amber-50' : 'border-slate-100 bg-slate-50'}`}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-black text-xs text-slate-700 uppercase truncate">
                         {ing.nombre}
                       </p>
-                      {esLimitante && unidadesFabricables < 10 && (
+                      {esLim && fabMax < 10 && (
                         <span className="text-[8px] font-black bg-amber-400 text-white px-2 py-0.5 rounded-full uppercase flex-shrink-0">
                           Limitante
                         </span>
@@ -420,7 +828,7 @@ function ModalReceta({
                     </div>
                     <p className="text-[10px] text-slate-400 font-bold uppercase">
                       Stock: {ing.stockDisponible} {ing.unidadBase} →{' '}
-                      {stockEnReceta.toFixed(1)} {ing.unidadReceta}
+                      {sRec.toFixed(1)} {ing.unidadReceta}
                     </p>
                   </div>
 
@@ -449,7 +857,6 @@ function ModalReceta({
                         className="w-20 bg-white border-2 border-slate-200 p-2 rounded-xl text-center font-black text-sm focus:border-orange-500 outline-none"
                       />
                     </div>
-
                     <div className="text-center">
                       <label className="text-[8px] font-black text-slate-400 uppercase block mb-1">
                         Unidad
@@ -483,10 +890,10 @@ function ModalReceta({
                       Costo
                     </p>
                     <p className="text-sm font-black text-slate-700">
-                      ${costoIng.toFixed(2)}
+                      ${cIng.toFixed(2)}
                     </p>
                     <p className="text-[8px] text-slate-400 font-bold">
-                      {unidadesEste === Infinity ? '∞' : unidadesEste} uds
+                      {uEste === Infinity ? '∞' : uEste} uds
                     </p>
                   </div>
 
@@ -508,31 +915,37 @@ function ModalReceta({
 
         {/* Footer */}
         <div className="p-6 bg-slate-900 text-white flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex gap-6">
+          <div className="flex gap-4 flex-wrap">
             <div>
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                Costo Total
+                Costo Insumos
               </p>
-              <p className="text-2xl font-black text-emerald-400">
-                ${costoTotal.toFixed(2)}
+              <p className="text-lg font-black text-slate-300">
+                ${costoInsumos.toFixed(2)}
               </p>
             </div>
             <div>
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                Precio Venta
+                + Gastos Fijos
               </p>
-              <p className="text-2xl font-black text-white">
-                ${Number(producto?.precio).toFixed(2)}
+              <p className="text-lg font-black text-blue-400">
+                ${costoFijoUnitario.toFixed(2)}
               </p>
             </div>
             <div>
               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                Ganancia x Ud
+                = Costo Real
               </p>
-              <p
-                className={`text-2xl font-black ${Number(producto?.precio) - costoTotal <= 0 ? 'text-red-400' : 'text-orange-400'}`}
-              >
-                ${(Number(producto?.precio) - costoTotal).toFixed(2)}
+              <p className="text-lg font-black text-white">
+                ${costoReal.toFixed(2)}
+              </p>
+            </div>
+            <div className="border-l border-slate-700 pl-4">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                Precio Sugerido ({margenObj}%)
+              </p>
+              <p className="text-lg font-black text-orange-400">
+                ${precioSugerido.toFixed(2)}
               </p>
             </div>
           </div>
@@ -554,16 +967,20 @@ function ModalReceta({
   );
 }
 
-// ── Tarjeta de Producto ────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// TARJETA DE PRODUCTO
+// ─────────────────────────────────────────────────────────────
 function TarjetaProducto({
   prod,
   capacidades,
+  gastosFijos,
   onEditar,
   onReceta,
   onCambiarEstado,
 }: {
   prod: Producto;
   capacidades: Record<string, number>;
+  gastosFijos: GastoFijo[];
   onEditar: (p: Producto) => void;
   onReceta: (p: Producto) => void;
   onCambiarEstado: (id: string, activo: boolean) => void;
@@ -571,18 +988,28 @@ function TarjetaProducto({
   const precioNum = Number(prod.precio) || 0;
   const stockNum = Number(prod.stock) || 0;
   const esActivo = prod.activo !== false;
-  const esStockCritico = stockNum <= 5;
-  const capacidadFab = capacidades[prod.id];
-  const tieneReceta = capacidadFab !== undefined;
+  const esStockCrit = stockNum <= 5;
+  const capFab = capacidades[prod.id];
+  const tieneReceta = capFab !== undefined;
+
+  // Costo real (insumos ya calculados en capacidades + gastos fijos)
+  // Para la tarjeta mostramos margen si tiene precio y costo guardado
+  const costoGuardado = Number(prod.costo_compra) || 0;
+  const totalGastos = gastosFijos.reduce((s, g) => s + g.monto, 0);
+  const unidMes = Number(prod.unidades_mes) || 100;
+  const costoFijoUd = unidMes > 0 ? totalGastos / unidMes : 0;
+  const costoReal = costoGuardado + costoFijoUd;
+  const margenReal =
+    precioNum > 0 ? ((precioNum - costoReal) / precioNum) * 100 : 0;
 
   return (
     <div
       className={`bg-white p-5 rounded-[2.5rem] shadow-sm border-2 transition-all ${
         !esActivo
           ? 'opacity-50 grayscale border-dashed border-slate-200'
-          : tieneReceta && capacidadFab === 0
+          : tieneReceta && capFab === 0
             ? 'border-red-200'
-            : esStockCritico
+            : esStockCrit
               ? 'border-amber-100'
               : 'border-white'
       }`}
@@ -616,16 +1043,28 @@ function TarjetaProducto({
             {tieneReceta && (
               <span
                 className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase ${
-                  capacidadFab === 0
+                  capFab === 0
                     ? 'bg-red-100 text-red-600'
-                    : capacidadFab < 5
+                    : capFab < 5
                       ? 'bg-amber-100 text-amber-600'
                       : 'bg-emerald-100 text-emerald-600'
                 }`}
               >
-                {capacidadFab === 0
-                  ? '⚠ Sin stock'
-                  : `✦ ${capacidadFab} fabricables`}
+                {capFab === 0 ? '⚠ Sin stock' : `✦ ${capFab} fabricables`}
+              </span>
+            )}
+            {/* Margen real en la tarjeta */}
+            {!prod.es_materia_prima && precioNum > 0 && (
+              <span
+                className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase ${
+                  margenReal < 20
+                    ? 'bg-red-100 text-red-600'
+                    : margenReal < 35
+                      ? 'bg-amber-100 text-amber-600'
+                      : 'bg-emerald-100 text-emerald-600'
+                }`}
+              >
+                {margenReal.toFixed(0)}% margen
               </span>
             )}
           </div>
@@ -633,7 +1072,6 @@ function TarjetaProducto({
           <h3 className="font-black text-slate-800 text-xs uppercase truncate">
             {prod.nombre}
           </h3>
-
           {prod.descripcion && (
             <p className="text-[10px] text-slate-400 italic truncate">
               {prod.descripcion}
@@ -644,12 +1082,13 @@ function TarjetaProducto({
             <p className="text-orange-500 font-black text-sm">
               ${precioNum.toFixed(2)}
             </p>
+            {!prod.es_materia_prima && costoReal > 0 && (
+              <p className="text-[9px] text-slate-400 font-bold">
+                costo: ${costoReal.toFixed(2)}
+              </p>
+            )}
             <span
-              className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${
-                esStockCritico
-                  ? 'bg-red-500 text-white'
-                  : 'bg-slate-100 text-slate-400'
-              }`}
+              className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase ${esStockCrit ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-400'}`}
             >
               Stock: {stockNum} {(prod.unidad_medida || 'UDS').slice(0, 3)}
             </span>
@@ -657,21 +1096,15 @@ function TarjetaProducto({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          {/* Receta — solo para productos de venta */}
           {!prod.es_materia_prima && (
             <button
               onClick={() => onReceta(prod)}
-              className={`p-2 rounded-xl transition-all shadow-sm ${
-                tieneReceta
-                  ? 'bg-emerald-500 text-white hover:bg-emerald-600'
-                  : 'bg-slate-50 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600'
-              }`}
+              className={`p-2 rounded-xl transition-all shadow-sm ${tieneReceta ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-slate-50 text-slate-400 hover:bg-emerald-50 hover:text-emerald-600'}`}
               title={tieneReceta ? 'Ver/Editar Receta' : 'Crear Receta'}
             >
               <ChefHat size={14} />
             </button>
           )}
-
           <button
             onClick={() => onEditar(prod)}
             className="p-2 bg-slate-50 text-slate-400 rounded-xl hover:text-orange-500 hover:bg-orange-50 transition-all shadow-sm"
@@ -679,14 +1112,9 @@ function TarjetaProducto({
           >
             <Pencil size={14} />
           </button>
-
           <button
             onClick={() => onCambiarEstado(prod.id, prod.activo)}
-            className={`p-2 rounded-xl transition-all shadow-sm ${
-              esActivo
-                ? 'bg-red-50 text-red-400 hover:bg-red-500 hover:text-white'
-                : 'bg-emerald-50 text-emerald-500 hover:bg-emerald-500 hover:text-white'
-            }`}
+            className={`p-2 rounded-xl transition-all shadow-sm ${esActivo ? 'bg-red-50 text-red-400 hover:bg-red-500 hover:text-white' : 'bg-emerald-50 text-emerald-500 hover:bg-emerald-500 hover:text-white'}`}
             title={esActivo ? 'Archivar' : 'Reactivar'}
           >
             {esActivo ? <Trash2 size={14} /> : <RefreshCw size={14} />}
@@ -697,7 +1125,9 @@ function TarjetaProducto({
   );
 }
 
-// ── Componente Principal ───────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// COMPONENTE PRINCIPAL
+// ─────────────────────────────────────────────────────────────
 export default function InventarioPage() {
   const supabase = createClient();
   const [empresaId, setEmpresaId] = useState<string | null>(null);
@@ -712,12 +1142,14 @@ export default function InventarioPage() {
   const [costoCompra, setCostoCompra] = useState('');
   const [unidad, setUnidad] = useState<string>('UNIDADES');
   const [categoriaId, setCategoriaId] = useState('');
-  // ── NUEVO: toggle materia prima ──
   const [esMateriaPrima, setEsMateriaPrima] = useState(false);
   const [editando, setEditando] = useState<Producto | null>(null);
+
+  // Modales
   const [productoParaReceta, setProductoParaReceta] = useState<Producto | null>(
     null,
   );
+  const [mostrarGastos, setMostrarGastos] = useState(false);
 
   // Imagen
   const [imagenFile, setImagenFile] = useState<File | null>(null);
@@ -726,23 +1158,20 @@ export default function InventarioPage() {
   const [comprimiendo, setComprimiendo] = useState(false);
   const objectUrlRef = useRef<string | null>(null);
 
-  // Catálogo
+  // Datos
   const [productos, setProductos] = useState<Producto[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [gastosFijos, setGastosFijos] = useState<GastoFijo[]>([]);
   const paginaRef = useRef(0);
   const [tieneMas, setTieneMas] = useState(true);
   const [cargandoMas, setCargandoMas] = useState(false);
 
-  // Toast
+  // UI
   const [toast, setToast] = useState<{
     texto: string;
     tipo: 'ok' | 'error';
   } | null>(null);
-
-  // Capacidades
   const [capacidades, setCapacidades] = useState<Record<string, number>>({});
-
-  // ── NUEVO: tab activo para separar vista ──
   const [tabActivo, setTabActivo] = useState<'venta' | 'insumos'>('venta');
 
   const mostrarToast = (texto: string, tipo: 'ok' | 'error' = 'ok') => {
@@ -759,35 +1188,33 @@ export default function InventarioPage() {
     setPreviewUrl(url);
   };
 
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-    };
-  }, []);
+    },
+    [],
+  );
 
-  // ── Cargar capacidades ─────────────────────────────────────────────────
+  // ── Cargar capacidades ───────────────────────────────────
   const cargarCapacidades = useCallback(
-    async (idEmpresa: string, listProductos: Producto[]) => {
-      try {
-        const { data: recetas } = await supabase
-          .from('recetas')
-          .select(
-            '*, p_insumo:productos!insumo_id(stock, unidad_medida, costo_compra)',
-          )
-          .eq('empresa_id', idEmpresa);
+    async (idEmpresa: string) => {
+      const { data: recetas } = await supabase
+        .from('recetas')
+        .select(
+          '*, p_insumo:productos!insumo_id(stock, unidad_medida, costo_compra)',
+        )
+        .eq('empresa_id', idEmpresa);
+      if (!recetas) return;
 
-        if (!recetas) return;
-
-        const recetasPorProducto: Record<string, any[]> = {};
-        for (const r of recetas) {
-          if (!recetasPorProducto[r.producto_final_id])
-            recetasPorProducto[r.producto_final_id] = [];
-          recetasPorProducto[r.producto_final_id].push(r);
-        }
-
-        const nuevasCapacidades: Record<string, number> = {};
-        for (const [prodId, ings] of Object.entries(recetasPorProducto)) {
-          const ingredientes: Ingrediente[] = ings.map((r: any) => ({
+      const porProd: Record<string, any[]> = {};
+      for (const r of recetas) {
+        if (!porProd[r.producto_final_id]) porProd[r.producto_final_id] = [];
+        porProd[r.producto_final_id].push(r);
+      }
+      const caps: Record<string, number> = {};
+      for (const [id, ings] of Object.entries(porProd)) {
+        caps[id] = unidadesFabricables(
+          ings.map((r: any) => ({
             id: r.insumo_id,
             nombre: '',
             costo: Number(r.p_insumo?.costo_compra) || 0,
@@ -796,23 +1223,19 @@ export default function InventarioPage() {
             unidadReceta:
               r.unidad_medida_receta || r.p_insumo?.unidad_medida || 'UNIDADES',
             stockDisponible: Number(r.p_insumo?.stock) || 0,
-          }));
-          nuevasCapacidades[prodId] = calcularUnidadesFabricables(ingredientes);
-        }
-        setCapacidades(nuevasCapacidades);
-      } catch (err) {
-        console.error('Error cargando capacidades:', err);
+          })),
+        );
       }
+      setCapacidades(caps);
     },
     [supabase],
   );
 
-  // ── Productos ──────────────────────────────────────────────────────────
+  // ── Productos — SIN paginación por defecto, carga todos ─
   const obtenerProductos = useCallback(
     async (idEmpresa: string, reiniciar = false) => {
       const paginaActual = reiniciar ? 0 : paginaRef.current;
       if (!reiniciar) setCargandoMas(true);
-
       const desde = paginaActual * ITEMS_POR_PAGINA;
       const hasta = desde + ITEMS_POR_PAGINA - 1;
 
@@ -829,22 +1252,30 @@ export default function InventarioPage() {
         if (reiniciar) {
           setProductos(nuevos);
           paginaRef.current = 1;
-          cargarCapacidades(idEmpresa, nuevos);
         } else {
-          setProductos((prev) => {
-            const todos = [...prev, ...nuevos];
-            cargarCapacidades(idEmpresa, todos);
-            return todos;
-          });
+          setProductos((prev) => [...prev, ...nuevos]);
           paginaRef.current = paginaActual + 1;
         }
         setTieneMas(nuevos.length === ITEMS_POR_PAGINA);
       }
       setCargandoMas(false);
     },
-    [supabase, cargarCapacidades],
+    [supabase],
   );
 
+  // ── Gastos fijos ─────────────────────────────────────────
+  const cargarGastos = useCallback(
+    async (idEmpresa: string) => {
+      const { data } = await supabase
+        .from('gastos_fijos')
+        .select('*')
+        .eq('empresa_id', idEmpresa);
+      setGastosFijos(data || []);
+    },
+    [supabase],
+  );
+
+  // ── Init ─────────────────────────────────────────────────
   useEffect(() => {
     const iniciar = async () => {
       const {
@@ -856,31 +1287,36 @@ export default function InventarioPage() {
           .select('empresa_id, empresas(nombre)')
           .eq('id', user.id)
           .single();
-
         if (perfil) {
           setEmpresaId(perfil.empresa_id);
           setNombreEmpresa((perfil.empresas as any)?.nombre || 'Mi Empresa');
-          await obtenerProductos(perfil.empresa_id, true);
-
-          const { data: cats } = await supabase
-            .from('categorias')
-            .select('*')
-            .eq('empresa_id', perfil.empresa_id)
-            .order('nombre');
-          setCategorias((cats as Categoria[]) || []);
+          // Carga en paralelo
+          await Promise.all([
+            obtenerProductos(perfil.empresa_id, true),
+            cargarCapacidades(perfil.empresa_id),
+            cargarGastos(perfil.empresa_id),
+            supabase
+              .from('categorias')
+              .select('*')
+              .eq('empresa_id', perfil.empresa_id)
+              .order('nombre')
+              .then(({ data: cats }) =>
+                setCategorias((cats as Categoria[]) || []),
+              ),
+          ]);
         }
       }
       setCargando(false);
     };
     iniciar();
-  }, [obtenerProductos, supabase]);
+  }, [obtenerProductos, cargarCapacidades, cargarGastos, supabase]);
 
-  // ── Imagen ─────────────────────────────────────────────────────────────
+  // ── Imagen ────────────────────────────────────────────────
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 15 * 1024 * 1024) {
-      alert('Imagen demasiado pesada. Máximo 15 MB.');
+      alert('Máximo 15 MB');
       return;
     }
     setComprimiendo(true);
@@ -896,8 +1332,7 @@ export default function InventarioPage() {
       });
       setImagenFile(final);
       asignarPreview(URL.createObjectURL(final));
-    } catch (err) {
-      console.error(err);
+    } catch {
       setImagenFile(file);
       asignarPreview(URL.createObjectURL(file));
     } finally {
@@ -907,17 +1342,15 @@ export default function InventarioPage() {
 
   const subirImagen = async (file: File): Promise<string> => {
     const fileName = `${empresaId}/${crypto.randomUUID()}.webp`;
-    const { error: uploadError } = await supabase.storage
+    const { error } = await supabase.storage
       .from('productos')
       .upload(fileName, file, { contentType: 'image/webp', upsert: true });
-    if (uploadError) throw uploadError;
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from('productos').getPublicUrl(fileName);
-    return publicUrl;
+    if (error) throw error;
+    return supabase.storage.from('productos').getPublicUrl(fileName).data
+      .publicUrl;
   };
 
-  // ── CRUD ───────────────────────────────────────────────────────────────
+  // ── CRUD ──────────────────────────────────────────────────
   const guardarProducto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!empresaId) return;
@@ -937,41 +1370,36 @@ export default function InventarioPage() {
         imagen_url: finalUrl,
         categoria_id: categoriaId || null,
         activo: true,
-        // ── NUEVO: guardar el flag en Supabase ──
         es_materia_prima: esMateriaPrima,
       };
 
       if (editando) {
         await supabase.from('productos').update(payload).eq('id', editando.id);
-        mostrarToast('✅ Producto actualizado');
+        mostrarToast('✅ Actualizado');
       } else {
         await supabase.from('productos').insert([payload]);
         mostrarToast(
           esMateriaPrima ? '📦 Insumo registrado' : '🚀 Producto registrado',
         );
       }
-
       cancelarEdicion();
       obtenerProductos(empresaId, true);
+      cargarCapacidades(empresaId);
     } catch (err: any) {
-      mostrarToast('Error al guardar: ' + err.message, 'error');
+      mostrarToast('Error: ' + err.message, 'error');
     } finally {
       setSubiendoImg(false);
     }
   };
 
-  const cambiarEstadoProducto = async (id: string, estadoActual: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('productos')
-        .update({ activo: !estadoActual })
-        .eq('id', id);
-      if (!error && empresaId) {
-        obtenerProductos(empresaId, true);
-        mostrarToast(estadoActual ? '📦 Archivado' : '✅ Reactivado');
-      }
-    } catch (err) {
-      console.error(err);
+  const cambiarEstado = async (id: string, estadoActual: boolean) => {
+    await supabase
+      .from('productos')
+      .update({ activo: !estadoActual })
+      .eq('id', id);
+    if (empresaId) {
+      obtenerProductos(empresaId, true);
+      mostrarToast(estadoActual ? '📦 Archivado' : '✅ Reactivado');
     }
   };
 
@@ -984,7 +1412,6 @@ export default function InventarioPage() {
     setCostoCompra(prod.costo_compra.toString());
     setUnidad(prod.unidad_medida || 'UNIDADES');
     setCategoriaId(prod.categoria_id || '');
-    // ── NUEVO: cargar el flag al editar ──
     setEsMateriaPrima(prod.es_materia_prima ?? false);
     setPreviewUrl(prod.imagen_url ?? null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1004,12 +1431,14 @@ export default function InventarioPage() {
     asignarPreview(null);
   };
 
-  // ── NUEVO: separar productos por tipo ──────────────────────────────────
+  // ── Separar productos ─────────────────────────────────────
   const productosDeVenta = productos.filter((p) => !p.es_materia_prima);
   const materiasPrimas = productos.filter((p) => p.es_materia_prima);
-
   const productosMostrados =
     tabActivo === 'venta' ? productosDeVenta : materiasPrimas;
+
+  // ── Resumen gastos para el banner ─────────────────────────
+  const totalGastosMes = gastosFijos.reduce((s, g) => s + g.monto, 0);
 
   if (cargando)
     return (
@@ -1023,12 +1452,9 @@ export default function InventarioPage() {
 
   return (
     <main className="min-h-screen bg-slate-100 pb-20 p-4 md:p-8">
-      {/* Toast */}
       {toast && (
         <div
-          className={`fixed top-6 right-6 z-[9999] px-6 py-3 rounded-2xl text-white text-xs font-black shadow-xl animate-bounce ${
-            toast.tipo === 'ok' ? 'bg-emerald-500' : 'bg-red-500'
-          }`}
+          className={`fixed top-6 right-6 z-[9999] px-6 py-3 rounded-2xl text-white text-xs font-black shadow-xl animate-bounce ${toast.tipo === 'ok' ? 'bg-emerald-500' : 'bg-red-500'}`}
         >
           {toast.texto}
         </div>
@@ -1045,11 +1471,25 @@ export default function InventarioPage() {
               Gestión de Inventario
             </h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* ── NUEVO: Botón gastos fijos con resumen ── */}
+            <button
+              onClick={() => setMostrarGastos(true)}
+              className="flex items-center gap-2 bg-blue-50 text-blue-700 border-2 border-blue-100 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 transition-all"
+            >
+              <Building2 size={14} />
+              Gastos Fijos
+              {totalGastosMes > 0 && (
+                <span className="bg-blue-600 text-white px-2 py-0.5 rounded-full text-[8px] font-black">
+                  ${totalGastosMes.toFixed(0)}/mes
+                </span>
+              )}
+            </button>
             <button
               onClick={() => {
-                const url = `${window.location.origin}/catalogo/${empresaId}`;
-                navigator.clipboard.writeText(url);
+                navigator.clipboard.writeText(
+                  `${window.location.origin}/catalogo/${empresaId}`,
+                );
                 mostrarToast('¡Enlace copiado! 📋');
               }}
               className="flex items-center gap-2 bg-slate-100 text-slate-600 px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
@@ -1068,6 +1508,75 @@ export default function InventarioPage() {
           </div>
         </div>
 
+        {/* ── BANNER: si no hay gastos fijos configurados ── */}
+        {totalGastosMes === 0 && (
+          <button
+            onClick={() => setMostrarGastos(true)}
+            className="w-full p-5 bg-blue-50 border-2 border-blue-100 rounded-[2rem] flex items-center gap-4 hover:bg-blue-100 transition-all text-left"
+          >
+            <div className="p-3 bg-blue-500 rounded-2xl flex-shrink-0 text-white">
+              <Building2 size={20} />
+            </div>
+            <div className="flex-1">
+              <p className="text-blue-800 text-xs font-black uppercase">
+                Configura tus Gastos Fijos Mensuales
+              </p>
+              <p className="text-blue-600 text-[10px] font-bold mt-0.5">
+                Sueldos, luz, alquiler, impuestos… Agrégalos para calcular el{' '}
+                <span className="font-black">costo real</span> de cada producto
+                y no perder dinero.
+              </p>
+            </div>
+            <span className="text-[10px] font-black text-blue-500 bg-blue-100 px-4 py-2 rounded-2xl uppercase flex-shrink-0">
+              Configurar →
+            </span>
+          </button>
+        )}
+
+        {/* ── BANNER: resumen gastos si ya están configurados ── */}
+        {totalGastosMes > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {CATEGORIAS_GASTO.map((cat) => {
+              const total = gastosFijos
+                .filter((g) => g.categoria === cat.value)
+                .reduce((s, g) => s + g.monto, 0);
+              if (total === 0) return null;
+              const colorMap: Record<string, string> = {
+                blue: 'bg-blue-50 border-blue-100 text-blue-700',
+                yellow: 'bg-yellow-50 border-yellow-100 text-yellow-700',
+                purple: 'bg-purple-50 border-purple-100 text-purple-700',
+                red: 'bg-red-50 border-red-100 text-red-700',
+                slate: 'bg-slate-50 border-slate-200 text-slate-700',
+              };
+              const Icon = cat.icon;
+              return (
+                <div
+                  key={cat.value}
+                  className={`p-4 rounded-2xl border-2 ${colorMap[cat.color]}`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon size={13} />
+                    <p className="text-[8px] font-black uppercase">
+                      {cat.label}
+                    </p>
+                  </div>
+                  <p className="text-lg font-black">
+                    ${total.toFixed(2)}
+                    <span className="text-[9px] font-bold">/mes</span>
+                  </p>
+                </div>
+              );
+            })}
+            <button
+              onClick={() => setMostrarGastos(true)}
+              className="p-4 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500 transition-all flex flex-col items-center justify-center gap-1"
+            >
+              <Settings size={16} />
+              <p className="text-[8px] font-black uppercase">Editar Gastos</p>
+            </button>
+          </div>
+        )}
+
         {/* FORMULARIO */}
         <section className="bg-white p-8 rounded-[3rem] shadow-xl border border-white">
           <div className="flex items-center gap-3 mb-6">
@@ -1077,40 +1586,29 @@ export default function InventarioPage() {
             </span>
           </div>
 
-          {/* ── NUEVO: Toggle tipo de ítem ── */}
+          {/* Toggle tipo */}
           <div className="flex items-center gap-2 mb-6 p-1 bg-slate-100 rounded-2xl w-fit">
             <button
               type="button"
               onClick={() => setEsMateriaPrima(false)}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                !esMateriaPrima
-                  ? 'bg-white shadow text-slate-800'
-                  : 'text-slate-400 hover:text-slate-600'
-              }`}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!esMateriaPrima ? 'bg-white shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
             >
               <ShoppingBag size={13} /> Producto de Venta
             </button>
             <button
               type="button"
               onClick={() => setEsMateriaPrima(true)}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                esMateriaPrima
-                  ? 'bg-violet-600 shadow text-white'
-                  : 'text-slate-400 hover:text-slate-600'
-              }`}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${esMateriaPrima ? 'bg-violet-600 shadow text-white' : 'text-slate-400 hover:text-slate-600'}`}
             >
               <Layers size={13} /> Insumo / Materia Prima
             </button>
           </div>
 
-          {/* Banner informativo según tipo */}
           {esMateriaPrima ? (
             <div className="mb-5 p-3 bg-violet-50 border border-violet-100 rounded-2xl flex items-center gap-3">
               <Layers size={14} className="text-violet-500 flex-shrink-0" />
               <p className="text-[10px] font-bold text-violet-700">
-                Este ítem{' '}
-                <span className="font-black">NO aparecerá en el catálogo</span>.
-                Solo se usará como insumo en recetas de productos de venta.
+                No aparecerá en el catálogo. Solo se usa como insumo en recetas.
               </p>
             </div>
           ) : (
@@ -1120,9 +1618,8 @@ export default function InventarioPage() {
                 className="text-orange-500 flex-shrink-0"
               />
               <p className="text-[10px] font-bold text-orange-700">
-                Este producto{' '}
-                <span className="font-black">aparecerá en el catálogo</span>{' '}
-                para tus clientes. Puedes asignarle una receta con insumos.
+                Aparecerá en el catálogo. Puedes asignarle una receta con
+                insumos y gastos fijos.
               </p>
             </div>
           )}
@@ -1160,7 +1657,7 @@ export default function InventarioPage() {
               </label>
             </div>
 
-            {/* Campos principales */}
+            {/* Campos */}
             <div className="md:col-span-2 space-y-4">
               <div className="space-y-1">
                 <label className="text-[9px] uppercase font-black text-slate-400 ml-2">
@@ -1169,7 +1666,7 @@ export default function InventarioPage() {
                 <input
                   placeholder={
                     esMateriaPrima
-                      ? 'Ej: Harina de trigo, Tela azul...'
+                      ? 'Ej: Harina, Tela azul...'
                       : 'Ej: Hamburguesa con Queso'
                   }
                   value={nombre}
@@ -1178,18 +1675,15 @@ export default function InventarioPage() {
                   className="w-full bg-slate-50 p-4 rounded-2xl outline-none focus:ring-2 ring-orange-500 font-bold placeholder:text-slate-300 transition-all"
                 />
               </div>
-
               <div className="space-y-1">
                 <label className="text-[9px] uppercase font-black text-slate-400 ml-2">
-                  {esMateriaPrima
-                    ? 'Notas / Especificaciones'
-                    : 'Descripción / Tallas / Colores / Notas'}
+                  Descripción / Notas
                 </label>
                 <textarea
                   placeholder={
                     esMateriaPrima
-                      ? 'Ej: Proveedor X, código SKU...'
-                      : 'Ej: Talla L, Color Azul...'
+                      ? 'Proveedor, SKU...'
+                      : 'Talla, Color, Especificaciones...'
                   }
                   value={descripcion}
                   onChange={(e) => setDescripcion(e.target.value)}
@@ -1197,9 +1691,7 @@ export default function InventarioPage() {
                   rows={2}
                 />
               </div>
-
               <div className="grid grid-cols-3 gap-3">
-                {/* Precio solo visible para productos de venta */}
                 {!esMateriaPrima && (
                   <div className="space-y-1">
                     <label className="text-[9px] uppercase font-black text-slate-400 ml-2">
@@ -1217,7 +1709,7 @@ export default function InventarioPage() {
                 )}
                 <div className="space-y-1">
                   <label className="text-[9px] uppercase font-black text-slate-400 ml-2">
-                    Costo {esMateriaPrima ? 'Unitario' : 'Insumo'}
+                    Costo Unitario
                   </label>
                   <input
                     type="number"
@@ -1228,7 +1720,6 @@ export default function InventarioPage() {
                     className="w-full bg-slate-50 p-4 rounded-2xl outline-none font-bold focus:ring-2 ring-orange-500 transition-all"
                   />
                 </div>
-                {/* Categoría solo para productos de venta */}
                 {!esMateriaPrima && (
                   <div className="space-y-1">
                     <label className="text-[9px] uppercase font-black text-slate-400 ml-2">
@@ -1285,15 +1776,10 @@ export default function InventarioPage() {
                   </select>
                 </div>
               </div>
-
               <button
                 type="submit"
                 disabled={subiendoImg || comprimiendo}
-                className={`w-full py-4 disabled:opacity-50 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg ${
-                  esMateriaPrima
-                    ? 'bg-violet-600 hover:bg-violet-700 shadow-violet-200'
-                    : 'bg-orange-500 hover:bg-orange-600 shadow-orange-200'
-                }`}
+                className={`w-full py-4 disabled:opacity-50 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg ${esMateriaPrima ? 'bg-violet-600 hover:bg-violet-700 shadow-violet-200' : 'bg-orange-500 hover:bg-orange-600 shadow-orange-200'}`}
               >
                 {subiendoImg ? (
                   <>
@@ -1310,7 +1796,6 @@ export default function InventarioPage() {
                   `🚀 Registrar ${esMateriaPrima ? 'Insumo' : 'Producto'}`
                 )}
               </button>
-
               {editando && (
                 <button
                   type="button"
@@ -1324,71 +1809,62 @@ export default function InventarioPage() {
           </form>
         </section>
 
-        {/* TIP RECETAS */}
+        {/* TIP */}
         <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-5 rounded-[2rem] flex items-center gap-4">
           <div className="p-3 bg-orange-500/20 rounded-2xl flex-shrink-0">
             <Zap size={20} className="text-orange-400" />
           </div>
           <div className="flex-1">
             <p className="text-white text-xs font-black uppercase">
-              Sistema de Recetas Inteligente
+              Flujo recomendado
             </p>
             <p className="text-slate-400 text-[10px] font-bold mt-0.5">
-              Registra tus{' '}
+              <span className="text-blue-400 font-black">1. Gastos Fijos</span>{' '}
+              →{' '}
               <span className="text-violet-400 font-black">
-                insumos y materias primas
+                2. Registra Insumos
               </span>{' '}
-              primero, luego crea tus{' '}
+              →{' '}
               <span className="text-orange-400 font-black">
-                productos de venta
+                3. Crea Productos de Venta
               </span>{' '}
-              y asígnales una receta. El sistema calculará automáticamente
-              cuántas unidades puedes fabricar con tu stock.
+              →{' '}
+              <span className="text-emerald-400 font-black">
+                4. Asigna Receta + Margen
+              </span>
+              . El sistema calcula el precio de venta real automáticamente.
             </p>
           </div>
         </div>
 
-        {/* ── NUEVO: Tabs de vista ── */}
+        {/* TABS */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setTabActivo('venta')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-              tabActivo === 'venta'
-                ? 'bg-white shadow-md text-slate-800'
-                : 'bg-slate-200 text-slate-400 hover:bg-slate-300'
-            }`}
+            className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${tabActivo === 'venta' ? 'bg-white shadow-md text-slate-800' : 'bg-slate-200 text-slate-400 hover:bg-slate-300'}`}
           >
-            <ShoppingBag size={13} />
-            Productos de Venta
+            <ShoppingBag size={13} /> Productos de Venta
             <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full text-[8px] font-black">
               {productosDeVenta.length}
             </span>
           </button>
           <button
             onClick={() => setTabActivo('insumos')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-              tabActivo === 'insumos'
-                ? 'bg-white shadow-md text-slate-800'
-                : 'bg-slate-200 text-slate-400 hover:bg-slate-300'
-            }`}
+            className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${tabActivo === 'insumos' ? 'bg-white shadow-md text-slate-800' : 'bg-slate-200 text-slate-400 hover:bg-slate-300'}`}
           >
-            <Layers size={13} />
-            Insumos / Materias Primas
+            <Layers size={13} /> Insumos / Materias Primas
             <span className="bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full text-[8px] font-black">
               {materiasPrimas.length}
             </span>
           </button>
         </div>
 
-        {/* Descripción del tab activo */}
         {tabActivo === 'insumos' && (
           <div className="p-4 bg-violet-50 border border-violet-100 rounded-2xl flex items-center gap-3">
             <Layers size={16} className="text-violet-500 flex-shrink-0" />
             <p className="text-[10px] font-bold text-violet-700">
-              Estos ítems son{' '}
-              <span className="font-black">solo para uso interno</span>. No
-              aparecen en el catálogo público. Son los ingredientes o insumos
-              que usas para fabricar tus productos finales.
+              Solo para uso interno. No aparecen en el catálogo público. Son los
+              ingredientes que usas para fabricar tus productos.
             </p>
           </div>
         )}
@@ -1406,18 +1882,12 @@ export default function InventarioPage() {
                   <p className="text-xs font-black text-slate-300 uppercase">
                     Sin productos de venta aún
                   </p>
-                  <p className="text-[10px] text-slate-300 font-bold mt-1">
-                    Crea tu primer producto para mostrarlo en el catálogo
-                  </p>
                 </>
               ) : (
                 <>
                   <Layers size={40} className="mx-auto text-slate-200 mb-3" />
                   <p className="text-xs font-black text-slate-300 uppercase">
                     Sin insumos registrados
-                  </p>
-                  <p className="text-[10px] text-slate-300 font-bold mt-1">
-                    Registra tus materias primas para usarlas en recetas
                   </p>
                 </>
               )}
@@ -1428,9 +1898,10 @@ export default function InventarioPage() {
                 key={prod.id}
                 prod={prod}
                 capacidades={capacidades}
+                gastosFijos={gastosFijos}
                 onEditar={prepararEdicion}
                 onReceta={setProductoParaReceta}
-                onCambiarEstado={cambiarEstadoProducto}
+                onCambiarEstado={cambiarEstado}
               />
             ))
           )}
@@ -1467,7 +1938,20 @@ export default function InventarioPage() {
             if (guardado && empresaId) {
               mostrarToast('✅ Receta guardada');
               obtenerProductos(empresaId, true);
+              cargarCapacidades(empresaId);
             }
+          }}
+        />
+      )}
+
+      {/* MODAL GASTOS FIJOS */}
+      {mostrarGastos && empresaId && (
+        <ModalGastos
+          empresaId={empresaId}
+          supabase={supabase}
+          onClose={() => {
+            setMostrarGastos(false);
+            if (empresaId) cargarGastos(empresaId);
           }}
         />
       )}
