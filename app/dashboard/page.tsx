@@ -810,11 +810,17 @@ export default function InventarioPage() {
   // ── Productos ──────────────────────────────────────────────────────────
   const obtenerProductos = useCallback(
     async (idEmpresa: string, reiniciar = false) => {
-      // Si estamos cargando o no hay más (y no es reinicio), cancelamos
-      if (cargandoMas || (!reiniciar && !tieneMas)) return;
+      // Si no es reinicio y ya estamos cargando o no hay más, frenamos.
+      // Pero si es REINICIO (carga inicial), ignoramos estas trabas para asegurar la carga.
+      if (!reiniciar && (cargandoMas || !tieneMas)) return;
 
       const paginaActual = reiniciar ? 0 : paginaRef.current;
-      if (!reiniciar) setCargandoMas(true);
+
+      if (reiniciar) {
+        // No ponemos cargandoMas en true aquí para evitar bloqueos de renderizado
+      } else {
+        setCargandoMas(true);
+      }
 
       const desde = paginaActual * ITEMS_POR_PAGINA;
       const hasta = desde + ITEMS_POR_PAGINA - 1;
@@ -822,7 +828,7 @@ export default function InventarioPage() {
       try {
         const { data, error } = await supabase
           .from('productos')
-          .select(`*, categorias(nombre)`)
+          .select(`*`)
           .eq('empresa_id', idEmpresa)
           .order('activo', { ascending: false })
           .order('created_at', { ascending: false })
@@ -838,14 +844,14 @@ export default function InventarioPage() {
             setProductos((prev) => [...prev, ...(data as Producto[])]);
             paginaRef.current = paginaActual + 1;
           }
-          // Si trajo menos de los solicitados, es que ya no hay más en la DB
+          // Si trae menos de 12, ya sabemos que no hay más para la próxima
           setTieneMas(data.length === ITEMS_POR_PAGINA);
         }
       } catch (err) {
-        console.error('Error cargando productos:', err);
+        console.error('Error en carga:', err);
       } finally {
         setCargandoMas(false);
-        setCargando(false); // Quitamos el loader principal aquí
+        setCargando(false);
       }
     },
     [supabase, cargandoMas, tieneMas],
@@ -856,6 +862,7 @@ export default function InventarioPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
       if (user) {
         const { data: perfil } = await supabase
           .from('perfiles')
@@ -863,24 +870,23 @@ export default function InventarioPage() {
           .eq('id', user.id)
           .single();
 
-        if (perfil) {
+        if (perfil && perfil.empresa_id) {
           setEmpresaId(perfil.empresa_id);
           setNombreEmpresa((perfil.empresas as any)?.nombre || 'Mi Empresa');
+
+          // EJECUCIÓN INMEDIATA: Usamos el ID directamente del perfil
           await obtenerProductos(perfil.empresa_id, true);
-
-          const { data: cats } = await supabase
-            .from('categorias')
-            .select('*')
-            .eq('empresa_id', perfil.empresa_id)
-            .order('nombre');
-          setCategorias((cats as Categoria[]) || []);
+        } else {
+          setCargando(false);
         }
+      } else {
+        setCargando(false);
       }
-      setCargando(false);
     };
-    iniciar();
-  }, [obtenerProductos, supabase]);
 
+    iniciar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Solo se ejecuta una vez al montar el componente
   // ── Imagen ─────────────────────────────────────────────────────────────
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
