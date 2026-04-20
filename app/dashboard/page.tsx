@@ -508,20 +508,21 @@ function ModalReceta({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
-      <div className="bg-white rounded-[2.5rem] w-full max-w-4xl shadow-2xl flex flex-col overflow-hidden max-h-[95vh]">
-        {/* Header */}
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-900 to-slate-800 text-white">
+    <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[99999] flex items-end md:items-center justify-center p-0 md:p-4">
+      {/* Contenedor: Ajustado para ocupar casi todo el alto en móvil (92vh) */}
+      <div className="bg-white rounded-t-[2.5rem] md:rounded-[2.5rem] w-full max-w-4xl h-[92vh] md:h-auto md:max-h-[95vh] shadow-2xl flex flex-col overflow-hidden">
+        {/* 1. Header (Estatura fija) */}
+        <div className="p-5 md:p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-slate-900 to-slate-800 text-white flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-500 rounded-xl">
+            <div className="p-2 bg-orange-500 rounded-xl hidden sm:block">
               <ChefHat size={20} />
             </div>
             <div>
-              <h2 className="font-black text-lg uppercase tracking-tight">
+              <h2 className="font-black text-sm md:text-lg uppercase tracking-tight truncate max-w-[200px] md:max-w-none">
                 Receta: {producto?.nombre}
               </h2>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                Costo real = insumos + gastos fijos proporcionales
+              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
+                Costeo Proporcional
               </p>
             </div>
           </div>
@@ -533,274 +534,122 @@ function ModalReceta({
           </button>
         </div>
 
-        {/* ── Panel de configuración: unidades/mes y margen ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-0 border-b border-slate-100">
-          {/* Unidades estimadas / mes */}
-          <div className="p-4 border-r border-slate-100">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
-              Unidades / Mes (estimado)
-            </p>
-            <input
-              type="number"
-              min="1"
-              value={unidadesMes}
-              onChange={(e) => setUnidadesMes(parseInt(e.target.value) || 1)}
-              className="w-full bg-slate-100 border-2 border-transparent p-2 rounded-xl text-center font-black text-sm focus:border-orange-500 outline-none"
-            />
-            <p className="text-[8px] text-slate-400 font-bold mt-1 text-center">
-              Para distribuir gastos fijos
-            </p>
-          </div>
-
-          {/* Costo insumos */}
-          <div className="p-4 text-center border-r border-slate-100">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-              Costo Insumos
-            </p>
-            <p className="text-xl font-black text-slate-700">
-              ${costoInsumos.toFixed(2)}
-            </p>
-            <p className="text-[8px] text-slate-400 font-bold">Ingredientes</p>
-          </div>
-
-          {/* Costo fijo unitario */}
-          <div className="p-4 text-center border-r border-slate-100">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-              Gastos Fijos / Ud
-            </p>
-            <p className="text-xl font-black text-blue-600">
-              ${costoFijoUnitario.toFixed(2)}
-            </p>
-            <p className="text-[8px] text-slate-400 font-bold">
-              ${totalGastosMes.toFixed(0)} ÷ {unidadesMes} uds
-            </p>
-          </div>
-
-          {/* Costo REAL */}
-          <div className="p-4 text-center bg-slate-900">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-              Costo Real / Ud
-            </p>
-            <p className="text-xl font-black text-white">
-              ${costoReal.toFixed(2)}
-            </p>
-            <p className="text-[8px] text-slate-500 font-bold">
-              insumos + fijos
-            </p>
-          </div>
-        </div>
-
-        {/* ── Calculadora de Precio con Margen ── */}
-        <div className="p-5 border-b border-slate-100 bg-gradient-to-r from-orange-50 to-amber-50">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
-                Margen Objetivo
+        {/* 2. Paneles de Configuración (Scrollable solo si es necesario, pero mantenemos fuera del principal) */}
+        <div className="overflow-y-auto max-h-[35vh] md:max-h-none flex-shrink-0 border-b border-slate-100">
+          {/* Panel Unidades/Costos */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-0 border-b border-slate-50">
+            <div className="p-3 border-r border-slate-100">
+              <p className="text-[8px] font-black text-slate-400 uppercase mb-1">
+                Uds/Mes
               </p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="range"
-                  min="1"
-                  max="90"
-                  step="1"
-                  value={margenObj}
-                  onChange={(e) => setMargenObj(Number(e.target.value))}
-                  className="w-32 accent-orange-500"
-                />
-                <input
-                  type="number"
-                  min="1"
-                  max="90"
-                  value={margenObj}
-                  onChange={(e) =>
-                    setMargenObj(
-                      Math.min(90, Math.max(1, Number(e.target.value))),
-                    )
-                  }
-                  className="w-16 bg-white border-2 border-orange-200 p-2 rounded-xl text-center font-black text-sm focus:border-orange-500 outline-none"
-                />
-                <span className="font-black text-orange-500">%</span>
-              </div>
+              <input
+                type="number"
+                value={unidadesMes}
+                onChange={(e) => setUnidadesMes(parseInt(e.target.value) || 1)}
+                className="w-full bg-slate-100 p-2 rounded-lg text-center font-black text-sm outline-none focus:ring-2 ring-orange-500"
+              />
             </div>
+            <div className="p-3 border-r border-slate-100 text-center">
+              <p className="text-[8px] font-black text-slate-400 uppercase mb-1">
+                Insumos
+              </p>
+              <p className="text-sm font-black text-slate-700">
+                ${costoInsumos.toFixed(2)}
+              </p>
+            </div>
+            <div className="p-3 border-r border-slate-100 text-center">
+              <p className="text-[8px] font-black text-slate-400 uppercase mb-1">
+                Fijos/Ud
+              </p>
+              <p className="text-sm font-black text-blue-600">
+                ${costoFijoUnitario.toFixed(2)}
+              </p>
+            </div>
+            <div className="p-3 bg-slate-900 text-center">
+              <p className="text-[8px] font-black text-slate-500 uppercase mb-1">
+                Costo Real
+              </p>
+              <p className="text-sm font-black text-white">
+                ${costoReal.toFixed(2)}
+              </p>
+            </div>
+          </div>
 
-            <div className="flex items-center gap-6">
-              <div className="text-center">
-                <p className="text-[9px] font-black text-slate-400 uppercase">
-                  Precio Sugerido
+          {/* Panel Margen */}
+          <div className="p-4 bg-orange-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <span className="text-[9px] font-black uppercase text-slate-500">
+                Margen:
+              </span>
+              <input
+                type="range"
+                min="1"
+                max="90"
+                value={margenObj}
+                onChange={(e) => setMargenObj(Number(e.target.value))}
+                className="flex-1 sm:w-24 accent-orange-500"
+              />
+              <span className="font-black text-orange-600 text-sm">
+                {margenObj}%
+              </span>
+            </div>
+            <div className="flex gap-4 text-center">
+              <div>
+                <p className="text-[8px] font-black text-slate-400 uppercase">
+                  Sugerido
                 </p>
-                <p className="text-2xl font-black text-orange-500">
+                <p className="text-sm font-black text-orange-500">
                   ${precioSugerido.toFixed(2)}
                 </p>
-                <p className="text-[8px] text-slate-400 font-bold">
-                  Con {margenObj}% de margen
-                </p>
               </div>
-              <div className="text-center">
-                <p className="text-[9px] font-black text-slate-400 uppercase">
-                  Precio Actual
+              <div>
+                <p className="text-[8px] font-black text-slate-400 uppercase">
+                  Actual
                 </p>
-                <p className={`text-2xl font-black ${colorMargen(margenReal)}`}>
+                <p className={`text-sm font-black ${colorMargen(margenReal)}`}>
                   ${Number(producto?.precio).toFixed(2)}
                 </p>
-                <p
-                  className={`text-[8px] font-black ${colorMargen(margenReal)}`}
-                >
-                  {margenReal.toFixed(1)}% margen real
-                </p>
-              </div>
-              <div className="text-center">
-                <p className="text-[9px] font-black text-slate-400 uppercase">
-                  Fabricables
-                </p>
-                <p
-                  className={`text-2xl font-black ${fabMax === 0 ? 'text-red-500' : fabMax < 5 ? 'text-amber-500' : 'text-emerald-500'}`}
-                >
-                  {fabMax === Infinity ? '∞' : fabMax}
-                </p>
-                <p className="text-[8px] text-slate-400 font-bold">unidades</p>
               </div>
             </div>
           </div>
-
-          {/* Detalle desglose costos */}
-          <button
-            onClick={() => setMostrarDetalleCostos((v) => !v)}
-            className="mt-3 flex items-center gap-1 text-[9px] font-black text-slate-400 hover:text-orange-500 uppercase tracking-widest transition-colors"
-          >
-            {mostrarDetalleCostos ? (
-              <ChevronUp size={12} />
-            ) : (
-              <ChevronDown size={12} />
-            )}
-            Ver desglose completo de costos
-          </button>
-
-          {mostrarDetalleCostos && (
-            <div className="mt-3 grid grid-cols-3 gap-3 text-center p-3 bg-white rounded-2xl border border-orange-100">
-              <div>
-                <p className="text-[8px] font-black text-slate-400 uppercase">
-                  Insumos
-                </p>
-                <p className="font-black text-slate-700">
-                  ${costoInsumos.toFixed(2)}
-                </p>
-                <p className="text-[8px] text-slate-400">
-                  {costoReal > 0
-                    ? ((costoInsumos / costoReal) * 100).toFixed(0)
-                    : 0}
-                  % del costo
-                </p>
-              </div>
-              <div>
-                <p className="text-[8px] font-black text-slate-400 uppercase">
-                  Gastos Fijos
-                </p>
-                <p className="font-black text-blue-600">
-                  ${costoFijoUnitario.toFixed(2)}
-                </p>
-                <p className="text-[8px] text-slate-400">
-                  {costoReal > 0
-                    ? ((costoFijoUnitario / costoReal) * 100).toFixed(0)
-                    : 0}
-                  % del costo
-                </p>
-              </div>
-              <div>
-                <p className="text-[8px] font-black text-slate-400 uppercase">
-                  Ganancia x Ud
-                </p>
-                <p
-                  className={`font-black ${Number(producto?.precio) - costoReal > 0 ? 'text-emerald-600' : 'text-red-500'}`}
-                >
-                  ${(Number(producto?.precio) - costoReal).toFixed(2)}
-                </p>
-                <p className="text-[8px] text-slate-400">con precio actual</p>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Alerta limitante */}
-        {!cargandoReceta && limitante && fabMax < 10 && (
-          <div className="mx-6 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3">
-            <AlertTriangle size={16} className="text-amber-500 flex-shrink-0" />
-            <p className="text-xs font-bold text-amber-700">
-              <span className="font-black">Insumo limitante:</span>{' '}
-              <span className="text-amber-600">{limitante.nombre}</span>
-              {' — '}
-              {stockEnReceta(limitante).toFixed(1)}{' '}
-              {limitante.unidadReceta.toLowerCase()} disponibles.
-              {fabMax === 0 && ' ¡Stock agotado!'}
-            </p>
-          </div>
-        )}
-
-        {/* Buscador insumos */}
-        <div className="p-6 pb-2 space-y-2">
-          <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-            Agregar Insumo a la Receta
-          </label>
+        {/* 3. Buscador (Fijo) */}
+        <div className="p-4 bg-white border-b border-slate-100 flex-shrink-0">
           <div className="relative">
             <input
               type="text"
-              placeholder="Buscar insumo o materia prima..."
+              placeholder="AGREGAR INSUMO..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              className="w-full bg-slate-100 border-2 border-transparent p-4 rounded-2xl outline-none focus:border-orange-500 font-bold text-sm transition-all"
+              className="w-full bg-slate-100 p-3 rounded-xl outline-none focus:ring-2 ring-orange-500 font-bold text-xs"
             />
             {busqueda && (
-              <div className="absolute left-0 right-0 top-full mt-1 bg-white border shadow-2xl rounded-2xl overflow-hidden z-10">
-                {insumosFiltrados.length === 0 ? (
-                  <div className="p-4 text-xs text-slate-400 font-bold text-center">
-                    Sin resultados
-                  </div>
-                ) : (
-                  insumosFiltrados.slice(0, 6).map((p: any) => (
-                    <button
-                      key={p.id}
-                      onClick={() => agregarIngrediente(p)}
-                      className="w-full text-left p-4 hover:bg-orange-50 border-b last:border-0 transition-all"
-                    >
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-black text-xs uppercase text-slate-800">
-                              {p.nombre}
-                            </p>
-                            {p.es_materia_prima && (
-                              <span className="text-[8px] font-black bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full uppercase">
-                                Insumo
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase">
-                            Stock: {p.stock} {p.unidad_medida}
-                          </p>
-                        </div>
-                        <span className="text-[10px] font-black text-orange-500 bg-orange-50 px-3 py-1 rounded-full">
-                          ${p.costo_compra} / {p.unidad_medida}
-                        </span>
-                      </div>
-                    </button>
-                  ))
-                )}
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border shadow-2xl rounded-xl z-[100] max-h-40 overflow-y-auto">
+                {insumosFiltrados.slice(0, 5).map((p: any) => (
+                  <button
+                    key={p.id}
+                    onClick={() => agregarIngrediente(p)}
+                    className="w-full text-left p-3 hover:bg-orange-50 border-b text-xs font-bold flex justify-between"
+                  >
+                    <span>{p.nombre}</span>
+                    <span className="text-orange-500">${p.costo_compra}</span>
+                  </button>
+                ))}
               </div>
             )}
           </div>
         </div>
 
-        {/* Lista ingredientes */}
-        <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-2 min-h-0">
+        {/* 4. Lista de Ingredientes (EL ÁREA DE SCROLL PRINCIPAL) */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 bg-slate-50/50">
           {cargandoReceta ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="animate-spin text-orange-500" size={24} />
+            <div className="flex justify-center py-10">
+              <Loader2 className="animate-spin text-orange-500" />
             </div>
           ) : ingredientes.length === 0 ? (
-            <div className="text-center py-6">
-              <FlaskConical size={36} className="mx-auto text-slate-200 mb-3" />
-              <p className="text-xs font-black text-slate-300 uppercase">
-                Sin ingredientes aún
-              </p>
+            <div className="text-center py-10 opacity-20 font-black uppercase text-[10px]">
+              No hay ingredientes
             </div>
           ) : (
             ingredientes.map((ing) => {
@@ -813,35 +662,34 @@ function ModalReceta({
               return (
                 <div
                   key={ing.id}
-                  className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${esLim && fabMax < 10 ? 'border-amber-200 bg-amber-50' : 'border-slate-100 bg-slate-50'}`}
+                  className={`p-3 rounded-2xl border bg-white shadow-sm flex flex-col gap-3 ${esLim ? 'border-amber-200' : 'border-slate-100'}`}
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-black text-xs text-slate-700 uppercase truncate">
+                  <div className="flex justify-between items-start">
+                    <div className="min-w-0">
+                      <p className="font-black text-[11px] text-slate-700 uppercase truncate">
                         {ing.nombre}
                       </p>
-                      {esLim && fabMax < 10 && (
-                        <span className="text-[8px] font-black bg-amber-400 text-white px-2 py-0.5 rounded-full uppercase flex-shrink-0">
-                          Limitante
-                        </span>
-                      )}
+                      <p className="text-[9px] text-slate-400 font-bold">
+                        Stock: {sRec.toFixed(1)} {ing.unidadReceta}
+                      </p>
                     </div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">
-                      Stock: {ing.stockDisponible} {ing.unidadBase} →{' '}
-                      {sRec.toFixed(1)} {ing.unidadReceta}
-                    </p>
+                    <button
+                      onClick={() =>
+                        setIngredientes(
+                          ingredientes.filter((i) => i.id !== ing.id),
+                        )
+                      }
+                      className="text-slate-300 hover:text-red-500"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <div className="text-center">
-                      <label className="text-[8px] font-black text-slate-400 uppercase block mb-1">
-                        Cantidad
-                      </label>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
                       <input
                         type="number"
                         value={ing.cantidad}
-                        min="0"
-                        step="0.01"
                         onChange={(e) =>
                           setIngredientes(
                             ingredientes.map((i) =>
@@ -854,13 +702,8 @@ function ModalReceta({
                             ),
                           )
                         }
-                        className="w-20 bg-white border-2 border-slate-200 p-2 rounded-xl text-center font-black text-sm focus:border-orange-500 outline-none"
+                        className="w-16 bg-slate-50 border p-1.5 rounded-lg text-center font-black text-xs"
                       />
-                    </div>
-                    <div className="text-center">
-                      <label className="text-[8px] font-black text-slate-400 uppercase block mb-1">
-                        Unidad
-                      </label>
                       <select
                         value={ing.unidadReceta}
                         onChange={(e) =>
@@ -872,7 +715,7 @@ function ModalReceta({
                             ),
                           )
                         }
-                        className="bg-white border-2 border-slate-200 p-2 rounded-xl text-[10px] font-black uppercase focus:border-orange-500 outline-none"
+                        className="bg-slate-50 border p-1.5 rounded-lg text-[9px] font-black uppercase"
                       >
                         <option value={ing.unidadBase}>{ing.unidadBase}</option>
                         {ing.unidadBase === 'KILOS' && (
@@ -883,66 +726,30 @@ function ModalReceta({
                         )}
                       </select>
                     </div>
+                    <div className="text-right">
+                      <p className="text-xs font-black text-slate-800">
+                        ${cIng.toFixed(2)}
+                      </p>
+                    </div>
                   </div>
-
-                  <div className="text-right w-20 flex-shrink-0">
-                    <p className="text-[8px] font-black text-slate-400 uppercase">
-                      Costo
-                    </p>
-                    <p className="text-sm font-black text-slate-700">
-                      ${cIng.toFixed(2)}
-                    </p>
-                    <p className="text-[8px] text-slate-400 font-bold">
-                      {uEste === Infinity ? '∞' : uEste} uds
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() =>
-                      setIngredientes(
-                        ingredientes.filter((i) => i.id !== ing.id),
-                      )
-                    }
-                    className="text-slate-300 hover:text-red-500 transition-colors p-1 flex-shrink-0"
-                  >
-                    <Trash2 size={16} />
-                  </button>
                 </div>
               );
             })
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-6 bg-slate-900 text-white flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex gap-4 flex-wrap">
-            <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                Costo Insumos
+        {/* 5. Footer (Fijo) */}
+        <div className="p-4 md:p-6 bg-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-4 flex-shrink-0">
+          <div className="flex justify-around w-full sm:w-auto sm:gap-6">
+            <div className="text-center">
+              <p className="text-[8px] text-slate-400 font-black uppercase">
+                Costo Total
               </p>
-              <p className="text-lg font-black text-slate-300">
-                ${costoInsumos.toFixed(2)}
-              </p>
+              <p className="text-lg font-black">${costoReal.toFixed(2)}</p>
             </div>
-            <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                + Gastos Fijos
-              </p>
-              <p className="text-lg font-black text-blue-400">
-                ${costoFijoUnitario.toFixed(2)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                = Costo Real
-              </p>
-              <p className="text-lg font-black text-white">
-                ${costoReal.toFixed(2)}
-              </p>
-            </div>
-            <div className="border-l border-slate-700 pl-4">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                Precio Sugerido ({margenObj}%)
+            <div className="text-center">
+              <p className="text-[8px] text-slate-400 font-black uppercase">
+                Precio Sug.
               </p>
               <p className="text-lg font-black text-orange-400">
                 ${precioSugerido.toFixed(2)}
@@ -952,7 +759,7 @@ function ModalReceta({
           <button
             onClick={guardarReceta}
             disabled={cargando}
-            className="bg-orange-500 hover:bg-orange-600 px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center gap-2 transition-all disabled:opacity-50"
+            className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 px-8 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2"
           >
             {cargando ? (
               <Loader2 className="animate-spin" size={16} />
