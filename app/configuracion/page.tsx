@@ -17,6 +17,8 @@ import {
   CheckCircle2,
   FileText,
   Printer,
+  ChefHat,
+  Building2 as GastosIcon,
 } from 'lucide-react';
 
 export default function PerfilEmpresa() {
@@ -34,8 +36,10 @@ export default function PerfilEmpresa() {
     mostrar_bcv: true,
     permitir_ventas_sin_stock: false,
     moneda_secundaria: 'BS',
-    // NUEVO: modo de operación del negocio
     modo_operacion: 'completo' as 'completo' | 'ticketera',
+    // ── Módulos opcionales ──
+    modulo_recetas: false, // ¿El negocio fabrica productos con receta?
+    modulo_gastos_fijos: true, // ¿Quiere distribuir gastos fijos entre productos?
   });
 
   useEffect(() => {
@@ -43,7 +47,6 @@ export default function PerfilEmpresa() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
       if (user) {
         const { data: perfil } = await supabase
           .from('perfiles')
@@ -52,19 +55,19 @@ export default function PerfilEmpresa() {
           .single();
 
         if (perfil?.empresas) {
-          const datosDB = Array.isArray(perfil.empresas)
+          const db = Array.isArray(perfil.empresas)
             ? perfil.empresas[0]
             : perfil.empresas;
-
-          if (datosDB) {
-            setEmpresa(datosDB);
+          if (db) {
+            setEmpresa(db);
             setConfigGlobal({
-              notificaciones_stock: datosDB.notificaciones_stock ?? true,
-              mostrar_bcv: datosDB.mostrar_bcv ?? true,
-              permitir_ventas_sin_stock:
-                datosDB.permitir_ventas_sin_stock ?? false,
-              moneda_secundaria: datosDB.moneda_secundaria || 'BS',
-              modo_operacion: datosDB.modo_operacion || 'completo',
+              notificaciones_stock: db.notificaciones_stock ?? true,
+              mostrar_bcv: db.mostrar_bcv ?? true,
+              permitir_ventas_sin_stock: db.permitir_ventas_sin_stock ?? false,
+              moneda_secundaria: db.moneda_secundaria || 'BS',
+              modo_operacion: db.modo_operacion || 'completo',
+              modulo_recetas: db.modulo_recetas ?? false,
+              modulo_gastos_fijos: db.modulo_gastos_fijos ?? true,
             });
           }
         }
@@ -77,28 +80,21 @@ export default function PerfilEmpresa() {
   const subirLogo = async (file: File, empresaId: string) => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${empresaId}-${Math.random()}.${fileExt}`;
-    const { error: uploadError } = await supabase.storage
+    const { error } = await supabase.storage
       .from('logos')
       .upload(fileName, file);
-    if (uploadError) throw uploadError;
-    const { data } = supabase.storage.from('logos').getPublicUrl(fileName);
-    return data.publicUrl;
+    if (error) throw error;
+    return supabase.storage.from('logos').getPublicUrl(fileName).data.publicUrl;
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubiendo(true);
-
     try {
-      let telefonoFormateado = empresa.telefono || '';
-      if (telefonoFormateado) {
-        if (telefonoFormateado.startsWith('0'))
-          telefonoFormateado = telefonoFormateado.substring(1);
-        if (!telefonoFormateado.startsWith('58'))
-          telefonoFormateado = '58' + telefonoFormateado;
-      }
+      let tel = empresa.telefono || '';
+      if (tel.startsWith('0')) tel = tel.substring(1);
+      if (!tel.startsWith('58')) tel = '58' + tel;
 
-      const rifLimpio = empresa.rif?.trim().toUpperCase() || '';
       let finalLogoUrl = empresa.logo_url;
       if (file) finalLogoUrl = await subirLogo(file, empresa.id);
 
@@ -106,27 +102,27 @@ export default function PerfilEmpresa() {
         .from('empresas')
         .update({
           nombre: empresa.nombre,
-          rif: rifLimpio,
-          telefono: telefonoFormateado,
+          rif: empresa.rif?.trim().toUpperCase() || '',
+          telefono: tel,
           direccion: empresa.direccion,
           logo_url: finalLogoUrl,
           notificaciones_stock: configGlobal.notificaciones_stock,
           moneda_secundaria: configGlobal.moneda_secundaria,
-          // NUEVO: guardamos el modo de operación
           modo_operacion: configGlobal.modo_operacion,
+          modulo_recetas: configGlobal.modulo_recetas,
+          modulo_gastos_fijos: configGlobal.modulo_gastos_fijos,
           configuracion_inicial: true,
         })
         .eq('id', empresa.id);
 
       if (error) throw error;
-
       setExito(true);
       setTimeout(() => {
         router.push('/');
         router.refresh();
       }, 2000);
-    } catch (error: any) {
-      alert('Error: ' + error.message);
+    } catch (err: any) {
+      alert('Error: ' + err.message);
     } finally {
       setSubiendo(false);
     }
@@ -135,14 +131,26 @@ export default function PerfilEmpresa() {
   if (loading)
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="animate-spin text-blue-600" size={40} />
-          <p className="font-black text-slate-400 uppercase tracking-widest text-xs">
-            Cargando Configuración...
-          </p>
-        </div>
+        <Loader2 className="animate-spin text-blue-600" size={40} />
       </div>
     );
+
+  // Helper para el toggle visual
+  const Toggle = ({
+    value,
+    onChange,
+  }: {
+    value: boolean;
+    onChange: () => void;
+  }) => (
+    <button
+      type="button"
+      onClick={onChange}
+      className={`transition-all ${value ? 'text-orange-500' : 'text-slate-300'}`}
+    >
+      {value ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+    </button>
+  );
 
   return (
     <main className="min-h-screen bg-slate-50 p-4 md:p-8">
@@ -156,37 +164,35 @@ export default function PerfilEmpresa() {
           </p>
         </header>
 
-        {exito ? (
-          <div className="bg-emerald-500 text-white p-6 rounded-[2rem] mb-8 flex items-center justify-between shadow-lg animate-in zoom-in-95 duration-300">
+        {exito && (
+          <div className="bg-emerald-500 text-white p-6 rounded-[2rem] mb-8 flex items-center justify-between shadow-lg">
             <div className="flex items-center gap-4">
               <CheckCircle2 size={32} />
               <div>
-                <h3 className="font-black uppercase text-sm leading-none">
+                <h3 className="font-black uppercase text-sm">
                   ¡Configuración Guardada!
                 </h3>
-                <p className="text-xs opacity-90 font-bold">
-                  Redirigiendo al inventario...
-                </p>
+                <p className="text-xs opacity-90 font-bold">Redirigiendo...</p>
               </div>
             </div>
             <Loader2 className="animate-spin opacity-50" size={20} />
           </div>
-        ) : (
-          (!empresa?.nombre || !empresa?.rif) && (
-            <div className="bg-orange-500 text-white p-6 rounded-[2rem] mb-8 flex items-center gap-4 shadow-lg animate-in slide-in-from-top-4">
-              <div className="bg-white/20 p-3 rounded-2xl">
-                <Info size={24} />
-              </div>
-              <div>
-                <h3 className="font-black uppercase text-sm tracking-tighter">
-                  Paso 1: Configura tu negocio
-                </h3>
-                <p className="text-xs opacity-90 font-bold">
-                  Completa el nombre y RIF para empezar a usar Ventiq.
-                </p>
-              </div>
+        )}
+
+        {!exito && !empresa?.nombre && (
+          <div className="bg-orange-500 text-white p-6 rounded-[2rem] mb-8 flex items-center gap-4 shadow-lg">
+            <div className="bg-white/20 p-3 rounded-2xl">
+              <Info size={24} />
             </div>
-          )
+            <div>
+              <h3 className="font-black uppercase text-sm tracking-tighter">
+                Paso 1: Configura tu negocio
+              </h3>
+              <p className="text-xs opacity-90 font-bold">
+                Completa el nombre y RIF para empezar.
+              </p>
+            </div>
+          </div>
         )}
 
         <form
@@ -195,18 +201,18 @@ export default function PerfilEmpresa() {
         >
           {/* LOGO */}
           <div className="flex flex-col items-center">
-            <div className="relative w-32 h-32 bg-slate-50 rounded-[2.5rem] overflow-hidden border-2 border-dashed border-slate-200 flex items-center justify-center mb-4 transition-all hover:border-blue-400">
+            <div className="relative w-32 h-32 bg-slate-50 rounded-[2.5rem] overflow-hidden border-2 border-dashed border-slate-200 flex items-center justify-center mb-4">
               {file ? (
                 <img
                   src={URL.createObjectURL(file)}
-                  alt="Preview"
                   className="w-full h-full object-contain p-4"
+                  alt="Preview"
                 />
-              ) : empresa.logo_url ? (
+              ) : empresa?.logo_url ? (
                 <img
                   src={empresa.logo_url}
-                  alt="Logo"
                   className="w-full h-full object-contain p-4"
+                  alt="Logo"
                 />
               ) : (
                 <Building2 size={32} className="text-slate-300" />
@@ -214,7 +220,7 @@ export default function PerfilEmpresa() {
             </div>
             <label className="cursor-pointer bg-slate-100 px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2 text-slate-500">
               <Upload size={14} />
-              {empresa.logo_url || file ? 'Cambiar Logo' : 'Subir Logo'}
+              {empresa?.logo_url || file ? 'Cambiar Logo' : 'Subir Logo'}
               <input
                 type="file"
                 className="hidden"
@@ -238,14 +244,13 @@ export default function PerfilEmpresa() {
                 <input
                   required
                   className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold text-sm"
-                  value={empresa.nombre || ''}
+                  value={empresa?.nombre || ''}
                   onChange={(e) =>
                     setEmpresa({ ...empresa, nombre: e.target.value })
                   }
                 />
               </div>
             </div>
-
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
                 RIF / ID Fiscal
@@ -259,7 +264,7 @@ export default function PerfilEmpresa() {
                   required
                   placeholder="Ej: J-12345678-9"
                   className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 ring-blue-500 font-bold text-sm"
-                  value={empresa.rif || ''}
+                  value={empresa?.rif || ''}
                   onChange={(e) =>
                     setEmpresa({
                       ...empresa,
@@ -269,7 +274,6 @@ export default function PerfilEmpresa() {
                 />
               </div>
             </div>
-
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
                 Teléfono
@@ -292,7 +296,6 @@ export default function PerfilEmpresa() {
                 />
               </div>
             </div>
-
             <div className="md:col-span-2 space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
                 Dirección Física
@@ -318,7 +321,6 @@ export default function PerfilEmpresa() {
             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
               <Settings size={14} /> Configuración del Sistema
             </h3>
-
             <div className="grid grid-cols-1 gap-3">
               {/* ── MODO DE OPERACIÓN ── */}
               <div className="p-5 rounded-[2rem] border-2 border-slate-100 bg-slate-50/50">
@@ -326,112 +328,201 @@ export default function PerfilEmpresa() {
                   Modo de Operación
                 </p>
                 <p className="text-[10px] text-slate-500 font-medium mb-4">
-                  ¿Cómo quieres gestionar tus ventas día a día?
+                  ¿Cómo quieres gestionar tus ventas?
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {[
+                    {
+                      value: 'completo',
+                      label: 'Modo Completo',
+                      desc: 'Cotización + Venta Directa. Genera PDF y permite envío por WhatsApp.',
+                      Icon: FileText,
+                      color: 'blue',
+                    },
+                    {
+                      value: 'ticketera',
+                      label: 'Modo Ticketera',
+                      desc: 'Solo Venta Directa. Genera recibo imprimible 80mm para puntos de venta rápidos.',
+                      Icon: Printer,
+                      color: 'orange',
+                    },
+                  ].map(({ value, label, desc, Icon, color }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() =>
+                        setConfigGlobal({
+                          ...configGlobal,
+                          modo_operacion: value as any,
+                        })
+                      }
+                      className={`p-4 rounded-[1.5rem] border-2 text-left transition-all ${
+                        configGlobal.modo_operacion === value
+                          ? color === 'blue'
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-orange-500 bg-orange-50'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${
+                          configGlobal.modo_operacion === value
+                            ? color === 'blue'
+                              ? 'bg-blue-500'
+                              : 'bg-orange-500'
+                            : 'bg-slate-100'
+                        }`}
+                      >
+                        <Icon
+                          size={18}
+                          className={
+                            configGlobal.modo_operacion === value
+                              ? 'text-white'
+                              : 'text-slate-400'
+                          }
+                        />
+                      </div>
+                      <p
+                        className={`text-[11px] font-black uppercase leading-none mb-1 ${
+                          configGlobal.modo_operacion === value
+                            ? color === 'blue'
+                              ? 'text-blue-700'
+                              : 'text-orange-700'
+                            : 'text-slate-600'
+                        }`}
+                      >
+                        {label}
+                      </p>
+                      <p className="text-[9px] text-slate-400 font-medium leading-tight">
+                        {desc}
+                      </p>
+                      {configGlobal.modo_operacion === value && (
+                        <span
+                          className={`mt-2 inline-block text-[8px] font-black text-white px-2 py-0.5 rounded-full uppercase ${color === 'blue' ? 'bg-blue-500' : 'bg-orange-500'}`}
+                        >
+                          ✓ Activo
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── MÓDULOS OPCIONALES ── */}
+              <div className="p-5 rounded-[2rem] border-2 border-slate-100 bg-slate-50/50">
+                <p className="text-[11px] font-black uppercase text-slate-700 leading-none mb-1">
+                  Módulos del Inventario
+                </p>
+                <p className="text-[10px] text-slate-500 font-medium mb-4">
+                  Activa solo las funciones que necesita tu tipo de negocio.
                 </p>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {/* Modo Completo */}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setConfigGlobal({
-                        ...configGlobal,
-                        modo_operacion: 'completo',
-                      })
-                    }
-                    className={`p-4 rounded-[1.5rem] border-2 text-left transition-all ${
-                      configGlobal.modo_operacion === 'completo'
-                        ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-100'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
+                <div className="space-y-3">
+                  {/* Módulo Gastos Fijos */}
+                  <div
+                    className={`p-4 rounded-2xl border-2 flex items-center justify-between gap-4 transition-all ${
+                      configGlobal.modulo_gastos_fijos
+                        ? 'border-blue-100 bg-blue-50/40'
+                        : 'border-slate-100 bg-white'
                     }`}
                   >
-                    <div
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${
-                        configGlobal.modo_operacion === 'completo'
-                          ? 'bg-blue-500'
-                          : 'bg-slate-100'
-                      }`}
-                    >
-                      <FileText
-                        size={18}
-                        className={
-                          configGlobal.modo_operacion === 'completo'
-                            ? 'text-white'
-                            : 'text-slate-400'
-                        }
-                      />
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`p-2 rounded-xl ${configGlobal.modulo_gastos_fijos ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-400'}`}
+                      >
+                        <GastosIcon size={16} />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-black uppercase text-slate-700">
+                          Gastos Fijos
+                        </p>
+                        <p className="text-[9px] text-slate-400 font-medium">
+                          Sueldos, alquiler, servicios… distribuidos entre
+                          productos.
+                          <br />
+                          <span className="text-blue-500 font-black">
+                            Útil para cualquier tipo de negocio.
+                          </span>
+                        </p>
+                      </div>
                     </div>
-                    <p
-                      className={`text-[11px] font-black uppercase leading-none mb-1 ${
-                        configGlobal.modo_operacion === 'completo'
-                          ? 'text-blue-700'
-                          : 'text-slate-600'
-                      }`}
-                    >
-                      Modo Completo
-                    </p>
-                    <p className="text-[9px] text-slate-400 font-medium leading-tight">
-                      Cotización + Venta Directa. Genera PDF y permite envío por
-                      WhatsApp. Ideal para negocios con clientes frecuentes.
-                    </p>
-                    {configGlobal.modo_operacion === 'completo' && (
-                      <span className="mt-2 inline-block text-[8px] font-black bg-blue-500 text-white px-2 py-0.5 rounded-full uppercase">
-                        ✓ Activo
-                      </span>
-                    )}
-                  </button>
+                    <Toggle
+                      value={configGlobal.modulo_gastos_fijos}
+                      onChange={() =>
+                        setConfigGlobal({
+                          ...configGlobal,
+                          modulo_gastos_fijos:
+                            !configGlobal.modulo_gastos_fijos,
+                        })
+                      }
+                    />
+                  </div>
 
-                  {/* Modo Ticketera */}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setConfigGlobal({
-                        ...configGlobal,
-                        modo_operacion: 'ticketera',
-                      })
-                    }
-                    className={`p-4 rounded-[1.5rem] border-2 text-left transition-all ${
-                      configGlobal.modo_operacion === 'ticketera'
-                        ? 'border-orange-500 bg-orange-50 shadow-md shadow-orange-100'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
+                  {/* Módulo Recetas */}
+                  <div
+                    className={`p-4 rounded-2xl border-2 flex items-center justify-between gap-4 transition-all ${
+                      configGlobal.modulo_recetas
+                        ? 'border-emerald-100 bg-emerald-50/40'
+                        : 'border-slate-100 bg-white'
                     }`}
                   >
-                    <div
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${
-                        configGlobal.modo_operacion === 'ticketera'
-                          ? 'bg-orange-500'
-                          : 'bg-slate-100'
-                      }`}
-                    >
-                      <Printer
-                        size={18}
-                        className={
-                          configGlobal.modo_operacion === 'ticketera'
-                            ? 'text-white'
-                            : 'text-slate-400'
-                        }
-                      />
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`p-2 rounded-xl ${configGlobal.modulo_recetas ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}
+                      >
+                        <ChefHat size={16} />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-black uppercase text-slate-700">
+                          Recetas de Producción
+                        </p>
+                        <p className="text-[9px] text-slate-400 font-medium">
+                          Define ingredientes/insumos para fabricar productos.
+                          <br />
+                          <span className="text-emerald-600 font-black">
+                            Para restaurantes, manufactura, costura, etc.
+                          </span>
+                        </p>
+                      </div>
                     </div>
-                    <p
-                      className={`text-[11px] font-black uppercase leading-none mb-1 ${
-                        configGlobal.modo_operacion === 'ticketera'
-                          ? 'text-orange-700'
-                          : 'text-slate-600'
-                      }`}
-                    >
-                      Modo Ticketera
-                    </p>
-                    <p className="text-[9px] text-slate-400 font-medium leading-tight">
-                      Solo Venta Directa. Genera recibo imprimible para
-                      ticketera 80mm. Ideal para tiendas y puntos de venta
-                      rápidos.
-                    </p>
-                    {configGlobal.modo_operacion === 'ticketera' && (
-                      <span className="mt-2 inline-block text-[8px] font-black bg-orange-500 text-white px-2 py-0.5 rounded-full uppercase">
-                        ✓ Activo
-                      </span>
-                    )}
-                  </button>
+                    <Toggle
+                      value={configGlobal.modulo_recetas}
+                      onChange={() =>
+                        setConfigGlobal({
+                          ...configGlobal,
+                          modulo_recetas: !configGlobal.modulo_recetas,
+                        })
+                      }
+                    />
+                  </div>
+
+                  {/* Info contextual */}
+                  {!configGlobal.modulo_recetas && (
+                    <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl">
+                      <p className="text-[9px] text-slate-400 font-bold">
+                        💡{' '}
+                        <span className="font-black text-slate-600">
+                          Sin recetas activas:
+                        </span>{' '}
+                        todos tus productos usarán el campo "Costo Unitario"
+                        directamente como costo de adquisición (ideal para
+                        tiendas de ropa, repuestos, tecnología, etc.).
+                        {configGlobal.modulo_gastos_fijos &&
+                          ' Los gastos fijos se seguirán distribuyendo sobre ese costo.'}
+                      </p>
+                    </div>
+                  )}
+
+                  {configGlobal.modulo_recetas && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                      <p className="text-[9px] text-emerald-700 font-bold">
+                        🍳 <span className="font-black">Recetas activas:</span>{' '}
+                        verás el tab "Insumos / Materias Primas" en el
+                        inventario y el botón de receta en cada producto de
+                        venta para definir sus ingredientes.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -452,38 +543,27 @@ export default function PerfilEmpresa() {
                   </p>
                 </div>
                 <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100 w-full md:w-auto">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setConfigGlobal({
-                        ...configGlobal,
-                        moneda_secundaria: 'BS',
-                      })
-                    }
-                    className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-[10px] font-black transition-all ${
-                      configGlobal.moneda_secundaria === 'BS'
-                        ? 'bg-emerald-500 text-white'
-                        : 'text-slate-400'
-                    }`}
-                  >
-                    BOLÍVARES
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setConfigGlobal({
-                        ...configGlobal,
-                        moneda_secundaria: 'EUR',
-                      })
-                    }
-                    className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-[10px] font-black transition-all ${
-                      configGlobal.moneda_secundaria === 'EUR'
-                        ? 'bg-blue-600 text-white'
-                        : 'text-slate-400'
-                    }`}
-                  >
-                    EUROS
-                  </button>
+                  {['BS', 'EUR'].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() =>
+                        setConfigGlobal({
+                          ...configGlobal,
+                          moneda_secundaria: m,
+                        })
+                      }
+                      className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-[10px] font-black transition-all ${
+                        configGlobal.moneda_secundaria === m
+                          ? m === 'BS'
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-blue-600 text-white'
+                          : 'text-slate-400'
+                      }`}
+                    >
+                      {m === 'BS' ? 'BOLÍVARES' : 'EUROS'}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -503,22 +583,15 @@ export default function PerfilEmpresa() {
                     Resaltar productos con bajo inventario
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
+                <Toggle
+                  value={configGlobal.notificaciones_stock}
+                  onChange={() =>
                     setConfigGlobal({
                       ...configGlobal,
                       notificaciones_stock: !configGlobal.notificaciones_stock,
                     })
                   }
-                  className={`transition-all ${configGlobal.notificaciones_stock ? 'text-orange-500' : 'text-slate-300'}`}
-                >
-                  {configGlobal.notificaciones_stock ? (
-                    <ToggleRight size={36} />
-                  ) : (
-                    <ToggleLeft size={36} />
-                  )}
-                </button>
+                />
               </div>
             </div>
           </div>

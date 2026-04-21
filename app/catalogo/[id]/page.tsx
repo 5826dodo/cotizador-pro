@@ -15,7 +15,6 @@ import {
   Loader2,
 } from 'lucide-react';
 
-// ── Imagen con skeleton ───────────────────────────────────────
 function ImagenConCarga({ url, nombre }: { url: string; nombre: string }) {
   const [cargada, setCargada] = useState(false);
   return (
@@ -29,15 +28,12 @@ function ImagenConCarga({ url, nombre }: { url: string; nombre: string }) {
         loading="lazy"
         decoding="async"
         onLoad={() => setCargada(true)}
-        className={`w-full h-full object-cover transition-all duration-700 ease-in-out ${
-          cargada ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
-        }`}
+        className={`w-full h-full object-cover transition-all duration-700 ${cargada ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
       />
     </div>
   );
 }
 
-// ── Componente principal ──────────────────────────────────────
 export default function CatalogoPublico({
   params,
 }: {
@@ -65,35 +61,31 @@ export default function CatalogoPublico({
   const [cargandoMas, setCargandoMas] = useState(false);
   const ITEMS_POR_PAGINA = 12;
 
-  // Ocultar navbar de la app (esta es una vista pública)
+  // Ocultar navbar de la app
   useEffect(() => {
     const style = document.createElement('style');
     style.id = 'hide-navbar-forced';
-    style.innerHTML = `
-      nav, header, aside, [role="navigation"] { display: none !important; }
-      body { padding-top: 0 !important; }
-    `;
+    style.innerHTML = `nav, header, aside, [role="navigation"] { display: none !important; } body { padding-top: 0 !important; }`;
     document.head.appendChild(style);
     return () => document.getElementById('hide-navbar-forced')?.remove();
   }, []);
 
-  // ── Carga de productos paginados ──────────────────────────
+  // ── Productos paginados — FILTRO CLAVE: es_materia_prima = false ──
   const obtenerProductos = async (idEmpresa: string, reiniciar = false) => {
     try {
       const nuevaPagina = reiniciar ? 0 : pagina;
       if (!reiniciar) setCargandoMas(true);
-
       const desde = nuevaPagina * ITEMS_POR_PAGINA;
-      const hasta = desde + ITEMS_POR_PAGINA - 1;
 
       let query = supabase
         .from('productos')
         .select('*')
         .eq('empresa_id', idEmpresa)
         .eq('activo', true)
+        .eq('es_materia_prima', false) // ← SOLO productos de venta, nunca insumos
         .gt('stock', 0)
         .order('nombre', { ascending: true })
-        .range(desde, hasta);
+        .range(desde, desde + ITEMS_POR_PAGINA - 1);
 
       if (catSeleccionada !== 'todas')
         query = query.eq('categoria_id', catSeleccionada);
@@ -116,7 +108,6 @@ export default function CatalogoPublico({
     }
   };
 
-  // ── Carga inicial ─────────────────────────────────────────
   useEffect(() => {
     const cargarDatosBase = async () => {
       if (!empresaId) return;
@@ -126,7 +117,6 @@ export default function CatalogoPublico({
           .select('*')
           .eq('id', empresaId)
           .single();
-
         setEmpresa(emp);
 
         const monedaConfig = emp?.moneda_secundaria || 'BS';
@@ -136,7 +126,6 @@ export default function CatalogoPublico({
           monedaConfig === 'EUR'
             ? 'https://ve.dolarapi.com/v1/euros/oficial'
             : 'https://ve.dolarapi.com/v1/dolares/oficial';
-
         const res = await fetch(urlTasa);
         const d = await res.json();
         setTasa(d.promedio || 0);
@@ -161,7 +150,7 @@ export default function CatalogoPublico({
   }, [catSeleccionada]);
 
   // ── Carrito ───────────────────────────────────────────────
-  const agregarAlCarrito = (p: any) => {
+  const agregarAlCarrito = (p: any) =>
     setCarrito((prev) => {
       const ex = prev.find((i) => i.id === p.id);
       if (ex)
@@ -170,7 +159,6 @@ export default function CatalogoPublico({
         );
       return [...prev, { ...p, cant: 1 }];
     });
-  };
 
   const eliminarDelCarrito = (id: string) =>
     setCarrito((prev) => prev.filter((i) => i.id !== id));
@@ -179,25 +167,25 @@ export default function CatalogoPublico({
     setCarrito(
       (prev) =>
         prev
-          .map((item) => {
-            if (item.id !== id) return item;
-            if (nuevaCant <= 0) return null;
-            return { ...item, cant: nuevaCant };
-          })
+          .map((item) =>
+            item.id !== id
+              ? item
+              : nuevaCant <= 0
+                ? null
+                : { ...item, cant: nuevaCant },
+          )
           .filter(Boolean) as any[],
     );
 
   const manejarInputCant = (id: string, valor: string) => {
     const num = parseInt(valor);
-    if (!isNaN(num)) {
-      actualizarCant(id, num);
-    } else if (valor === '') {
+    if (!isNaN(num)) actualizarCant(id, num);
+    else if (valor === '')
       setCarrito((prev) =>
         prev.map((item) =>
           item.id === id ? { ...item, cant: '' as any } : item,
         ),
       );
-    }
   };
 
   const validarInputBlur = (id: string, cantActual: any) => {
@@ -207,70 +195,49 @@ export default function CatalogoPublico({
 
   const totalDolar = carrito.reduce((acc, p) => acc + p.precio * p.cant, 0);
 
-  // ── Enviar pedido: WhatsApp + guardar en BD ───────────────
   const enviarPedido = async () => {
     if (!nombreCliente.trim()) {
-      alert('Por favor, ingresa tu nombre para completar el pedido.');
+      alert('Por favor, ingresa tu nombre.');
       return;
     }
-
     const telefonoLimpio = empresa?.telefono?.replace(/\D/g, '');
     if (!telefonoLimpio || telefonoLimpio.length < 7) {
-      alert(
-        '⚠️ Esta empresa aún no ha configurado un número de WhatsApp de atención.',
-      );
+      alert('⚠️ Esta empresa aún no ha configurado un número de WhatsApp.');
       return;
     }
-
     setEnviando(true);
-
     try {
-      // 1. Guardar pedido en Supabase ─────────────────────────
-      // Normalizamos los productos al formato que usará CotizarPage
       const productosNormalizados = carrito.map((i) => ({
         id: i.id,
         nombre: i.nombre,
         precio: i.precio,
-        cantidad: i.cant, // <-- CotizarPage usa "cantidad"
-        cant: i.cant, // <-- guardamos ambos por compatibilidad
+        cantidad: i.cant,
+        cant: i.cant,
         unidad_medida: i.unidad_medida || 'UNIDADES',
         imagen_url: i.imagen_url || null,
         stock: i.stock,
       }));
 
-      const { error: errorPedido } = await supabase
-        .from('pedidos_catalogo')
-        .insert([
-          {
-            empresa_id: empresaId,
-            nombre_cliente: nombreCliente.trim(),
-            productos: productosNormalizados,
-            total: totalDolar,
-            estado: 'pendiente',
-          },
-        ]);
+      await supabase.from('pedidos_catalogo').insert([
+        {
+          empresa_id: empresaId,
+          nombre_cliente: nombreCliente.trim(),
+          productos: productosNormalizados,
+          total: totalDolar,
+          estado: 'pendiente',
+        },
+      ]);
 
-      if (errorPedido) {
-        // No bloqueamos el flujo si falla el guardado; el WhatsApp igual se envía
-        console.error('Error al guardar pedido:', errorPedido.message);
-      }
-
-      // 2. Enviar por WhatsApp ───────────────────────────────
       let mensaje = `*NUEVO PEDIDO - ${empresa.nombre.toUpperCase()}*%0A`;
       mensaje += `*Cliente:* ${nombreCliente.toUpperCase()}%0A%0A`;
-
       carrito.forEach((i) => {
-        const desc = i.descripcion ? ` (${i.descripcion})` : '';
-        mensaje += `• ${i.cant}x ${i.nombre}${desc} - $${(i.precio * i.cant).toFixed(2)}%0A`;
+        mensaje += `• ${i.cant}x ${i.nombre}${i.descripcion ? ` (${i.descripcion})` : ''} - $${(i.precio * i.cant).toFixed(2)}%0A`;
       });
-
       mensaje += `%0A*TOTAL:* *$${totalDolar.toFixed(2)}*%0A`;
       mensaje += `*${moneda === 'EUR' ? '€' : 'Bs.'} ${(totalDolar * tasa).toFixed(2)}*%0A%0A`;
       mensaje += `_Enviado desde Ventiq_`;
 
       window.open(`https://wa.me/${telefonoLimpio}?text=${mensaje}`, '_blank');
-
-      // 3. Limpiar y mostrar confirmación ───────────────────
       setCarrito([]);
       setNombreCliente('');
       setIsCartOpen(false);
@@ -281,7 +248,6 @@ export default function CatalogoPublico({
     }
   };
 
-  // ── Loading ───────────────────────────────────────────────
   if (loading)
     return (
       <div className="h-screen flex items-center justify-center bg-white">
@@ -289,19 +255,18 @@ export default function CatalogoPublico({
       </div>
     );
 
-  // ── Render ────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-32">
       {/* CONFIRMACIÓN */}
       {pedidoEnviado && (
-        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm bg-emerald-600 text-white p-6 rounded-[2rem] shadow-2xl flex items-center gap-4 animate-in fade-in zoom-in slide-in-from-top-10 duration-500">
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm bg-emerald-600 text-white p-6 rounded-[2rem] shadow-2xl flex items-center gap-4">
           <CheckCircle2 size={40} className="flex-shrink-0" />
           <div>
             <p className="font-black uppercase text-xs tracking-widest">
               ¡Pedido Enviado!
             </p>
             <p className="text-[10px] opacity-90 font-bold">
-              Tu pedido fue registrado. Revisa tu WhatsApp.
+              Revisa tu WhatsApp.
             </p>
           </div>
         </div>
@@ -385,14 +350,10 @@ export default function CatalogoPublico({
             return (
               <div
                 key={p.id}
-                className={`bg-white p-5 rounded-[2.8rem] flex flex-row items-center gap-5 border-2 transition-all ${
-                  cant > 0
-                    ? 'border-orange-500 shadow-xl'
-                    : 'border-transparent shadow-sm'
-                }`}
+                className={`bg-white p-5 rounded-[2.8rem] flex flex-row items-center gap-5 border-2 transition-all ${cant > 0 ? 'border-orange-500 shadow-xl' : 'border-transparent shadow-sm'}`}
               >
                 <div className="relative w-24 h-24 flex-shrink-0">
-                  <div className="w-full h-full bg-slate-100 rounded-3xl overflow-hidden border border-slate-50 relative">
+                  <div className="w-full h-full bg-slate-100 rounded-3xl overflow-hidden border border-slate-50">
                     {p.imagen_url ? (
                       <ImagenConCarga url={p.imagen_url} nombre={p.nombre} />
                     ) : (
@@ -402,7 +363,7 @@ export default function CatalogoPublico({
                     )}
                   </div>
                   {cant > 0 && (
-                    <div className="absolute -top-2 -right-2 bg-orange-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-xs border-4 border-white shadow-lg animate-in zoom-in">
+                    <div className="absolute -top-2 -right-2 bg-orange-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-xs border-4 border-white shadow-lg">
                       {cant}
                     </div>
                   )}
@@ -429,7 +390,7 @@ export default function CatalogoPublico({
                     {cant === 0 ? (
                       <button
                         onClick={() => agregarAlCarrito(p)}
-                        className="bg-slate-900 text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                        className="bg-slate-900 text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest active:scale-95"
                       >
                         <Plus size={14} /> Añadir
                       </button>
@@ -596,7 +557,6 @@ export default function CatalogoPublico({
             </div>
 
             <div className="p-8 border-t bg-slate-50/50 space-y-6">
-              {/* Nombre del cliente */}
               <div className="space-y-2">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4">
                   Tus Datos
@@ -610,7 +570,6 @@ export default function CatalogoPublico({
                 />
               </div>
 
-              {/* Totales */}
               <div className="flex items-center justify-between px-2">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">
@@ -626,7 +585,6 @@ export default function CatalogoPublico({
                 </p>
               </div>
 
-              {/* Botón WhatsApp */}
               <button
                 onClick={enviarPedido}
                 disabled={!nombreCliente.trim() || enviando}
