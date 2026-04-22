@@ -23,22 +23,29 @@ import {
   AlertCircle,
   Loader2,
   Package,
+  MapPin,
+  CreditCard,
 } from 'lucide-react';
 
-// ── Tipos ─────────────────────────────────────────────────────
 type TipoOperacion = 'cotizacion' | 'venta_directa';
 type ModoOperacion = 'completo' | 'ticketera';
 
 interface PedidoCatalogo {
   id: string;
   nombre_cliente: string;
+  telefono_cliente?: string;
+  direccion_cliente?: string;
+  tipo_entrega?: string;
+  metodo_pago?: string;
   productos: any[];
   total: number;
+  total_bs?: number;
+  tasa_cambio?: number;
   estado: 'pendiente' | 'procesado' | 'cancelado';
   created_at: string;
 }
 
-// ── imprimirTicket ────────────────────────────────────────────
+// ── imprimirTicket (sin cambios) ──────────────────────────────
 function imprimirTicket({
   empresa,
   cliente,
@@ -50,18 +57,7 @@ function imprimirTicket({
   estadoPago,
   montoPagado,
   observaciones,
-}: {
-  empresa: any;
-  cliente: any | null;
-  items: any[];
-  total: number;
-  tasaBCV: number;
-  etiquetaMoneda: string;
-  monedaPrincipal: 'USD' | 'BS';
-  estadoPago: string;
-  montoPagado: number;
-  observaciones: string;
-}) {
+}: any) {
   const simbolo =
     monedaPrincipal === 'BS' ? 'Bs.' : etiquetaMoneda === 'EUR' ? '€' : '$';
   const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
@@ -78,7 +74,7 @@ function imprimirTicket({
 
   const lineasProductos = items
     .map(
-      (i) => `
+      (i: any) => `
     <tr>
       <td style="padding:3px 2px;border-bottom:1px dashed #ccc;">
         <div style="font-weight:700;font-size:11px;">${i.nombre.toUpperCase()}</div>
@@ -104,22 +100,19 @@ function imprimirTicket({
         ? 'abono'
         : 'pendiente';
 
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
-  <title>Recibo #${numeroRecibo}</title>
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Recibo #${numeroRecibo}</title>
   <style>
     @page { size: 80mm auto; margin: 4mm; }
     * { box-sizing:border-box; margin:0; padding:0; }
     body { font-family:'Courier New',monospace; width:72mm; font-size:11px; color:#111; background:#fff; }
-    .center { text-align:center; } .right { text-align:right; } .bold { font-weight:700; }
+    .center { text-align:center; } .bold { font-weight:700; }
     .div-solid { border-top:1px solid #111; margin:5px 0; }
     .div-dash  { border-top:1px dashed #aaa; margin:5px 0; }
     .emp-nombre { font-size:15px; font-weight:900; text-transform:uppercase; letter-spacing:1px; }
     table { width:100%; border-collapse:collapse; }
     .total-row td { font-size:14px; font-weight:900; padding:4px 2px; }
     .sello { display:inline-block; border:2px solid; border-radius:4px; padding:3px 10px; font-size:13px; font-weight:900; letter-spacing:2px; text-transform:uppercase; margin-top:4px; }
-    .pagado   { border-color:#16a34a; color:#16a34a; }
-    .abono    { border-color:#ca8a04; color:#ca8a04; }
-    .pendiente{ border-color:#dc2626; color:#dc2626; }
+    .pagado { border-color:#16a34a; color:#16a34a; } .abono { border-color:#ca8a04; color:#ca8a04; } .pendiente{ border-color:#dc2626; color:#dc2626; }
     .footer { font-size:9px; color:#666; text-align:center; margin-top:8px; }
     @media print { body { width:72mm; } }
   </style></head><body>
@@ -145,32 +138,9 @@ function imprimirTicket({
   <table><tbody>${lineasProductos}</tbody></table>
   <div class="div-solid"></div>
   <table>
-    <tr class="total-row">
-      <td class="bold">TOTAL</td>
-      <td class="right bold">${simbolo} ${totalEnMoneda.toFixed(2)}</td>
-    </tr>
-    ${
-      monedaPrincipal === 'USD' && tasaBCV > 0
-        ? `
-    <tr>
-      <td style="font-size:10px;color:#555;">Equivale Bs.</td>
-      <td class="right" style="font-size:10px;color:#555;">${(total * tasaBCV).toFixed(2)}</td>
-    </tr>`
-        : ''
-    }
-    ${
-      estadoPago === 'pago_parcial'
-        ? `
-    <tr>
-      <td style="font-size:10px;">Recibido</td>
-      <td class="right" style="font-size:10px;">${simbolo} ${montoPagado.toFixed(2)}</td>
-    </tr>
-    <tr>
-      <td style="font-size:11px;font-weight:700;color:#dc2626;">RESTA</td>
-      <td class="right" style="font-size:11px;font-weight:700;color:#dc2626;">${simbolo} ${deuda.toFixed(2)}</td>
-    </tr>`
-        : ''
-    }
+    <tr class="total-row"><td class="bold">TOTAL</td><td style="text-align:right;font-weight:900;">${simbolo} ${totalEnMoneda.toFixed(2)}</td></tr>
+    ${monedaPrincipal === 'USD' && tasaBCV > 0 ? `<tr><td style="font-size:10px;color:#555;">Equivale Bs.</td><td style="text-align:right;font-size:10px;color:#555;">${(total * tasaBCV).toFixed(2)}</td></tr>` : ''}
+    ${estadoPago === 'pago_parcial' ? `<tr><td style="font-size:10px;">Recibido</td><td style="text-align:right;font-size:10px;">${simbolo} ${montoPagado.toFixed(2)}</td></tr><tr><td style="font-size:11px;font-weight:700;color:#dc2626;">RESTA</td><td style="text-align:right;font-size:11px;font-weight:700;color:#dc2626;">${simbolo} ${deuda.toFixed(2)}</td></tr>` : ''}
   </table>
   <div style="margin:6px 0;"><span class="sello ${selloClase}">${estadoTexto}</span></div>
   ${observaciones ? `<div class="div-dash"></div><div style="font-size:9px;color:#555;"><span class="bold">NOTAS: </span>${observaciones}</div>` : ''}
@@ -186,7 +156,7 @@ function imprimirTicket({
   }
 }
 
-// ── Panel de pedidos del catálogo ────────────────────────────
+// ── PanelPedidosCatalogo ──────────────────────────────────────
 function PanelPedidosCatalogo({
   pedidos,
   clientes,
@@ -205,28 +175,31 @@ function PanelPedidosCatalogo({
   onCancelarPedido: (id: string) => void;
 }) {
   const [pedidoExpandido, setPedidoExpandido] = useState<string | null>(null);
-  // Para cada pedido pendiente, el usuario puede vincular un cliente existente o dejarlo como nombre libre
   const [vinculaciones, setVinculaciones] = useState<
     Record<string, { clienteId: string; busqueda: string }>
   >({});
 
-  const getVinculacion = (id: string) =>
+  const getVinc = (id: string) =>
     vinculaciones[id] || { clienteId: '', busqueda: '' };
+  const setVinc = (id: string, data: any) =>
+    setVinculaciones((prev) => ({ ...prev, [id]: data }));
 
-  const setVinculacion = (
-    id: string,
-    data: { clienteId: string; busqueda: string },
-  ) => setVinculaciones((prev) => ({ ...prev, [id]: data }));
+  const metodoPagoLabel: Record<string, string> = {
+    efectivo_usd: '💵 Efectivo USD',
+    efectivo_bs: '💴 Efectivo Bs.',
+    pago_movil: '📱 Pago Móvil',
+    zelle: '⚡ Zelle',
+    transferencia: '🏦 Transferencia',
+    otro: '💳 Otro',
+  };
 
-  if (cargandoPedidos) {
+  if (cargandoPedidos)
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex justify-center py-12">
         <Loader2 className="animate-spin text-orange-500" size={32} />
       </div>
     );
-  }
-
-  if (pedidos.length === 0) {
+  if (pedidos.length === 0)
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <div className="w-16 h-16 bg-slate-100 rounded-3xl flex items-center justify-center mb-4">
@@ -235,38 +208,40 @@ function PanelPedidosCatalogo({
         <p className="font-black text-slate-400 uppercase text-xs tracking-widest">
           Sin pedidos pendientes
         </p>
-        <p className="text-slate-300 text-[10px] mt-1 font-medium">
-          Los pedidos del catálogo aparecerán aquí
-        </p>
       </div>
     );
-  }
 
   return (
     <div className="space-y-3">
       {pedidos.map((pedido) => {
         const expandido = pedidoExpandido === pedido.id;
-        const vinc = getVinculacion(pedido.id);
+        const vinc = getVinc(pedido.id);
         const clientesFiltrados = clientes.filter((c) =>
           `${c.nombre} ${c.apellido || ''} ${c.cedula || ''}`
             .toLowerCase()
             .includes(vinc.busqueda.toLowerCase()),
         );
-        const fechaRelativa = (() => {
-          const diff = Date.now() - new Date(pedido.created_at).getTime();
-          const mins = Math.floor(diff / 60000);
-          if (mins < 60) return `hace ${mins} min`;
-          const hrs = Math.floor(mins / 60);
-          if (hrs < 24) return `hace ${hrs}h`;
-          return `hace ${Math.floor(hrs / 24)}d`;
-        })();
+        const mins = Math.floor(
+          (Date.now() - new Date(pedido.created_at).getTime()) / 60000,
+        );
+        const fechaRel =
+          mins < 60
+            ? `hace ${mins} min`
+            : mins < 1440
+              ? `hace ${Math.floor(mins / 60)}h`
+              : `hace ${Math.floor(mins / 1440)}d`;
+
+        // Detectar si es en BS
+        const esEnBs =
+          pedido.metodo_pago === 'efectivo_bs' ||
+          pedido.metodo_pago === 'pago_movil' ||
+          pedido.metodo_pago === 'transferencia';
 
         return (
           <div
             key={pedido.id}
             className="bg-white rounded-[2rem] border-2 border-slate-100 overflow-hidden transition-all"
           >
-            {/* Cabecera del pedido */}
             <button
               onClick={() => setPedidoExpandido(expandido ? null : pedido.id)}
               className="w-full p-5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors"
@@ -279,17 +254,29 @@ function PanelPedidosCatalogo({
                   <p className="font-black text-slate-800 text-sm uppercase leading-none">
                     {pedido.nombre_cliente}
                   </p>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1">
-                      <Clock size={9} /> {fechaRelativa}
+                      <Clock size={9} /> {fechaRel}
                     </span>
                     <span className="text-[9px] font-black text-orange-600">
                       ${pedido.total.toFixed(2)}
                     </span>
-                    <span className="text-[9px] text-slate-400">
-                      · {pedido.productos.length} producto
-                      {pedido.productos.length !== 1 ? 's' : ''}
-                    </span>
+                    {pedido.total_bs && (
+                      <span className="text-[9px] font-bold text-blue-500">
+                        Bs.{pedido.total_bs.toFixed(2)}
+                      </span>
+                    )}
+                    {pedido.metodo_pago && (
+                      <span className="text-[9px] font-bold text-slate-500">
+                        {metodoPagoLabel[pedido.metodo_pago] ||
+                          pedido.metodo_pago}
+                      </span>
+                    )}
+                    {pedido.tipo_entrega === 'delivery' && (
+                      <span className="text-[9px] font-black bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
+                        🚗 Delivery
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -299,13 +286,37 @@ function PanelPedidosCatalogo({
               />
             </button>
 
-            {/* Detalle expandido */}
             {expandido && (
               <div className="border-t border-slate-100 p-5 space-y-4 bg-slate-50/50">
-                {/* Lista de productos del pedido */}
+                {/* Info del cliente */}
+                {(pedido.telefono_cliente || pedido.direccion_cliente) && (
+                  <div className="bg-white p-3 rounded-2xl border border-slate-100 space-y-1">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                      Datos del Cliente
+                    </p>
+                    {pedido.telefono_cliente && (
+                      <p className="text-xs font-bold text-slate-700">
+                        📞 {pedido.telefono_cliente}
+                      </p>
+                    )}
+                    {pedido.direccion_cliente &&
+                      pedido.direccion_cliente !== 'Retiro en tienda' && (
+                        <p className="text-xs font-bold text-slate-700">
+                          📍 {pedido.direccion_cliente}
+                        </p>
+                      )}
+                    {pedido.direccion_cliente === 'Retiro en tienda' && (
+                      <p className="text-xs font-bold text-emerald-600">
+                        🏪 Retiro en tienda
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Productos */}
                 <div className="space-y-2">
                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest">
-                    Productos solicitados
+                    Productos
                   </p>
                   {pedido.productos.map((prod: any, idx: number) => (
                     <div
@@ -337,9 +348,7 @@ function PanelPedidosCatalogo({
                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1">
                     <UserPlus size={10} /> Vincular cliente (opcional)
                   </p>
-
                   {vinc.clienteId ? (
-                    // Cliente seleccionado
                     <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 p-3 rounded-2xl">
                       <div className="flex items-center gap-2">
                         <CheckCircle2 size={16} className="text-emerald-600" />
@@ -350,10 +359,7 @@ function PanelPedidosCatalogo({
                       </div>
                       <button
                         onClick={() =>
-                          setVinculacion(pedido.id, {
-                            clienteId: '',
-                            busqueda: '',
-                          })
+                          setVinc(pedido.id, { clienteId: '', busqueda: '' })
                         }
                         className="text-slate-400 hover:text-red-400"
                       >
@@ -361,19 +367,18 @@ function PanelPedidosCatalogo({
                       </button>
                     </div>
                   ) : (
-                    // Buscador de clientes
                     <div className="relative">
                       <input
                         type="text"
                         placeholder="Buscar cliente existente..."
                         value={vinc.busqueda}
                         onChange={(e) =>
-                          setVinculacion(pedido.id, {
+                          setVinc(pedido.id, {
                             clienteId: '',
                             busqueda: e.target.value,
                           })
                         }
-                        className="w-full p-3 bg-white border-2 border-slate-200 rounded-2xl text-xs font-bold outline-none focus:border-orange-400 transition-colors"
+                        className="w-full p-3 bg-white border-2 border-slate-200 rounded-2xl text-xs font-bold outline-none focus:border-orange-400"
                       />
                       {vinc.busqueda.length >= 2 &&
                         clientesFiltrados.length > 0 && (
@@ -382,7 +387,7 @@ function PanelPedidosCatalogo({
                               <button
                                 key={c.id}
                                 onClick={() =>
-                                  setVinculacion(pedido.id, {
+                                  setVinc(pedido.id, {
                                     clienteId: c.id,
                                     busqueda: `${c.nombre} ${c.apellido || ''}`,
                                   })
@@ -393,7 +398,7 @@ function PanelPedidosCatalogo({
                                   {c.nombre} {c.apellido}
                                 </p>
                                 <p className="text-[10px] text-slate-400">
-                                  CI/RIF: {c.cedula || c.rif || 'N/A'}
+                                  CI: {c.cedula || 'N/A'}
                                 </p>
                               </button>
                             ))}
@@ -401,17 +406,26 @@ function PanelPedidosCatalogo({
                         )}
                     </div>
                   )}
-
                   {!vinc.clienteId && (
                     <p className="text-[9px] text-slate-400 font-medium ml-2">
-                      Si no vinculas, la venta se registrará como{' '}
+                      Sin vincular, la venta quedará como{' '}
                       <strong>"{pedido.nombre_cliente}"</strong>
                     </p>
                   )}
                 </div>
 
-                {/* Acciones */}
-                <div className="flex gap-2 pt-2">
+                {/* Aviso moneda */}
+                {esEnBs && (
+                  <div className="p-3 bg-blue-50 border border-blue-100 rounded-2xl flex items-center gap-2">
+                    <span className="text-sm">💴</span>
+                    <p className="text-[9px] font-bold text-blue-700">
+                      El cliente seleccionó pago en <strong>Bolívares</strong>.
+                      La venta se registrará en BS automáticamente.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-1">
                   <button
                     onClick={() =>
                       onCargarPedido(
@@ -420,14 +434,14 @@ function PanelPedidosCatalogo({
                         pedido.nombre_cliente,
                       )
                     }
-                    className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                    className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"
                   >
                     <ShoppingCart size={14} /> Cargar en Venta
                   </button>
                   <button
                     onClick={() => onCancelarPedido(pedido.id)}
-                    className="px-4 py-3 bg-red-50 text-red-400 hover:bg-red-100 rounded-2xl font-black text-[10px] uppercase transition-all"
-                    title="Cancelar pedido"
+                    className="px-4 py-3 bg-red-50 text-red-400 hover:bg-red-100 rounded-2xl font-black text-[10px] uppercase"
+                    title="Cancelar"
                   >
                     <X size={14} />
                   </button>
@@ -447,7 +461,7 @@ export default function CotizarPage() {
   const [productosInventario, setProductosInventario] = useState<any[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any>(null);
-  const [nombreClienteLibre, setNombreClienteLibre] = useState(''); // para pedidos sin cliente registrado
+  const [nombreClienteLibre, setNombreClienteLibre] = useState('');
   const [carrito, setCarrito] = useState<any[]>([]);
   const [cargando, setCargando] = useState(false);
   const [mostrarModalResumen, setMostrarModalResumen] = useState(false);
@@ -464,72 +478,58 @@ export default function CotizarPage() {
   const [montoPagado, setMontoPagado] = useState(0);
   const [etiquetaMoneda, setEtiquetaMoneda] = useState<'USD' | 'EUR'>('USD');
   const [modoOperacion, setModoOperacion] = useState<ModoOperacion>('completo');
-
-  // ── Estados para pedidos del catálogo ──────────────────────
   const [pedidosCatalogo, setPedidosCatalogo] = useState<PedidoCatalogo[]>([]);
   const [cargandoPedidos, setCargandoPedidos] = useState(false);
   const [tabActiva, setTabActiva] = useState<'venta' | 'pedidos'>('venta');
-
   const [pedidoCatalogoIdActivo, setPedidoCatalogoIdActivo] = useState<
     string | null
   >(null);
 
-  // ── Carga inicial ─────────────────────────────────────────
   useEffect(() => {
     const cargarDatos = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
-
       const { data: perfil } = await supabase
         .from('perfiles')
         .select('empresa_id, empresas(*)')
         .eq('id', user.id)
         .single();
-
       if (!perfil?.empresa_id) return;
       setMiEmpresaId(perfil.empresa_id);
-
       const emp = Array.isArray(perfil.empresas)
         ? perfil.empresas[0]
         : perfil.empresas;
       setDatosEmpresa(emp);
-
       const modo: ModoOperacion = emp?.modo_operacion || 'completo';
       setModoOperacion(modo);
       if (modo === 'ticketera') setTipoOperacion('venta_directa');
-
       const monedaConfig = emp?.moneda_secundaria || 'USD';
       setEtiquetaMoneda(monedaConfig);
-
       try {
         const endpoint =
           monedaConfig === 'EUR' ? 'euros/oficial' : 'dolares/oficial';
         const res = await fetch(`https://ve.dolarapi.com/v1/${endpoint}`);
         const data = await res.json();
         if (data?.promedio) setTasaBCV(data.promedio);
-      } catch (e) {
-        console.error('Error tasa:', e);
-      }
-
+      } catch {}
       const { data: c } = await supabase
         .from('clientes')
         .select('*')
         .eq('empresa_id', perfil.empresa_id)
         .order('nombre');
+      // ── FILTRO CLAVE: excluir materia prima del inventario de ventas ──
       const { data: p } = await supabase
         .from('productos')
         .select('*')
         .eq('empresa_id', perfil.empresa_id)
         .eq('activo', true)
+        .eq('es_materia_prima', false) // ← nunca mostrar insumos en venta
         .gt('stock', 0)
         .order('nombre');
-
       if (c) setClientes(c);
       if (p) setProductosInventario(p);
-
-      // Cargar pedidos pendientes del catálogo
       await cargarPedidosPendientes(perfil.empresa_id);
     };
     cargarDatos();
@@ -539,7 +539,6 @@ export default function CotizarPage() {
     document.body.style.overflow = mostrarModalResumen ? 'hidden' : 'unset';
   }, [mostrarModalResumen]);
 
-  // ── Pedidos del catálogo ──────────────────────────────────
   const cargarPedidosPendientes = async (idEmpresa: string) => {
     setCargandoPedidos(true);
     const { data, error } = await supabase
@@ -548,40 +547,58 @@ export default function CotizarPage() {
       .eq('empresa_id', idEmpresa)
       .eq('estado', 'pendiente')
       .order('created_at', { ascending: false });
-
     if (!error && data) setPedidosCatalogo(data as PedidoCatalogo[]);
     setCargandoPedidos(false);
   };
 
-  /**
-   * Carga un pedido del catálogo en el carrito de venta.
-   * Si clienteId existe, busca el cliente en la lista; si no, guarda el nombre libre.
-   */
+  // ── Cargar pedido del catálogo en venta ───────────────────
+  // NUEVO: auto-detecta moneda según método de pago del pedido
   const cargarPedidoEnVenta = useCallback(
     (pedido: PedidoCatalogo, clienteId: string | null, nombreLibre: string) => {
-      // Normalizar productos al formato del carrito de CotizarPage
       const productosNormalizados = pedido.productos.map((p: any) => ({
         ...p,
         cantidad: p.cantidad ?? p.cant ?? 1,
-        stock: p.stock ?? 9999, // fallback por si no tiene stock en el JSON
+        stock: p.stock ?? 9999,
       }));
-
       setCarrito(productosNormalizados);
       setTipoOperacion('venta_directa');
+      setPedidoCatalogoIdActivo(pedido.id);
 
-      // GUARDAR EL ID PARA USARLO LUEGO EN PROCESARVENTA
-      setPedidoCatalogoIdActivo(pedido.id); // <--- ESTA ES LA CLAVE
+      // ── AUTO-DETECTAR MONEDA desde el método de pago del pedido ──
+      const metodosBS = ['efectivo_bs', 'pago_movil', 'transferencia'];
+      if (pedido.metodo_pago && metodosBS.includes(pedido.metodo_pago)) {
+        setMonedaPrincipal('BS');
+        // Si el pedido trae el monto en BS, pre-llenamos el monto pagado
+        if (pedido.total_bs && pedido.total_bs > 0) {
+          setMontoPagado(pedido.total_bs);
+        }
+      } else {
+        setMonedaPrincipal('USD');
+        setMontoPagado(pedido.total);
+      }
+      setEstadoPago('pagado'); // los pedidos del catálogo típicamente se cobran al entregar
+
+      // Notas con datos del pedido
+      const notas = [
+        pedido.tipo_entrega === 'delivery' && pedido.direccion_cliente
+          ? `Delivery: ${pedido.direccion_cliente}`
+          : 'Retiro en tienda',
+        pedido.telefono_cliente ? `Tel: ${pedido.telefono_cliente}` : '',
+        pedido.metodo_pago ? `Pago: ${pedido.metodo_pago}` : '',
+      ]
+        .filter(Boolean)
+        .join(' | ');
+      setObservaciones(notas);
 
       if (clienteId) {
-        const clienteObj = clientes.find((c) => c.id === clienteId);
-        setClienteSeleccionado(clienteObj || null);
+        setClienteSeleccionado(
+          clientes.find((c) => c.id === clienteId) || null,
+        );
         setNombreClienteLibre('');
       } else {
         setClienteSeleccionado(null);
         setNombreClienteLibre(nombreLibre);
       }
-
-      // Cambiar a la tab de venta para ver el carrito cargado
       setTabActiva('venta');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
@@ -594,9 +611,7 @@ export default function CotizarPage() {
       .from('pedidos_catalogo')
       .update({ estado: 'cancelado' })
       .eq('id', id);
-    if (!error) {
-      setPedidosCatalogo((prev) => prev.filter((p) => p.id !== id));
-    }
+    if (!error) setPedidosCatalogo((prev) => prev.filter((p) => p.id !== id));
   };
 
   // ── Carrito helpers ───────────────────────────────────────
@@ -620,7 +635,6 @@ export default function CotizarPage() {
 
   const calcularTotal = () =>
     carrito.reduce((acc, i) => acc + i.precio * i.cantidad, 0);
-
   const agregarAlCarrito = (prod: any) => {
     if (!carrito.find((i) => i.id === prod.id))
       setCarrito([...carrito, { ...prod, cantidad: 1 }]);
@@ -637,14 +651,11 @@ export default function CotizarPage() {
       const doc = new jsPDF();
       const gold: [number, number, number] = [184, 134, 11];
       const nombreEmp = datosEmpresa?.nombre || 'MI EMPRESA';
-      const logoUrl = datosEmpresa?.logo_url;
-
-      if (logoUrl) {
+      if (datosEmpresa?.logo_url) {
         try {
-          doc.addImage(logoUrl, 'PNG', 10, 10, 35, 35);
+          doc.addImage(datosEmpresa.logo_url, 'PNG', 10, 10, 35, 35);
         } catch {}
       }
-
       doc.setTextColor(30, 41, 59);
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
@@ -653,13 +664,10 @@ export default function CotizarPage() {
       doc.setFont('helvetica', 'normal');
       doc.text(`RIF: ${datosEmpresa?.rif || 'N/A'}`, 50, 32);
       doc.text(
-        datosEmpresa?.telefono
-          ? `Telf: ${datosEmpresa.telefono}`
-          : 'Calidad y confianza',
+        datosEmpresa?.telefono ? `Telf: ${datosEmpresa.telefono}` : '',
         50,
         37,
       );
-
       const titulo =
         tipoOperacion === 'venta_directa' ? 'NOTA DE ENTREGA' : 'COTIZACIÓN';
       doc.setTextColor(...gold);
@@ -676,30 +684,27 @@ export default function CotizarPage() {
       doc.setDrawColor(...gold);
       doc.setLineWidth(1);
       doc.line(14, 58, 196, 58);
-
       doc.setDrawColor(226, 232, 240);
       doc.roundedRect(14, 65, 182, 35, 2, 2);
+      const simbolo =
+        monedaPrincipal === 'BS' ? 'Bs.' : etiquetaMoneda === 'EUR' ? '€' : '$';
+      const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
+      const nombreMostrar = cliente
+        ? `${cliente.nombre?.toUpperCase()} ${cliente.apellido?.toUpperCase() || ''}`
+        : nombreClienteLibre.toUpperCase() || 'CONSUMIDOR FINAL';
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.text('CLIENTE:', 20, 72);
       doc.text('RIF / C.I.:', 20, 79);
       doc.text('NOTAS:', 20, 86);
       doc.setFont('helvetica', 'normal');
-      const nombreMostrar = cliente
-        ? `${cliente.nombre?.toUpperCase()} ${cliente.apellido?.toUpperCase() || ''}`
-        : nombreClienteLibre.toUpperCase() || 'CONSUMIDOR FINAL';
       doc.text(nombreMostrar, 50, 72);
       doc.text(
         cliente ? `${cliente.cedula || cliente.rif || 'N/A'}` : 'N/A',
         50,
         79,
       );
-      doc.text(doc.splitTextToSize(notas || 'Por definir', 135), 50, 86);
-
-      const simbolo =
-        monedaPrincipal === 'BS' ? 'Bs.' : etiquetaMoneda === 'EUR' ? '€' : '$';
-      const factor = monedaPrincipal === 'BS' ? tasaBCV : 1;
-
+      doc.text(doc.splitTextToSize(notas || '', 135), 50, 86);
       autoTable(doc, {
         startY: 105,
         head: [['DESCRIPCIÓN', 'CANT.', 'PRECIO', 'SUBTOTAL']],
@@ -718,67 +723,15 @@ export default function CotizarPage() {
           3: { halign: 'right' },
         },
       });
-
       const finalY = (doc as any).lastAutoTable.finalY + 15;
-
-      if (tipoOperacion === 'venta_directa') {
-        const totalM = total * factor;
-        const resta = totalM - montoPagado;
-        let colorS = [239, 68, 68];
-        let textoS = 'PENDIENTE';
-        if (estadoPago === 'pagado') {
-          colorS = [34, 197, 94];
-          textoS = 'PAGADO';
-        }
-        if (estadoPago === 'pago_parcial') {
-          colorS = [234, 179, 8];
-          textoS = 'ABONO';
-        }
-
-        doc.setDrawColor(...(colorS as [number, number, number]));
-        doc.setTextColor(...(colorS as [number, number, number]));
-        doc.setLineWidth(1.5);
-        doc.roundedRect(14, finalY, 50, 18, 3, 3);
-        doc.setFontSize(14);
-        doc.text(textoS, 39, finalY + 11, { align: 'center' });
-        doc.setTextColor(30, 41, 59);
-        doc.setFontSize(12);
-        doc.text(
-          `TOTAL: ${simbolo} ${totalM.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
-          196,
-          finalY + 5,
-          { align: 'right' },
-        );
-
-        if (estadoPago === 'pago_parcial') {
-          doc.setFontSize(10);
-          doc.setTextColor(100, 116, 139);
-          doc.text(
-            `Recibido: ${simbolo} ${montoPagado.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
-            196,
-            finalY + 12,
-            { align: 'right' },
-          );
-          doc.setTextColor(200, 0, 0);
-          doc.setFont('helvetica', 'bold');
-          doc.text(
-            `RESTA: ${simbolo} ${resta.toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
-            196,
-            finalY + 19,
-            { align: 'right' },
-          );
-        }
-      } else {
-        doc.setFontSize(14);
-        doc.setTextColor(...gold);
-        doc.text(
-          `TOTAL PRESUPUESTO: ${simbolo} ${(total * factor).toLocaleString('es-VE')}`,
-          196,
-          finalY + 5,
-          { align: 'right' },
-        );
-      }
-
+      doc.setFontSize(14);
+      doc.setTextColor(...gold);
+      doc.text(
+        `TOTAL: ${simbolo} ${(total * factor).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`,
+        196,
+        finalY + 5,
+        { align: 'right' },
+      );
       doc.save(
         `${tipoOperacion === 'venta_directa' ? 'Nota_Entrega' : 'Cotizacion'}_${nombreMostrar}.pdf`,
       );
@@ -798,7 +751,7 @@ export default function CotizarPage() {
   ) => {
     let telefono = cliente?.telefono;
     if (!telefono) {
-      const t = prompt('Ingresa el número de WhatsApp (ej: 584121234567):');
+      const t = prompt('Ingresa el número de WhatsApp:');
       if (!t) return;
       telefono = t;
     }
@@ -810,7 +763,7 @@ export default function CotizarPage() {
           `🔹 *${i.nombre.trim()}*\n    Cant: ${i.cantidad} ${i.unidad_medida || 'UNID.'} -> ${simbolo}${(i.precio * i.cantidad * factor).toLocaleString('es-VE')}`,
       )
       .join('\n\n');
-    const msg = `🏗️ *${datosEmpresa?.nombre || 'MI EMPRESA'}*\n----\n👤 *Cliente:* ${cliente?.nombre || nombreClienteLibre}\n📍 *Entrega:* ${notas || 'Retiro en tienda'}\n\n${lista}\n\n💵 *TOTAL: ${simbolo} ${(total * factor).toLocaleString('es-VE')}*\n----\n¡Estamos para servirle!`;
+    const msg = `🏗️ *${datosEmpresa?.nombre || 'MI EMPRESA'}*\n----\n👤 *Cliente:* ${cliente?.nombre || nombreClienteLibre}\n📍 *Notas:* ${notas || ''}\n\n${lista}\n\n💵 *TOTAL: ${simbolo} ${(total * factor).toLocaleString('es-VE')}*\n----\n¡Estamos para servirle!`;
     window.open(
       `https://wa.me/${telefono.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`,
       '_blank',
@@ -818,17 +771,10 @@ export default function CotizarPage() {
   };
 
   const descontarInventario = async (items: any[]) => {
-    const itemsSimplificados = items.map((i) => ({
-      id: i.id,
-      cantidad: i.cantidad,
-    }));
     const { error } = await supabase.rpc('procesar_descuento_inventario', {
-      items: itemsSimplificados,
+      items: items.map((i) => ({ id: i.id, cantidad: i.cantidad })),
     });
-    if (error) {
-      console.error('Error al descontar inventario:', error.message);
-      throw new Error('No se pudo actualizar el inventario');
-    }
+    if (error) throw new Error('No se pudo actualizar el inventario');
   };
 
   // ── Procesar venta ────────────────────────────────────────
@@ -841,7 +787,6 @@ export default function CotizarPage() {
       return alert('Selecciona un cliente o ingresa un nombre');
     if (carrito.length === 0) return alert('Agrega productos al carrito');
     if (!miEmpresaId) return alert('Error de sesión');
-
     setCargando(true);
     try {
       const total = calcularTotal();
@@ -854,7 +799,7 @@ export default function CotizarPage() {
         .insert([
           {
             cliente_id: clienteSeleccionado?.id || null,
-            nombre_cliente_libre: nombreClienteLibre || null, // campo extra para clientes sin registro
+            nombre_cliente_libre: nombreClienteLibre || null,
             productos_seleccionados: carrito,
             total,
             empresa_id: miEmpresaId,
@@ -873,7 +818,6 @@ export default function CotizarPage() {
         ])
         .select()
         .single();
-
       if (errorCot) throw errorCot;
 
       if (esVenta && montoPagado > 0) {
@@ -890,22 +834,16 @@ export default function CotizarPage() {
 
       if (esVenta) {
         await descontarInventario(carrito);
-
-        // ACTUALIZACIÓN INMEDIATA DEL STOCK EN PANTALLA
         setProductosInventario((prev) =>
           prev.map((prod) => {
-            const itemVendido = carrito.find((item) => item.id === prod.id);
-            if (itemVendido) {
-              return {
-                ...prod,
-                stock: prod.stock - itemVendido.cantidad,
-              };
-            }
-            return prod;
+            const vendido = carrito.find((item) => item.id === prod.id);
+            return vendido
+              ? { ...prod, stock: prod.stock - vendido.cantidad }
+              : prod;
           }),
         );
       }
-      // Marcar pedido del catálogo como procesado si corresponde
+
       if (pedidoCatalogoId) {
         await supabase
           .from('pedidos_catalogo')
@@ -916,7 +854,6 @@ export default function CotizarPage() {
         );
       }
 
-      // Comprobante
       if (modoOperacion === 'ticketera') {
         imprimirTicket({
           empresa: datosEmpresa,
@@ -933,7 +870,7 @@ export default function CotizarPage() {
       } else {
         descargarPDF(clienteSeleccionado, carrito, total, observaciones);
         setTimeout(() => {
-          if (clienteSeleccionado && confirm('¿Deseas enviar por WhatsApp?'))
+          if (clienteSeleccionado && confirm('¿Enviar por WhatsApp?'))
             enviarWhatsApp(
               clienteSeleccionado,
               total,
@@ -945,7 +882,6 @@ export default function CotizarPage() {
         }, 500);
       }
 
-      // Limpiar
       setCarrito([]);
       setClienteSeleccionado(null);
       setNombreClienteLibre('');
@@ -956,7 +892,7 @@ export default function CotizarPage() {
       alert(esVenta ? '✅ Venta registrada' : '📄 Cotización guardada');
     } catch (e) {
       console.error(e);
-      alert('Error al procesar la operación');
+      alert('Error al procesar');
     } finally {
       setCargando(false);
     }
@@ -1008,17 +944,16 @@ export default function CotizarPage() {
     );
   };
 
-  // ── Render ────────────────────────────────────────────────
   return (
     <main
       style={{ overscrollBehaviorY: 'contain', touchAction: 'pan-x pan-y' }}
       className="min-h-screen bg-slate-50 p-4 md:p-8 pb-32"
     >
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8">
-        {/* ── IZQUIERDA: tabs + contenido ── */}
+        {/* IZQUIERDA */}
         <div className="flex-1 space-y-6">
-          {/* Tabs: Nueva Venta | Pedidos del Catálogo */}
-          <div className="flex items-center gap-4">
+          {/* Tabs */}
+          <div className="flex items-center gap-4 flex-wrap">
             <div className="flex bg-slate-200 p-1.5 rounded-2xl shadow-inner">
               <button
                 onClick={() => setTabActiva('venta')}
@@ -1044,8 +979,6 @@ export default function CotizarPage() {
                 )}
               </button>
             </div>
-
-            {/* Switch Cotización/Venta (solo en tab venta y modo completo) */}
             {tabActiva === 'venta' && modoOperacion === 'completo' && (
               <div className="flex bg-slate-200 p-1.5 rounded-2xl shadow-inner ml-auto">
                 <button
@@ -1064,7 +997,7 @@ export default function CotizarPage() {
             )}
           </div>
 
-          {/* ── TAB: PEDIDOS DEL CATÁLOGO ── */}
+          {/* TAB PEDIDOS */}
           {tabActiva === 'pedidos' && (
             <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
               <div className="flex items-center justify-between mb-6">
@@ -1073,7 +1006,7 @@ export default function CotizarPage() {
                     Pedidos Pendientes
                   </h2>
                   <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                    Del catálogo público · toca un pedido para cargarlo en venta
+                    Del catálogo · toca un pedido para cargarlo en venta
                   </p>
                 </div>
                 <button
@@ -1081,7 +1014,6 @@ export default function CotizarPage() {
                     miEmpresaId && cargarPedidosPendientes(miEmpresaId)
                   }
                   className="p-3 bg-slate-100 hover:bg-orange-100 text-slate-400 hover:text-orange-600 rounded-2xl transition-all"
-                  title="Actualizar"
                 >
                   <Loader2
                     size={16}
@@ -1089,7 +1021,6 @@ export default function CotizarPage() {
                   />
                 </button>
               </div>
-
               <PanelPedidosCatalogo
                 pedidos={pedidosCatalogo}
                 clientes={clientes}
@@ -1100,10 +1031,9 @@ export default function CotizarPage() {
             </section>
           )}
 
-          {/* ── TAB: NUEVA VENTA ── */}
+          {/* TAB VENTA */}
           {tabActiva === 'venta' && (
             <>
-              {/* Aviso si el carrito viene de un pedido del catálogo */}
               {nombreClienteLibre && carrito.length > 0 && (
                 <div className="bg-orange-50 border-2 border-orange-200 p-4 rounded-[2rem] flex items-center gap-3">
                   <AlertCircle
@@ -1118,7 +1048,8 @@ export default function CotizarPage() {
                       </span>
                     </p>
                     <p className="text-[10px] text-orange-500 font-medium">
-                      Cliente del catálogo · revisa y ajusta antes de confirmar
+                      Cliente del catálogo · moneda auto-detectada según método
+                      de pago
                     </p>
                   </div>
                   <button
@@ -1140,8 +1071,6 @@ export default function CotizarPage() {
                     ? 'Cliente (Opcional)'
                     : 'Cliente'}
                 </label>
-
-                {/* Si hay nombre libre del catálogo, lo mostramos editable */}
                 {nombreClienteLibre && !clienteSeleccionado ? (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 bg-orange-50 border-2 border-orange-200 p-4 rounded-2xl">
@@ -1183,7 +1112,6 @@ export default function CotizarPage() {
                       </span>
                       <ChevronDown size={24} className="text-slate-400" />
                     </button>
-
                     {modoOperacion === 'ticketera' && clienteSeleccionado && (
                       <button
                         onClick={() => setClienteSeleccionado(null)}
@@ -1192,7 +1120,6 @@ export default function CotizarPage() {
                         <X size={18} />
                       </button>
                     )}
-
                     {mostrarListaClientes && (
                       <div className="absolute z-[100] left-0 right-0 mt-2 bg-white rounded-[1.5rem] shadow-2xl border border-slate-300 overflow-hidden">
                         <div className="p-4 border-b border-slate-100 bg-slate-50">
@@ -1213,9 +1140,6 @@ export default function CotizarPage() {
                           >
                             <p className="font-bold text-slate-500 uppercase text-sm">
                               👤 Consumidor Final
-                            </p>
-                            <p className="text-xs text-slate-400">
-                              Venta sin cliente registrado
                             </p>
                           </div>
                         )}
@@ -1305,9 +1229,9 @@ export default function CotizarPage() {
                   <input
                     type="text"
                     placeholder="Buscar producto..."
-                    className="w-full pl-14 pr-4 py-5 bg-slate-50 rounded-[1.5rem] outline-none ring-2 ring-slate-100 text-xl font-medium"
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
+                    className="w-full pl-14 pr-4 py-5 bg-slate-50 rounded-[1.5rem] outline-none ring-2 ring-slate-100 text-xl font-medium"
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-[500px] overflow-y-auto pr-2">
@@ -1386,13 +1310,12 @@ export default function CotizarPage() {
           )}
         </div>
 
-        {/* ── DERECHA: Resumen escritorio ── */}
+        {/* DERECHA: Resumen escritorio */}
         <div className="hidden lg:block w-[450px]">
           <div className="bg-[#1A1C1E] p-8 rounded-[3rem] shadow-2xl border-t-8 border-orange-600 sticky top-8 text-white">
             <h2 className="text-2xl font-black mb-6 italic uppercase tracking-tighter flex justify-between items-center">
               Resumen <ShoppingCart className="text-orange-500" />
             </h2>
-
             {carrito.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Package size={32} className="text-white/20 mb-3" />

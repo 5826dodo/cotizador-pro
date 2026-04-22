@@ -13,8 +13,60 @@ import {
   Trash2,
   CheckCircle2,
   Loader2,
+  MapPin,
+  Phone,
+  CreditCard,
+  Banknote,
+  Smartphone,
+  Zap,
+  ChevronDown,
+  ChevronUp,
+  Info,
 } from 'lucide-react';
 
+// ── Métodos de pago ───────────────────────────────────────────
+const METODOS_PAGO = [
+  {
+    id: 'efectivo_usd',
+    label: 'Efectivo USD',
+    icon: '💵',
+    color: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+  },
+  {
+    id: 'efectivo_bs',
+    label: 'Efectivo Bs.',
+    icon: '💴',
+    color: 'bg-blue-50 border-blue-200 text-blue-700',
+  },
+  {
+    id: 'pago_movil',
+    label: 'Pago Móvil',
+    icon: '📱',
+    color: 'bg-violet-50 border-violet-200 text-violet-700',
+  },
+  {
+    id: 'zelle',
+    label: 'Zelle',
+    icon: '⚡',
+    color: 'bg-purple-50 border-purple-200 text-purple-700',
+  },
+  {
+    id: 'transferencia',
+    label: 'Transferencia',
+    icon: '🏦',
+    color: 'bg-slate-50 border-slate-200 text-slate-700',
+  },
+  {
+    id: 'otro',
+    label: 'Otro',
+    icon: '💳',
+    color: 'bg-orange-50 border-orange-200 text-orange-700',
+  },
+] as const;
+
+type MetodoPago = (typeof METODOS_PAGO)[number]['id'];
+
+// ── Imagen con skeleton ───────────────────────────────────────
 function ImagenConCarga({ url, nombre }: { url: string; nombre: string }) {
   const [cargada, setCargada] = useState(false);
   return (
@@ -54,12 +106,21 @@ export default function CatalogoPublico({
   const [enviando, setEnviando] = useState(false);
   const [categorias, setCategorias] = useState<any[]>([]);
   const [catSeleccionada, setCatSeleccionada] = useState('todas');
-  const [nombreCliente, setNombreCliente] = useState('');
   const [moneda, setMoneda] = useState('BS');
   const [pagina, setPagina] = useState(0);
   const [tieneMas, setTieneMas] = useState(true);
   const [cargandoMas, setCargandoMas] = useState(false);
   const ITEMS_POR_PAGINA = 12;
+
+  // ── Datos del cliente en el carrito ──────────────────────
+  const [nombreCliente, setNombreCliente] = useState('');
+  const [telefonoCliente, setTelefonoCliente] = useState('');
+  const [direccionCliente, setDireccionCliente] = useState('');
+  const [metodoPago, setMetodoPago] = useState<MetodoPago>('efectivo_usd');
+  const [tipoEntrega, setTipoEntrega] = useState<'retiro' | 'delivery'>(
+    'retiro',
+  );
+  const [mostrarPagoMovil, setMostrarPagoMovil] = useState(false);
 
   // Ocultar navbar de la app
   useEffect(() => {
@@ -70,22 +131,36 @@ export default function CatalogoPublico({
     return () => document.getElementById('hide-navbar-forced')?.remove();
   }, []);
 
-  // ── Productos paginados — FILTRO CLAVE: es_materia_prima = false ──
+  // ── Productos paginados ────────────────────────────────────
+  // Doble filtro: es_materia_prima = false Y excluir categoría "Materia Prima"
   const obtenerProductos = async (idEmpresa: string, reiniciar = false) => {
     try {
       const nuevaPagina = reiniciar ? 0 : pagina;
       if (!reiniciar) setCargandoMas(true);
       const desde = nuevaPagina * ITEMS_POR_PAGINA;
 
+      // Primero obtenemos el id de la categoría "Materia Prima" si existe
+      const { data: catMP } = await supabase
+        .from('categorias')
+        .select('id')
+        .eq('empresa_id', idEmpresa)
+        .ilike('nombre', 'materia prima')
+        .maybeSingle();
+
       let query = supabase
         .from('productos')
-        .select('*')
+        .select('*, categorias(nombre)')
         .eq('empresa_id', idEmpresa)
         .eq('activo', true)
-        .eq('es_materia_prima', false) // ← SOLO productos de venta, nunca insumos
+        .eq('es_materia_prima', false) // filtro principal
         .gt('stock', 0)
         .order('nombre', { ascending: true })
         .range(desde, desde + ITEMS_POR_PAGINA - 1);
+
+      // Si existe la categoría "Materia Prima", también excluirla por id
+      if (catMP?.id) {
+        query = query.neq('categoria_id', catMP.id);
+      }
 
       if (catSeleccionada !== 'todas')
         query = query.eq('categoria_id', catSeleccionada);
@@ -130,10 +205,12 @@ export default function CatalogoPublico({
         const d = await res.json();
         setTasa(d.promedio || 0);
 
+        // Cargar categorías excluyendo "Materia Prima"
         const { data: cats } = await supabase
           .from('categorias')
           .select('*')
           .eq('empresa_id', empresaId)
+          .not('nombre', 'ilike', 'materia prima')
           .order('nombre');
         setCategorias(cats || []);
 
@@ -149,7 +226,7 @@ export default function CatalogoPublico({
     if (empresaId && !loading) obtenerProductos(empresaId, true);
   }, [catSeleccionada]);
 
-  // ── Carrito ───────────────────────────────────────────────
+  // ── Carrito helpers ───────────────────────────────────────
   const agregarAlCarrito = (p: any) =>
     setCarrito((prev) => {
       const ex = prev.find((i) => i.id === p.id);
@@ -194,14 +271,19 @@ export default function CatalogoPublico({
   };
 
   const totalDolar = carrito.reduce((acc, p) => acc + p.precio * p.cant, 0);
+  const totalBs = totalDolar * tasa;
 
+  const metodoLabel =
+    METODOS_PAGO.find((m) => m.id === metodoPago)?.label || metodoPago;
+
+  // ── Enviar pedido ─────────────────────────────────────────
   const enviarPedido = async () => {
     if (!nombreCliente.trim()) {
       alert('Por favor, ingresa tu nombre.');
       return;
     }
-    const telefonoLimpio = empresa?.telefono?.replace(/\D/g, '');
-    if (!telefonoLimpio || telefonoLimpio.length < 7) {
+    const telefonoEmpresa = empresa?.telefono?.replace(/\D/g, '');
+    if (!telefonoEmpresa || telefonoEmpresa.length < 7) {
       alert('⚠️ Esta empresa aún no ha configurado un número de WhatsApp.');
       return;
     }
@@ -218,28 +300,96 @@ export default function CatalogoPublico({
         stock: i.stock,
       }));
 
+      // Guardar pedido con datos extra del cliente
       await supabase.from('pedidos_catalogo').insert([
         {
           empresa_id: empresaId,
           nombre_cliente: nombreCliente.trim(),
+          telefono_cliente: telefonoCliente.trim() || null,
+          direccion_cliente:
+            tipoEntrega === 'delivery'
+              ? direccionCliente.trim()
+              : 'Retiro en tienda',
+          tipo_entrega: tipoEntrega,
+          metodo_pago: metodoPago,
           productos: productosNormalizados,
           total: totalDolar,
+          total_bs: totalBs,
+          tasa_cambio: tasa,
           estado: 'pendiente',
         },
       ]);
 
-      let mensaje = `*NUEVO PEDIDO - ${empresa.nombre.toUpperCase()}*%0A`;
-      mensaje += `*Cliente:* ${nombreCliente.toUpperCase()}%0A%0A`;
-      carrito.forEach((i) => {
-        mensaje += `• ${i.cant}x ${i.nombre}${i.descripcion ? ` (${i.descripcion})` : ''} - $${(i.precio * i.cant).toFixed(2)}%0A`;
-      });
-      mensaje += `%0A*TOTAL:* *$${totalDolar.toFixed(2)}*%0A`;
-      mensaje += `*${moneda === 'EUR' ? '€' : 'Bs.'} ${(totalDolar * tasa).toFixed(2)}*%0A%0A`;
-      mensaje += `_Enviado desde Ventiq_`;
+      // ── Construir mensaje WhatsApp ────────────────────────
+      const buildMensaje = (paraCliente = false) => {
+        const titulo = paraCliente
+          ? `✅ *Tu pedido en ${empresa.nombre.toUpperCase()} fue recibido*`
+          : `🛒 *NUEVO PEDIDO - ${empresa.nombre.toUpperCase()}*`;
 
-      window.open(`https://wa.me/${telefonoLimpio}?text=${mensaje}`, '_blank');
+        let msg = `${titulo}%0A`;
+        msg += `👤 *Cliente:* ${nombreCliente.toUpperCase()}%0A`;
+        if (telefonoCliente) msg += `📞 *Teléfono:* ${telefonoCliente}%0A`;
+        msg += `📦 *Entrega:* ${tipoEntrega === 'delivery' ? `Delivery → ${direccionCliente}` : 'Retiro en tienda'}%0A`;
+        msg += `💳 *Pago:* ${metodoLabel}%0A%0A`;
+
+        carrito.forEach((i) => {
+          const subt = (i.precio * i.cant).toFixed(2);
+          const subtBs = (i.precio * i.cant * tasa).toFixed(2);
+          msg += `• ${i.cant}x ${i.nombre}${i.descripcion ? ` (${i.descripcion})` : ''} — $${subt} / Bs.${subtBs}%0A`;
+        });
+
+        msg += `%0A💵 *TOTAL USD:* *$${totalDolar.toFixed(2)}*%0A`;
+        msg += `💴 *TOTAL Bs.:* *Bs.${totalBs.toFixed(2)}* _(Tasa: ${tasa.toFixed(2)})_%0A`;
+
+        // Si el método es Pago Móvil, agregar datos de la empresa
+        if (metodoPago === 'pago_movil' && empresa?.pago_movil_banco) {
+          msg += `%0A📱 *Datos Pago Móvil:*%0A`;
+          msg += `🏦 Banco: ${empresa.pago_movil_banco}%0A`;
+          msg += `📞 Teléfono: ${empresa.pago_movil_telefono}%0A`;
+          msg += `🪪 C.I./RIF: ${empresa.pago_movil_cedula}%0A`;
+        }
+        if (metodoPago === 'zelle' && empresa?.zelle_cuenta) {
+          msg += `%0A⚡ *Zelle:* ${empresa.zelle_cuenta}%0A`;
+        }
+        if (metodoPago === 'transferencia' && empresa?.transferencia_banco) {
+          msg += `%0A🏦 *Transferencia:*%0A`;
+          msg += `Banco: ${empresa.transferencia_banco}%0A`;
+          msg += `Cuenta: ${empresa.transferencia_cuenta}%0A`;
+          msg += `Titular: ${empresa.transferencia_titular}%0A`;
+        }
+
+        if (!paraCliente) msg += `%0A_Enviado desde Ventiq_`;
+        else msg += `%0A_Gracias por tu compra 🎉_`;
+
+        return msg;
+      };
+
+      // 1. Enviar al número de la empresa
+      window.open(
+        `https://wa.me/${telefonoEmpresa}?text=${buildMensaje(false)}`,
+        '_blank',
+      );
+
+      // 2. Si el cliente dio su teléfono, enviarle también su confirmación
+      if (telefonoCliente.trim()) {
+        const telCliente = telefonoCliente.replace(/\D/g, '');
+        const telFull = telCliente.startsWith('58')
+          ? telCliente
+          : `58${telCliente.startsWith('0') ? telCliente.slice(1) : telCliente}`;
+        setTimeout(() => {
+          window.open(
+            `https://wa.me/${telFull}?text=${buildMensaje(true)}`,
+            '_blank',
+          );
+        }, 800);
+      }
+
       setCarrito([]);
       setNombreCliente('');
+      setTelefonoCliente('');
+      setDireccionCliente('');
+      setMetodoPago('efectivo_usd');
+      setTipoEntrega('retiro');
       setIsCartOpen(false);
       setPedidoEnviado(true);
       setTimeout(() => setPedidoEnviado(false), 5000);
@@ -288,6 +438,11 @@ export default function CatalogoPublico({
         <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tighter leading-none">
           {empresa?.nombre}
         </h1>
+        {empresa?.direccion && (
+          <p className="text-[10px] text-slate-400 font-medium mt-1 flex items-center justify-center gap-1">
+            <MapPin size={10} /> {empresa.direccion}
+          </p>
+        )}
         <div className="mt-4 px-4 py-1.5 bg-emerald-50 text-emerald-600 rounded-full inline-block border border-emerald-100 text-[9px] font-black uppercase">
           {tasa > 0
             ? `Tasa: ${moneda === 'EUR' ? '€' : 'Bs.'} ${tasa.toFixed(2)}`
@@ -470,7 +625,12 @@ export default function CatalogoPublico({
                 </p>
               </div>
             </div>
-            <p className="text-2xl font-black">${totalDolar.toFixed(2)}</p>
+            <div className="text-right">
+              <p className="text-2xl font-black">${totalDolar.toFixed(2)}</p>
+              <p className="text-[10px] text-orange-300 font-bold">
+                Bs. {totalBs.toFixed(2)}
+              </p>
+            </div>
           </button>
         </div>
       )}
@@ -483,7 +643,8 @@ export default function CatalogoPublico({
             onClick={() => setIsCartOpen(false)}
           />
           <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-500">
-            <div className="p-8 border-b flex items-center justify-between">
+            {/* Header */}
+            <div className="p-8 border-b flex items-center justify-between flex-shrink-0">
               <h2 className="font-black uppercase text-2xl tracking-tighter">
                 Mi Pedido
               </h2>
@@ -495,100 +656,235 @@ export default function CatalogoPublico({
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 space-y-4">
-              {carrito.map((item) => (
-                <div
-                  key={item.id}
-                  className="group relative flex items-center gap-4 bg-white p-4 rounded-[2rem] border border-slate-100 shadow-sm"
-                >
-                  <button
-                    onClick={() => eliminarDelCarrito(item.id)}
-                    className="absolute -top-1 -right-1 bg-red-50 text-red-500 p-2 rounded-full border border-red-100 shadow-sm"
+            {/* Scroll */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {/* Productos */}
+              <div className="space-y-3">
+                {carrito.map((item) => (
+                  <div
+                    key={item.id}
+                    className="group relative flex items-center gap-4 bg-white p-4 rounded-[2rem] border border-slate-100 shadow-sm"
                   >
-                    <Trash2 size={12} />
-                  </button>
-                  <div className="w-16 h-16 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0">
-                    {item.imagen_url ? (
-                      <img
-                        src={item.imagen_url}
-                        className="w-full h-full object-cover"
-                        alt="item"
-                      />
-                    ) : (
-                      <Package
-                        size={20}
-                        className="m-auto mt-5 text-slate-200"
-                      />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-black text-[10px] uppercase text-slate-800 truncate pr-4">
-                      {item.nombre}
-                    </p>
-                    <p className="text-orange-500 font-black text-sm">
-                      ${(item.precio * item.cant).toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="flex items-center bg-slate-50 rounded-2xl p-1 gap-1 border">
                     <button
-                      onClick={() => actualizarCant(item.id, item.cant - 1)}
-                      className="w-8 h-8 flex items-center justify-center text-slate-400"
+                      onClick={() => eliminarDelCarrito(item.id)}
+                      className="absolute -top-1 -right-1 bg-red-50 text-red-500 p-2 rounded-full border border-red-100 shadow-sm"
                     >
-                      <Minus size={14} />
+                      <Trash2 size={12} />
                     </button>
-                    <input
-                      type="number"
-                      value={item.cant}
-                      onChange={(e) =>
-                        manejarInputCant(item.id, e.target.value)
-                      }
-                      onBlur={() => validarInputBlur(item.id, item.cant)}
-                      className="w-8 bg-transparent text-center font-black text-xs outline-none"
-                    />
-                    <button
-                      onClick={() => actualizarCant(item.id, item.cant + 1)}
-                      className="w-8 h-8 flex items-center justify-center text-slate-400"
-                    >
-                      <Plus size={14} />
-                    </button>
+                    <div className="w-14 h-14 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0">
+                      {item.imagen_url ? (
+                        <img
+                          src={item.imagen_url}
+                          className="w-full h-full object-cover"
+                          alt="item"
+                        />
+                      ) : (
+                        <Package
+                          size={18}
+                          className="m-auto mt-4 text-slate-200"
+                        />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-[10px] uppercase text-slate-800 truncate pr-4">
+                        {item.nombre}
+                      </p>
+                      <p className="text-orange-500 font-black text-sm">
+                        ${(item.precio * item.cant).toFixed(2)}
+                      </p>
+                      <p className="text-[9px] text-slate-400 font-bold">
+                        Bs. {(item.precio * item.cant * tasa).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="flex items-center bg-slate-50 rounded-2xl p-1 gap-1 border">
+                      <button
+                        onClick={() => actualizarCant(item.id, item.cant - 1)}
+                        className="w-7 h-7 flex items-center justify-center text-slate-400"
+                      >
+                        <Minus size={13} />
+                      </button>
+                      <input
+                        type="number"
+                        value={item.cant}
+                        onChange={(e) =>
+                          manejarInputCant(item.id, e.target.value)
+                        }
+                        onBlur={() => validarInputBlur(item.id, item.cant)}
+                        className="w-7 bg-transparent text-center font-black text-xs outline-none"
+                      />
+                      <button
+                        onClick={() => actualizarCant(item.id, item.cant + 1)}
+                        className="w-7 h-7 flex items-center justify-center text-slate-400"
+                      >
+                        <Plus size={13} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
 
-            <div className="p-8 border-t bg-slate-50/50 space-y-6">
-              <div className="space-y-2">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4">
+              {/* ── DATOS DEL CLIENTE ── */}
+              <div className="space-y-3">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
                   Tus Datos
                 </p>
                 <input
                   type="text"
-                  placeholder="¿CUÁL ES TU NOMBRE?"
+                  placeholder="¿CUÁL ES TU NOMBRE? *"
                   value={nombreCliente}
                   onChange={(e) => setNombreCliente(e.target.value)}
-                  className="w-full bg-white border-2 border-slate-100 p-5 rounded-3xl outline-none focus:border-orange-500 font-black text-xs uppercase transition-all shadow-sm"
+                  className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl outline-none focus:border-orange-500 font-black text-xs uppercase transition-all"
                 />
+                <div className="relative">
+                  <Phone
+                    size={14}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="tel"
+                    placeholder="Teléfono (para confirmación)"
+                    value={telefonoCliente}
+                    onChange={(e) => setTelefonoCliente(e.target.value)}
+                    className="w-full bg-slate-50 border-2 border-slate-100 p-4 pl-10 rounded-2xl outline-none focus:border-orange-500 font-bold text-xs transition-all"
+                  />
+                </div>
               </div>
 
-              <div className="flex items-center justify-between px-2">
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">
-                    Total a Pagar
-                  </p>
-                  <p className="font-black text-slate-900 text-3xl tracking-tighter">
+              {/* ── TIPO DE ENTREGA ── */}
+              <div className="space-y-3">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                  Tipo de Entrega
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'retiro', label: 'Retiro en Tienda', icon: '🏪' },
+                    { id: 'delivery', label: 'Delivery', icon: '🚗' },
+                  ].map((op) => (
+                    <button
+                      key={op.id}
+                      type="button"
+                      onClick={() => setTipoEntrega(op.id as any)}
+                      className={`p-3 rounded-2xl border-2 text-center font-black text-[10px] uppercase transition-all ${
+                        tipoEntrega === op.id
+                          ? 'border-orange-500 bg-orange-50 text-orange-700'
+                          : 'border-slate-100 bg-slate-50 text-slate-500'
+                      }`}
+                    >
+                      <span className="text-lg block mb-1">{op.icon}</span>
+                      {op.label}
+                    </button>
+                  ))}
+                </div>
+                {tipoEntrega === 'delivery' && (
+                  <div className="relative">
+                    <MapPin
+                      size={14}
+                      className="absolute left-4 top-4 text-slate-400"
+                    />
+                    <textarea
+                      placeholder="Dirección de entrega..."
+                      value={direccionCliente}
+                      onChange={(e) => setDireccionCliente(e.target.value)}
+                      className="w-full bg-slate-50 border-2 border-slate-100 p-4 pl-10 rounded-2xl outline-none focus:border-orange-500 font-bold text-xs resize-none transition-all"
+                      rows={2}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* ── MÉTODO DE PAGO ── */}
+              <div className="space-y-3">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                  Método de Pago
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {METODOS_PAGO.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setMetodoPago(m.id)}
+                      className={`p-3 rounded-2xl border-2 flex items-center gap-2 font-black text-[10px] uppercase transition-all ${
+                        metodoPago === m.id
+                          ? m.color + ' shadow-sm'
+                          : 'border-slate-100 bg-slate-50 text-slate-500'
+                      }`}
+                    >
+                      <span>{m.icon}</span> {m.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Mostrar datos de pago móvil si aplica */}
+                {metodoPago === 'pago_movil' && empresa?.pago_movil_banco && (
+                  <div className="p-4 bg-violet-50 border border-violet-200 rounded-2xl space-y-1">
+                    <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest mb-2">
+                      Datos Pago Móvil
+                    </p>
+                    <p className="text-xs font-bold text-violet-800">
+                      🏦 {empresa.pago_movil_banco}
+                    </p>
+                    <p className="text-xs font-bold text-violet-800">
+                      📞 {empresa.pago_movil_telefono}
+                    </p>
+                    <p className="text-xs font-bold text-violet-800">
+                      🪪 {empresa.pago_movil_cedula}
+                    </p>
+                  </div>
+                )}
+                {metodoPago === 'zelle' && empresa?.zelle_cuenta && (
+                  <div className="p-4 bg-purple-50 border border-purple-200 rounded-2xl">
+                    <p className="text-[9px] font-black text-purple-600 uppercase tracking-widest mb-1">
+                      Zelle
+                    </p>
+                    <p className="text-xs font-bold text-purple-800">
+                      ⚡ {empresa.zelle_cuenta}
+                    </p>
+                  </div>
+                )}
+                {metodoPago === 'transferencia' &&
+                  empresa?.transferencia_banco && (
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
+                      <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-2">
+                        Datos Transferencia
+                      </p>
+                      <p className="text-xs font-bold text-slate-800">
+                        🏦 {empresa.transferencia_banco}
+                      </p>
+                      <p className="text-xs font-bold text-slate-800">
+                        💳 {empresa.transferencia_cuenta}
+                      </p>
+                      <p className="text-xs font-bold text-slate-800">
+                        👤 {empresa.transferencia_titular}
+                      </p>
+                    </div>
+                  )}
+              </div>
+
+              {/* Totales */}
+              <div className="p-4 bg-slate-900 rounded-2xl flex justify-between items-center">
+                <p className="text-[10px] font-black text-slate-400 uppercase">
+                  Total a Pagar
+                </p>
+                <div className="text-right">
+                  <p className="font-black text-white text-2xl">
                     ${totalDolar.toFixed(2)}
                   </p>
+                  <p className="text-[10px] font-bold text-orange-400">
+                    Bs. {totalBs.toFixed(2)}
+                  </p>
+                  <p className="text-[8px] font-bold text-slate-500">
+                    Tasa: {tasa.toFixed(2)}
+                  </p>
                 </div>
-                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
-                  {moneda === 'EUR' ? '€' : 'Bs.'}{' '}
-                  {(totalDolar * tasa).toFixed(2)}
-                </p>
               </div>
+            </div>
 
+            {/* Footer fijo */}
+            <div className="p-6 border-t bg-slate-50/50 flex-shrink-0">
               <button
                 onClick={enviarPedido}
                 disabled={!nombreCliente.trim() || enviando}
-                className={`w-full py-6 rounded-[2.2rem] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl transition-all ${
+                className={`w-full py-5 rounded-[2.2rem] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl transition-all ${
                   nombreCliente.trim() && !enviando
                     ? 'bg-[#25D366] text-white hover:brightness-105 active:scale-[0.98]'
                     : 'bg-slate-200 text-slate-400 cursor-not-allowed'
@@ -600,13 +896,18 @@ export default function CatalogoPublico({
                   <MessageCircle size={22} strokeWidth={3} />
                 )}
                 {enviando
-                  ? 'Registrando...'
+                  ? 'Enviando...'
                   : !empresa?.telefono
                     ? 'WhatsApp no configurado'
                     : nombreCliente.trim()
-                      ? 'Enviar Pedido'
-                      : 'Escribe tu nombre'}
+                      ? 'Confirmar Pedido por WhatsApp'
+                      : 'Escribe tu nombre primero'}
               </button>
+              {telefonoCliente.trim() && (
+                <p className="text-[9px] text-center text-slate-400 font-bold mt-2">
+                  📱 También recibirás confirmación en {telefonoCliente}
+                </p>
+              )}
             </div>
           </div>
         </div>
