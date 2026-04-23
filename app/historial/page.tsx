@@ -69,22 +69,17 @@ export default function HistorialPage() {
   }, []);
 
   useEffect(() => {
-    if (miEmpresaId) cargarDatos(miEmpresaId);
-  }, [miEmpresaId]);
-
-  useEffect(() => {
     if (miEmpresaId) cargarCajasDia(miEmpresaId, fechaCaja);
   }, [fechaCaja, miEmpresaId]);
 
   // ── Cargar historial completo ──────────────────────────────
   // Trae TODAS las cotizaciones/ventas de la empresa, sin filtro de fecha
-  const cargarDatos = async (empresaId: string) => {
+  const cargarDatos = async () => {
     setCargando(true);
     try {
       const { data: cots, error } = await supabase
         .from('cotizaciones')
         .select('*, clientes(nombre, apellido, cedula, empresa)')
-        .eq('empresa_id', empresaId)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -206,7 +201,7 @@ export default function HistorialPage() {
         })
         .eq('id', cot.id);
       alert('✅ Operación Aprobada e Inventario Actualizado');
-      if (miEmpresaId) cargarDatos(miEmpresaId);
+      if (miEmpresaId) cargarDatos();
       setCotizacionSeleccionada(null);
     } catch {
       alert('Error al aprobar');
@@ -260,7 +255,7 @@ export default function HistorialPage() {
       setCotizacionSeleccionada(null);
       setMostrarAbonar(false);
       if (miEmpresaId) {
-        await cargarDatos(miEmpresaId);
+        await cargarDatos();
         await cargarCajasDia(miEmpresaId, fechaCaja);
       }
     } catch {
