@@ -79,9 +79,6 @@ export default function HistorialPage() {
   // ── Cargar historial completo ──────────────────────────────
   // Trae TODAS las cotizaciones/ventas de la empresa, sin filtro de fecha
   const cargarDatos = async (empresaId: string) => {
-    // LOG 1: Verificar que la función recibe el ID
-    console.log('1. Iniciando cargarDatos para empresa:', empresaId);
-
     setCargando(true);
     try {
       const { data: cots, error } = await supabase
@@ -91,13 +88,8 @@ export default function HistorialPage() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        // LOG 2: Si Supabase da error (ej: error de permisos RLS o nombre de columna)
-        console.error('2. Error de Supabase:', error.message);
         return;
       }
-
-      // LOG 3: Ver qué datos llegaron exactamente
-      console.log('3. Datos recibidos de la tabla cotizaciones:', cots);
 
       if (cots) setCotizaciones(cots);
     } catch (err) {
