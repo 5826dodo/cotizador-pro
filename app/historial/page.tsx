@@ -69,26 +69,39 @@ export default function HistorialPage() {
   }, []);
 
   useEffect(() => {
+    if (miEmpresaId) cargarDatos(miEmpresaId);
+  }, [miEmpresaId]);
+
+  useEffect(() => {
     if (miEmpresaId) cargarCajasDia(miEmpresaId, fechaCaja);
   }, [fechaCaja, miEmpresaId]);
 
   // ── Cargar historial completo ──────────────────────────────
   // Trae TODAS las cotizaciones/ventas de la empresa, sin filtro de fecha
-  const cargarDatos = async () => {
+  const cargarDatos = async (empresaId: string) => {
+    // LOG 1: Verificar que la función recibe el ID
+    console.log('1. Iniciando cargarDatos para empresa:', empresaId);
+
     setCargando(true);
     try {
       const { data: cots, error } = await supabase
         .from('cotizaciones')
         .select('*, clientes(nombre, apellido, cedula, empresa)')
+        .eq('empresa_id', empresaId)
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error(error);
+        // LOG 2: Si Supabase da error (ej: error de permisos RLS o nombre de columna)
+        console.error('2. Error de Supabase:', error.message);
         return;
       }
+
+      // LOG 3: Ver qué datos llegaron exactamente
+      console.log('3. Datos recibidos de la tabla cotizaciones:', cots);
+
       if (cots) setCotizaciones(cots);
     } catch (err) {
-      console.error('Error cargando historial:', err);
+      console.error('4. Error inesperado:', err);
     } finally {
       setCargando(false);
     }
@@ -201,7 +214,7 @@ export default function HistorialPage() {
         })
         .eq('id', cot.id);
       alert('✅ Operación Aprobada e Inventario Actualizado');
-      if (miEmpresaId) cargarDatos();
+      if (miEmpresaId) cargarDatos(miEmpresaId);
       setCotizacionSeleccionada(null);
     } catch {
       alert('Error al aprobar');
@@ -255,7 +268,7 @@ export default function HistorialPage() {
       setCotizacionSeleccionada(null);
       setMostrarAbonar(false);
       if (miEmpresaId) {
-        await cargarDatos();
+        await cargarDatos(miEmpresaId);
         await cargarCajasDia(miEmpresaId, fechaCaja);
       }
     } catch {
