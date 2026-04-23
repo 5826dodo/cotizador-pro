@@ -86,7 +86,7 @@ export default function HistorialPage() {
     try {
       const { data: cots, error } = await supabase
         .from('cotizaciones')
-        .select('*, clientes(nombre, apellido, cedula, empresa)')
+        .select('*, clientes(nombre, cedula, empresa)')
         .eq('empresa_id', empresaId)
         .order('created_at', { ascending: false });
 
