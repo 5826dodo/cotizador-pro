@@ -221,9 +221,8 @@ function PanelPedidosCatalogo({
             .toLowerCase()
             .includes(vinc.busqueda.toLowerCase()),
         );
-        const mins = Math.floor(
-          (Date.now() - new Date(pedido.created_at).getTime()) / 60000,
-        );
+        const fechaUTC = new Date(pedido.created_at);
+        const mins = Math.floor((Date.now() - fechaUTC.getTime()) / 60000);
         const fechaRel =
           mins < 60
             ? `hace ${mins} min`
@@ -803,6 +802,7 @@ export default function CotizarPage() {
             productos_seleccionados: carrito,
             total,
             empresa_id: miEmpresaId,
+            created_at: new Date().toISOString(),
             estado: esVenta ? 'aprobado' : 'pendiente',
             tipo_operacion: tipoOperacion,
             estado_pago: esVenta
@@ -828,6 +828,7 @@ export default function CotizarPage() {
             monto_usd: monedaPrincipal === 'USD' ? montoPagado : 0,
             tasa_aplicada: tasaBCV,
             observacion: `Venta directa - ${clienteSeleccionado?.nombre || nombreClienteLibre || 'Consumidor Final'}`,
+            created_at: new Date().toISOString(),
           },
         ]);
       }
