@@ -15,13 +15,7 @@ import {
   Loader2,
   MapPin,
   Phone,
-  CreditCard,
-  Banknote,
-  Smartphone,
-  Zap,
-  ChevronDown,
-  ChevronUp,
-  Info,
+  ZoomIn,
 } from 'lucide-react';
 
 // ── Métodos de pago ───────────────────────────────────────────
@@ -66,13 +60,71 @@ const METODOS_PAGO = [
 
 type MetodoPago = (typeof METODOS_PAGO)[number]['id'];
 
-// ── Imagen con skeleton ───────────────────────────────────────
-function ImagenConCarga({ url, nombre }: { url: string; nombre: string }) {
-  const [cargada, setCargada] = useState(false);
+// ── Modal de imagen ───────────────────────────────────────────
+function ModalImagen({
+  url,
+  nombre,
+  onClose,
+}: {
+  url: string;
+  nombre: string;
+  onClose: () => void;
+}) {
+  // Cerrar con ESC
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
   return (
-    <div className="relative w-full h-full">
+    <div
+      className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-w-lg w-full bg-white rounded-[3rem] overflow-hidden shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-10 bg-black/40 text-white w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm hover:bg-black/60 transition-all"
+        >
+          <X size={18} />
+        </button>
+        <img
+          src={url}
+          alt={nombre}
+          className="w-full object-contain max-h-[70vh]"
+        />
+        <div className="px-6 py-4 border-t border-slate-100">
+          <p className="font-black text-slate-800 text-xs uppercase tracking-wider truncate">
+            {nombre}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Imagen con skeleton + botón zoom ─────────────────────────
+function ImagenConCarga({
+  url,
+  nombre,
+  onZoom,
+}: {
+  url: string;
+  nombre: string;
+  onZoom: () => void;
+}) {
+  const [cargada, setCargada] = useState(false);
+
+  return (
+    <div className="relative w-full h-full group">
       {!cargada && (
-        <div className="absolute inset-0 bg-slate-200 animate-pulse" />
+        <div className="absolute inset-0 bg-slate-200 animate-pulse rounded-3xl" />
       )}
       <img
         src={url}
@@ -80,8 +132,26 @@ function ImagenConCarga({ url, nombre }: { url: string; nombre: string }) {
         loading="lazy"
         decoding="async"
         onLoad={() => setCargada(true)}
-        className={`w-full h-full object-cover transition-all duration-700 ${cargada ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+        className={`w-full h-full object-cover transition-all duration-500 ${
+          cargada ? 'opacity-100' : 'opacity-0'
+        }`}
       />
+      {/* Botón zoom — aparece al hover en desktop, siempre visible en móvil */}
+      {cargada && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onZoom();
+          }}
+          className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-3xl"
+          aria-label={`Ver imagen de ${nombre}`}
+        >
+          <ZoomIn
+            size={22}
+            className="text-white drop-shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          />
+        </button>
+      )}
     </div>
   );
 }
@@ -112,6 +182,12 @@ export default function CatalogoPublico({
   const [cargandoMas, setCargandoMas] = useState(false);
   const ITEMS_POR_PAGINA = 12;
 
+  // ── Modal de imagen ──────────────────────────────────────
+  const [imagenModal, setImagenModal] = useState<{
+    url: string;
+    nombre: string;
+  } | null>(null);
+
   // ── Datos del cliente en el carrito ──────────────────────
   const [nombreCliente, setNombreCliente] = useState('');
   const [telefonoCliente, setTelefonoCliente] = useState('');
@@ -120,7 +196,6 @@ export default function CatalogoPublico({
   const [tipoEntrega, setTipoEntrega] = useState<'retiro' | 'delivery'>(
     'retiro',
   );
-  const [mostrarPagoMovil, setMostrarPagoMovil] = useState(false);
 
   // Ocultar navbar de la app
   useEffect(() => {
@@ -132,14 +207,12 @@ export default function CatalogoPublico({
   }, []);
 
   // ── Productos paginados ────────────────────────────────────
-  // Doble filtro: es_materia_prima = false Y excluir categoría "Materia Prima"
   const obtenerProductos = async (idEmpresa: string, reiniciar = false) => {
     try {
       const nuevaPagina = reiniciar ? 0 : pagina;
       if (!reiniciar) setCargandoMas(true);
       const desde = nuevaPagina * ITEMS_POR_PAGINA;
 
-      // Primero obtenemos el id de la categoría "Materia Prima" si existe
       const { data: catMP } = await supabase
         .from('categorias')
         .select('id')
@@ -152,16 +225,12 @@ export default function CatalogoPublico({
         .select('*, categorias(nombre)')
         .eq('empresa_id', idEmpresa)
         .eq('activo', true)
-        .eq('es_materia_prima', false) // filtro principal
+        .eq('es_materia_prima', false)
         .gt('stock', 0)
         .order('nombre', { ascending: true })
         .range(desde, desde + ITEMS_POR_PAGINA - 1);
 
-      // Si existe la categoría "Materia Prima", también excluirla por id
-      if (catMP?.id) {
-        query = query.neq('categoria_id', catMP.id);
-      }
-
+      if (catMP?.id) query = query.neq('categoria_id', catMP.id);
       if (catSeleccionada !== 'todas')
         query = query.eq('categoria_id', catSeleccionada);
 
@@ -205,7 +274,6 @@ export default function CatalogoPublico({
         const d = await res.json();
         setTasa(d.promedio || 0);
 
-        // Cargar categorías excluyendo "Materia Prima"
         const { data: cats } = await supabase
           .from('categorias')
           .select('*')
@@ -272,7 +340,6 @@ export default function CatalogoPublico({
 
   const totalDolar = carrito.reduce((acc, p) => acc + p.precio * p.cant, 0);
   const totalBs = totalDolar * tasa;
-
   const metodoLabel =
     METODOS_PAGO.find((m) => m.id === metodoPago)?.label || metodoPago;
 
@@ -300,7 +367,6 @@ export default function CatalogoPublico({
         stock: i.stock,
       }));
 
-      // Guardar pedido con datos extra del cliente
       await supabase.from('pedidos_catalogo').insert([
         {
           empresa_id: empresaId,
@@ -341,7 +407,7 @@ export default function CatalogoPublico({
         msg += `%0A💵 *TOTAL USD:* *$${totalDolar.toFixed(2)}*%0A`;
         msg += `💴 *TOTAL Bs.:* *Bs.${totalBs.toFixed(2)}* _(Tasa: ${tasa.toFixed(2)})_%0A`;
 
-        // Si el método es Pago Móvil, agregar datos de la empresa
+        // Datos de pago según método seleccionado
         if (metodoPago === 'pago_movil' && empresa?.pago_movil_banco) {
           msg += `%0A📱 *Datos Pago Móvil:*%0A`;
           msg += `🏦 Banco: ${empresa.pago_movil_banco}%0A`;
@@ -364,13 +430,11 @@ export default function CatalogoPublico({
         return msg;
       };
 
-      // 1. Enviar al número de la empresa
       window.open(
         `https://wa.me/${telefonoEmpresa}?text=${buildMensaje(false)}`,
         '_blank',
       );
 
-      // 2. Si el cliente dio su teléfono, enviarle también su confirmación
       if (telefonoCliente.trim()) {
         const telCliente = telefonoCliente.replace(/\D/g, '');
         const telFull = telCliente.startsWith('58')
@@ -407,6 +471,15 @@ export default function CatalogoPublico({
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-32">
+      {/* MODAL IMAGEN */}
+      {imagenModal && (
+        <ModalImagen
+          url={imagenModal.url}
+          nombre={imagenModal.nombre}
+          onClose={() => setImagenModal(null)}
+        />
+      )}
+
       {/* CONFIRMACIÓN */}
       {pedidoEnviado && (
         <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm bg-emerald-600 text-white p-6 rounded-[2rem] shadow-2xl flex items-center gap-4">
@@ -507,10 +580,20 @@ export default function CatalogoPublico({
                 key={p.id}
                 className={`bg-white p-5 rounded-[2.8rem] flex flex-row items-center gap-5 border-2 transition-all ${cant > 0 ? 'border-orange-500 shadow-xl' : 'border-transparent shadow-sm'}`}
               >
+                {/* IMAGEN con zoom */}
                 <div className="relative w-24 h-24 flex-shrink-0">
                   <div className="w-full h-full bg-slate-100 rounded-3xl overflow-hidden border border-slate-50">
                     {p.imagen_url ? (
-                      <ImagenConCarga url={p.imagen_url} nombre={p.nombre} />
+                      <ImagenConCarga
+                        url={p.imagen_url}
+                        nombre={p.nombre}
+                        onZoom={() =>
+                          setImagenModal({
+                            url: p.imagen_url,
+                            nombre: p.nombre,
+                          })
+                        }
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-200">
                         <Package size={30} />
@@ -814,7 +897,7 @@ export default function CatalogoPublico({
                   ))}
                 </div>
 
-                {/* Mostrar datos de pago móvil si aplica */}
+                {/* Datos de pago móvil */}
                 {metodoPago === 'pago_movil' && empresa?.pago_movil_banco && (
                   <div className="p-4 bg-violet-50 border border-violet-200 rounded-2xl space-y-1">
                     <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest mb-2">
@@ -857,6 +940,25 @@ export default function CatalogoPublico({
                         👤 {empresa.transferencia_titular}
                       </p>
                     </div>
+                  )}
+
+                {/* Aviso si el método elegido no tiene datos configurados */}
+                {metodoPago === 'pago_movil' && !empresa?.pago_movil_banco && (
+                  <p className="text-[9px] text-amber-600 font-bold bg-amber-50 border border-amber-100 rounded-xl p-3">
+                    ⚠️ La empresa aún no ha configurado sus datos de Pago Móvil.
+                  </p>
+                )}
+                {metodoPago === 'zelle' && !empresa?.zelle_cuenta && (
+                  <p className="text-[9px] text-amber-600 font-bold bg-amber-50 border border-amber-100 rounded-xl p-3">
+                    ⚠️ La empresa aún no ha configurado su cuenta Zelle.
+                  </p>
+                )}
+                {metodoPago === 'transferencia' &&
+                  !empresa?.transferencia_banco && (
+                    <p className="text-[9px] text-amber-600 font-bold bg-amber-50 border border-amber-100 rounded-xl p-3">
+                      ⚠️ La empresa aún no ha configurado sus datos de
+                      transferencia.
+                    </p>
                   )}
               </div>
 

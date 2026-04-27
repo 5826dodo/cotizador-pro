@@ -18,7 +18,10 @@ import {
   FileText,
   Printer,
   ChefHat,
-  Building2 as GastosIcon,
+  CreditCard,
+  Zap,
+  Banknote,
+  Smartphone,
 } from 'lucide-react';
 
 export default function PerfilEmpresa() {
@@ -37,9 +40,19 @@ export default function PerfilEmpresa() {
     permitir_ventas_sin_stock: false,
     moneda_secundaria: 'BS',
     modo_operacion: 'completo' as 'completo' | 'ticketera',
-    // ── Módulos opcionales ──
-    modulo_recetas: false, // ¿El negocio fabrica productos con receta?
-    modulo_gastos_fijos: true, // ¿Quiere distribuir gastos fijos entre productos?
+    modulo_recetas: false,
+    modulo_gastos_fijos: true,
+  });
+
+  // ── Datos de métodos de pago ──────────────────────────────
+  const [datosPago, setDatosPago] = useState({
+    pago_movil_banco: '',
+    pago_movil_telefono: '',
+    pago_movil_cedula: '',
+    zelle_cuenta: '',
+    transferencia_banco: '',
+    transferencia_cuenta: '',
+    transferencia_titular: '',
   });
 
   useEffect(() => {
@@ -68,6 +81,16 @@ export default function PerfilEmpresa() {
               modo_operacion: db.modo_operacion || 'completo',
               modulo_recetas: db.modulo_recetas ?? false,
               modulo_gastos_fijos: db.modulo_gastos_fijos ?? true,
+            });
+            // Cargar datos de pago guardados
+            setDatosPago({
+              pago_movil_banco: db.pago_movil_banco || '',
+              pago_movil_telefono: db.pago_movil_telefono || '',
+              pago_movil_cedula: db.pago_movil_cedula || '',
+              zelle_cuenta: db.zelle_cuenta || '',
+              transferencia_banco: db.transferencia_banco || '',
+              transferencia_cuenta: db.transferencia_cuenta || '',
+              transferencia_titular: db.transferencia_titular || '',
             });
           }
         }
@@ -112,6 +135,14 @@ export default function PerfilEmpresa() {
           modulo_recetas: configGlobal.modulo_recetas,
           modulo_gastos_fijos: configGlobal.modulo_gastos_fijos,
           configuracion_inicial: true,
+          // ── Métodos de pago ──
+          pago_movil_banco: datosPago.pago_movil_banco.trim() || null,
+          pago_movil_telefono: datosPago.pago_movil_telefono.trim() || null,
+          pago_movil_cedula: datosPago.pago_movil_cedula.trim() || null,
+          zelle_cuenta: datosPago.zelle_cuenta.trim() || null,
+          transferencia_banco: datosPago.transferencia_banco.trim() || null,
+          transferencia_cuenta: datosPago.transferencia_cuenta.trim() || null,
+          transferencia_titular: datosPago.transferencia_titular.trim() || null,
         })
         .eq('id', empresa.id);
 
@@ -135,7 +166,6 @@ export default function PerfilEmpresa() {
       </div>
     );
 
-  // Helper para el toggle visual
   const Toggle = ({
     value,
     onChange,
@@ -150,6 +180,34 @@ export default function PerfilEmpresa() {
     >
       {value ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
     </button>
+  );
+
+  // Helper para inputs dentro de sección de pago
+  const InputPago = ({
+    label,
+    placeholder,
+    value,
+    onChange,
+    type = 'text',
+  }: {
+    label: string;
+    placeholder: string;
+    value: string;
+    onChange: (v: string) => void;
+    type?: string;
+  }) => (
+    <div className="space-y-1">
+      <label className="text-[9px] font-black text-slate-400 uppercase ml-2 tracking-widest">
+        {label}
+      </label>
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-4 py-3 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-400 font-bold text-xs transition-all"
+      />
+    </div>
   );
 
   return (
@@ -276,7 +334,7 @@ export default function PerfilEmpresa() {
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase ml-2">
-                Teléfono
+                Teléfono WhatsApp
               </label>
               <div className="relative">
                 <Phone
@@ -313,6 +371,138 @@ export default function PerfilEmpresa() {
                   }
                 />
               </div>
+            </div>
+          </div>
+
+          {/* ══════════════════════════════════════════════
+              MÉTODOS DE PAGO — sección nueva
+          ══════════════════════════════════════════════ */}
+          <div className="pt-4 border-t border-slate-100">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 flex items-center gap-2">
+              <CreditCard size={14} /> Métodos de Pago del Catálogo
+            </h3>
+            <p className="text-[10px] text-slate-400 font-medium mb-5">
+              Estos datos aparecerán en el mensaje de WhatsApp cuando el cliente
+              seleccione ese método de pago.
+            </p>
+
+            <div className="space-y-4">
+              {/* ── Pago Móvil ── */}
+              <div className="p-5 rounded-[2rem] border-2 border-violet-100 bg-violet-50/30 space-y-3">
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="p-2 bg-violet-500 text-white rounded-xl">
+                    <Smartphone size={16} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black uppercase text-slate-700">
+                      📱 Pago Móvil
+                    </p>
+                    <p className="text-[9px] text-slate-400 font-medium">
+                      Banco, teléfono y cédula/RIF del receptor
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <InputPago
+                    label="Banco"
+                    placeholder="Ej: Banesco"
+                    value={datosPago.pago_movil_banco}
+                    onChange={(v) =>
+                      setDatosPago({ ...datosPago, pago_movil_banco: v })
+                    }
+                  />
+                  <InputPago
+                    label="Teléfono"
+                    placeholder="Ej: 0412-1234567"
+                    value={datosPago.pago_movil_telefono}
+                    onChange={(v) =>
+                      setDatosPago({ ...datosPago, pago_movil_telefono: v })
+                    }
+                    type="tel"
+                  />
+                  <InputPago
+                    label="Cédula / RIF"
+                    placeholder="Ej: V-12345678"
+                    value={datosPago.pago_movil_cedula}
+                    onChange={(v) =>
+                      setDatosPago({ ...datosPago, pago_movil_cedula: v })
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* ── Zelle ── */}
+              <div className="p-5 rounded-[2rem] border-2 border-purple-100 bg-purple-50/30 space-y-3">
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="p-2 bg-purple-500 text-white rounded-xl">
+                    <Zap size={16} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black uppercase text-slate-700">
+                      ⚡ Zelle
+                    </p>
+                    <p className="text-[9px] text-slate-400 font-medium">
+                      Correo o teléfono vinculado a Zelle
+                    </p>
+                  </div>
+                </div>
+                <InputPago
+                  label="Cuenta Zelle"
+                  placeholder="Ej: pagos@empresa.com o +1 234 567 8901"
+                  value={datosPago.zelle_cuenta}
+                  onChange={(v) =>
+                    setDatosPago({ ...datosPago, zelle_cuenta: v })
+                  }
+                />
+              </div>
+
+              {/* ── Transferencia bancaria ── */}
+              <div className="p-5 rounded-[2rem] border-2 border-slate-200 bg-slate-50/50 space-y-3">
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="p-2 bg-slate-600 text-white rounded-xl">
+                    <Banknote size={16} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black uppercase text-slate-700">
+                      🏦 Transferencia Bancaria
+                    </p>
+                    <p className="text-[9px] text-slate-400 font-medium">
+                      Banco, número de cuenta y titular
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <InputPago
+                    label="Banco"
+                    placeholder="Ej: Mercantil"
+                    value={datosPago.transferencia_banco}
+                    onChange={(v) =>
+                      setDatosPago({ ...datosPago, transferencia_banco: v })
+                    }
+                  />
+                  <InputPago
+                    label="Número de Cuenta"
+                    placeholder="Ej: 0105-0001-..."
+                    value={datosPago.transferencia_cuenta}
+                    onChange={(v) =>
+                      setDatosPago({ ...datosPago, transferencia_cuenta: v })
+                    }
+                  />
+                  <InputPago
+                    label="Titular"
+                    placeholder="Nombre completo o razón social"
+                    value={datosPago.transferencia_titular}
+                    onChange={(v) =>
+                      setDatosPago({ ...datosPago, transferencia_titular: v })
+                    }
+                  />
+                </div>
+              </div>
+
+              <p className="text-[9px] text-slate-400 font-bold px-1">
+                💡 Los campos vacíos simplemente no se mostrarán en el catálogo.
+                Solo llena los métodos que aceptas.
+              </p>
             </div>
           </div>
 
@@ -416,7 +606,6 @@ export default function PerfilEmpresa() {
                 <p className="text-[10px] text-slate-500 font-medium mb-4">
                   Activa solo las funciones que necesita tu tipo de negocio.
                 </p>
-
                 <div className="space-y-3">
                   {/* Módulo Gastos Fijos */}
                   <div
@@ -430,7 +619,7 @@ export default function PerfilEmpresa() {
                       <div
                         className={`p-2 rounded-xl ${configGlobal.modulo_gastos_fijos ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-400'}`}
                       >
-                        <GastosIcon size={16} />
+                        <Building2 size={16} />
                       </div>
                       <div>
                         <p className="text-[11px] font-black uppercase text-slate-700">
@@ -496,7 +685,6 @@ export default function PerfilEmpresa() {
                     />
                   </div>
 
-                  {/* Info contextual */}
                   {!configGlobal.modulo_recetas && (
                     <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl">
                       <p className="text-[9px] text-slate-400 font-bold">
@@ -505,8 +693,7 @@ export default function PerfilEmpresa() {
                           Sin recetas activas:
                         </span>{' '}
                         todos tus productos usarán el campo "Costo Unitario"
-                        directamente como costo de adquisición (ideal para
-                        tiendas de ropa, repuestos, tecnología, etc.).
+                        directamente.
                         {configGlobal.modulo_gastos_fijos &&
                           ' Los gastos fijos se seguirán distribuyendo sobre ese costo.'}
                       </p>
@@ -518,8 +705,7 @@ export default function PerfilEmpresa() {
                       <p className="text-[9px] text-emerald-700 font-bold">
                         🍳 <span className="font-black">Recetas activas:</span>{' '}
                         verás el tab "Insumos / Materias Primas" en el
-                        inventario y el botón de receta en cada producto de
-                        venta para definir sus ingredientes.
+                        inventario y el botón de receta en cada producto.
                       </p>
                     </div>
                   )}
