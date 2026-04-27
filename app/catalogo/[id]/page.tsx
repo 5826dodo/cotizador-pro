@@ -387,47 +387,64 @@ export default function CatalogoPublico({
       ]);
 
       // ── Construir mensaje WhatsApp ────────────────────────
+      // Texto plano con \n reales → encodeURIComponent al final
       const buildMensaje = (paraCliente = false) => {
         const titulo = paraCliente
           ? `✅ *Tu pedido en ${empresa.nombre.toUpperCase()} fue recibido*`
           : `🛒 *NUEVO PEDIDO - ${empresa.nombre.toUpperCase()}*`;
 
-        let msg = `${titulo}%0A`;
-        msg += `👤 *Cliente:* ${nombreCliente.toUpperCase()}%0A`;
-        if (telefonoCliente) msg += `📞 *Teléfono:* ${telefonoCliente}%0A`;
-        msg += `📦 *Entrega:* ${tipoEntrega === 'delivery' ? `Delivery → ${direccionCliente}` : 'Retiro en tienda'}%0A`;
-        msg += `💳 *Pago:* ${metodoLabel}%0A%0A`;
+        const lineas: string[] = [];
+        lineas.push(titulo);
+        lineas.push(`👤 *Cliente:* ${nombreCliente.toUpperCase()}`);
+        if (telefonoCliente) lineas.push(`📞 *Teléfono:* ${telefonoCliente}`);
+        lineas.push(
+          `📦 *Entrega:* ${tipoEntrega === 'delivery' ? `Delivery → ${direccionCliente}` : 'Retiro en tienda'}`,
+        );
+        lineas.push(`💳 *Pago:* ${metodoLabel}`);
+        lineas.push('');
 
         carrito.forEach((i) => {
           const subt = (i.precio * i.cant).toFixed(2);
           const subtBs = (i.precio * i.cant * tasa).toFixed(2);
-          msg += `• ${i.cant}x ${i.nombre}${i.descripcion ? ` (${i.descripcion})` : ''} — $${subt} / Bs.${subtBs}%0A`;
+          lineas.push(
+            `• ${i.cant}x ${i.nombre}${i.descripcion ? ` (${i.descripcion})` : ''} — $${subt} / Bs.${subtBs}`,
+          );
         });
 
-        msg += `%0A💵 *TOTAL USD:* *$${totalDolar.toFixed(2)}*%0A`;
-        msg += `💴 *TOTAL Bs.:* *Bs.${totalBs.toFixed(2)}* _(Tasa: ${tasa.toFixed(2)})_%0A`;
+        lineas.push('');
+        lineas.push(`💵 *TOTAL USD:* *$${totalDolar.toFixed(2)}*`);
+        lineas.push(
+          `💴 *TOTAL Bs.:* *Bs.${totalBs.toFixed(2)}* _(Tasa: ${tasa.toFixed(2)})_`,
+        );
 
         // Datos de pago según método seleccionado
         if (metodoPago === 'pago_movil' && empresa?.pago_movil_banco) {
-          msg += `%0A📱 *Datos Pago Móvil:*%0A`;
-          msg += `🏦 Banco: ${empresa.pago_movil_banco}%0A`;
-          msg += `📞 Teléfono: ${empresa.pago_movil_telefono}%0A`;
-          msg += `🪪 C.I./RIF: ${empresa.pago_movil_cedula}%0A`;
+          lineas.push('');
+          lineas.push(`📱 *Datos Pago Móvil:*`);
+          lineas.push(`🏦 Banco: ${empresa.pago_movil_banco}`);
+          lineas.push(`📞 Teléfono: ${empresa.pago_movil_telefono}`);
+          lineas.push(`🪪 C.I./RIF: ${empresa.pago_movil_cedula}`);
         }
         if (metodoPago === 'zelle' && empresa?.zelle_cuenta) {
-          msg += `%0A⚡ *Zelle:* ${empresa.zelle_cuenta}%0A`;
+          lineas.push('');
+          lineas.push(`⚡ *Zelle:* ${empresa.zelle_cuenta}`);
         }
         if (metodoPago === 'transferencia' && empresa?.transferencia_banco) {
-          msg += `%0A🏦 *Transferencia:*%0A`;
-          msg += `Banco: ${empresa.transferencia_banco}%0A`;
-          msg += `Cuenta: ${empresa.transferencia_cuenta}%0A`;
-          msg += `Titular: ${empresa.transferencia_titular}%0A`;
+          lineas.push('');
+          lineas.push(`🏦 *Transferencia:*`);
+          lineas.push(`Banco: ${empresa.transferencia_banco}`);
+          lineas.push(`Cuenta: ${empresa.transferencia_cuenta}`);
+          lineas.push(`Titular: ${empresa.transferencia_titular}`);
         }
 
-        if (!paraCliente) msg += `%0A_Enviado desde Ventiq_`;
-        else msg += `%0A_Gracias por tu compra 🎉_`;
+        lineas.push('');
+        lineas.push(
+          paraCliente ? `_Gracias por tu compra 🎉_` : `_Enviado desde Ventiq_`,
+        );
 
-        return msg;
+        // encodeURIComponent garantiza que emojis y caracteres especiales
+        // lleguen correctos a WhatsApp
+        return encodeURIComponent(lineas.join('\n'));
       };
 
       window.open(
