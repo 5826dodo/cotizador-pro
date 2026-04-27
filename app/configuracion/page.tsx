@@ -24,6 +24,36 @@ import {
   Smartphone,
 } from 'lucide-react';
 
+// ── Fuera del componente para evitar re-mount en cada render ──
+function InputPago({
+  label,
+  placeholder,
+  value,
+  onChange,
+  type = 'text',
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-[9px] font-black text-slate-400 uppercase ml-2 tracking-widest">
+        {label}
+      </label>
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-4 py-3 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-400 font-bold text-xs transition-all"
+      />
+    </div>
+  );
+}
+
 export default function PerfilEmpresa() {
   const router = useRouter();
   const supabase = createClient();
@@ -180,34 +210,6 @@ export default function PerfilEmpresa() {
     >
       {value ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
     </button>
-  );
-
-  // Helper para inputs dentro de sección de pago
-  const InputPago = ({
-    label,
-    placeholder,
-    value,
-    onChange,
-    type = 'text',
-  }: {
-    label: string;
-    placeholder: string;
-    value: string;
-    onChange: (v: string) => void;
-    type?: string;
-  }) => (
-    <div className="space-y-1">
-      <label className="text-[9px] font-black text-slate-400 uppercase ml-2 tracking-widest">
-        {label}
-      </label>
-      <input
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full px-4 py-3 bg-white border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-400 font-bold text-xs transition-all"
-      />
-    </div>
   );
 
   return (
