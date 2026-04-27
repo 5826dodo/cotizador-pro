@@ -241,7 +241,7 @@ export default function HistorialPage() {
           monto_usd: usdAFinal,
           tasa_aplicada: tasaDia || cot.tasa_bcv,
           observacion: tipo,
-          created_at: new Date().toISOString(),
+          created_at: new Date().toLocaleString('sv-SE').replace(' ', 'T'),
         },
       ]);
       const nuevoTotalPagado = (cot.monto_pagado || 0) + usdEquivalente;

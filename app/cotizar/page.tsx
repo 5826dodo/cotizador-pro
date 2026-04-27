@@ -802,7 +802,7 @@ export default function CotizarPage() {
             productos_seleccionados: carrito,
             total,
             empresa_id: miEmpresaId,
-            created_at: new Date().toISOString(),
+            created_at: new Date().toLocaleString('sv-SE').replace(' ', 'T'),
             estado: esVenta ? 'aprobado' : 'pendiente',
             tipo_operacion: tipoOperacion,
             estado_pago: esVenta
