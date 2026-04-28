@@ -25,8 +25,18 @@ const toLocalISODate = (d: Date) => {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 };
-const startOfDay = (s: string) => `${s}T00:00:00.000Z`;
-const endOfDay = (s: string) => `${s}T23:59:59.999Z`;
+const startOfDay = (s: string) => {
+  // Creamos la fecha en hora local (sin la Z)
+  const d = new Date(`${s}T00:00:00`);
+  // .toISOString() la convertirá a UTC correctamente para Supabase
+  return d.toISOString();
+};
+
+const endOfDay = (s: string) => {
+  // Creamos la fecha en hora local de fin de día
+  const d = new Date(`${s}T23:59:59.999`);
+  return d.toISOString();
+};
 
 export default function HistorialPage() {
   // ── Estados ───────────────────────────────────────────────
@@ -241,7 +251,6 @@ export default function HistorialPage() {
           monto_usd: usdAFinal,
           tasa_aplicada: tasaDia || cot.tasa_bcv,
           observacion: tipo,
-          created_at: new Date().toLocaleString('sv-SE').replace(' ', 'T'),
         },
       ]);
       const nuevoTotalPagado = (cot.monto_pagado || 0) + usdEquivalente;
