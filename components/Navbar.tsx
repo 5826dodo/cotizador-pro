@@ -15,6 +15,8 @@ import {
   Power,
   RefreshCw,
   LayoutGrid,
+  AlertTriangle,
+  MessageCircle,
 } from 'lucide-react';
 
 export default function Navbar() {
@@ -30,11 +32,20 @@ export default function Navbar() {
   const [monedaConfig, setMonedaConfig] = useState<'BS' | 'EUR'>('BS');
   const [configIncompleta, setConfigIncompleta] = useState(false);
 
-  // Función para obtener la tasa según la moneda (USD o EUR)
+  // NUEVO: Estado para rastrear el ID de la empresa actual
+  const [empresaIdActual, setEmpresaIdActual] = useState<string | null>(null);
+
+  // ⚠️ REEMPLAZA ESTE TEXTO CON EL ID REAL DE TU EMPRESA DEMO DESDE SUPABASE
+  const ID_EMPRESA_DEMO = 'e1fa2804-b906-4478-9d73-c1e40c476014';
+  const esCuentaDemo = empresaIdActual === ID_EMPRESA_DEMO;
+
+  // Enlace directo a tu WhatsApp con el mensaje personalizado preestablecido
+  const LINK_WHATSAPP_REAL =
+    'https://wa.me/584123423002?text=Hola!%20Prob%C3%A9%20la%20demo%20de%20Ventiq%20y%20me%20gustar%C3%ADa%20solicitar%20informaci%C3%B3n%20para%20crear%20una%20cuenta%20real%20para%20mi%20negocio.';
+
   const obtenerTasa = async (moneda: string) => {
     setCargandoTasa(true);
     try {
-      // CAMBIO AQUÍ: Endpoint diferente para Euro y Dólar
       const url =
         moneda === 'EUR'
           ? 'https://ve.dolarapi.com/v1/euros/oficial'
@@ -43,7 +54,6 @@ export default function Navbar() {
       const res = await fetch(url);
       const data = await res.json();
 
-      // Ambas devuelven el campo 'promedio'
       if (data && data.promedio) {
         setTasa(data.promedio);
       }
@@ -65,48 +75,51 @@ export default function Navbar() {
           .from('perfiles')
           .select(
             `
-        rol, 
-        empresas (
-          nombre, 
-          rif, 
-          moneda_secundaria, 
-          configuracion_inicial
-        )
-      `,
+            rol, 
+            empresa_id,
+            empresas (
+              id,
+              nombre, 
+              rif, 
+              moneda_secundaria, 
+              configuracion_inicial
+            )
+            `,
           )
           .eq('id', user.id)
           .single();
 
-        if (perfil && perfil.empresas) {
+        if (perfil) {
           setRol(perfil.rol);
 
-          // EXPLICACIÓN: Supabase devuelve empresas como un array.
-          // Usamos type casting (as any) o accedemos al índice [0]
-          const datosEmpresa = Array.isArray(perfil.empresas)
-            ? perfil.empresas[0]
-            : perfil.empresas;
+          // Guardamos el ID de la empresa directamente del perfil
+          if (perfil.empresa_id) {
+            setEmpresaIdActual(perfil.empresa_id);
+          }
 
-          if (datosEmpresa) {
-            // 1. Detectar moneda
-            const moneda = datosEmpresa.moneda_secundaria || 'BS';
-            setMonedaConfig(moneda as 'BS' | 'EUR');
+          if (perfil.empresas) {
+            const datosEmpresa = Array.isArray(perfil.empresas)
+              ? perfil.empresas[0]
+              : perfil.empresas;
 
-            // 2. Cargar la tasa correspondiente
-            obtenerTasa(moneda);
+            if (datosEmpresa) {
+              const moneda = datosEmpresa.moneda_secundaria || 'BS';
+              setMonedaConfig(moneda as 'BS' | 'EUR');
+              obtenerTasa(moneda);
 
-            // 3. Verificar si falta configuración básica
-            const incompleto =
-              !datosEmpresa.nombre ||
-              !datosEmpresa.rif ||
-              !datosEmpresa.configuracion_inicial;
+              const incompleto =
+                !datosEmpresa.nombre ||
+                !datosEmpresa.rif ||
+                !datosEmpresa.configuracion_inicial;
 
-            setConfigIncompleta(incompleto);
+              setConfigIncompleta(incompleto);
+            }
           }
         }
       }
     }
     getUserData();
-  }, [supabase, pathname]); // Re-validamos al cambiar de ruta para actualizar el punto rojo
+  }, [supabase, pathname]);
 
   const handleLogout = async () => {
     if (confirm('¿Cerrar sesión ahora?')) {
@@ -120,7 +133,7 @@ export default function Navbar() {
 
   const links = [
     { name: 'Stock', href: '/', icon: Package },
-    { name: 'Categorías', href: '/dashboard/categorias', icon: LayoutGrid }, // <-- NUEVO LINK
+    { name: 'Categorías', href: '/dashboard/categorias', icon: LayoutGrid },
     { name: 'Clientes', href: '/clientes', icon: Users },
     { name: 'Venta|Cotizar', href: '/cotizar', icon: FileEdit },
     { name: 'Historial', href: '/historial', icon: History },
@@ -129,6 +142,31 @@ export default function Navbar() {
 
   return (
     <>
+      {/* --- BANNER DEMO SUPERIOR (DESKTOP) --- */}
+      {esCuentaDemo && (
+        <div className="hidden md:flex bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 text-white px-6 py-2.5 justify-between items-center text-xs font-bold shadow-md relative z-50 border-b border-orange-400">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={16} className="animate-pulse text-amber-100" />
+            <span>
+              ESTÁS EN UNA CUENTA DEMO PÚBLICA.{' '}
+              <span className="font-normal opacity-90">
+                Los datos ingresados se borran de forma automática cada 24
+                horas.
+              </span>
+            </span>
+          </div>
+          <a
+            href={LINK_WHATSAPP_REAL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white text-orange-600 px-4 py-1 rounded-full uppercase text-[10px] tracking-widest font-black shadow-sm hover:bg-slate-50 transition-all flex items-center gap-1.5"
+          >
+            <MessageCircle size={12} fill="currentColor" />
+            Solicitar Cuenta Real
+          </a>
+        </div>
+      )}
+
       {/* --- DISEÑO DESKTOP --- */}
       <nav className="hidden md:block bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6">
@@ -224,11 +262,27 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* --- DISEÑO MOBILE (TAB BAR) --- */}
+      {/* --- BANNER DEMO SUPERIOR (MOBILE) --- */}
+      {esCuentaDemo && (
+        <div className="md:hidden bg-gradient-to-r from-orange-500 to-amber-500 text-white px-4 py-2 flex flex-col gap-1.5 items-center justify-center text-center text-[10px] font-bold shadow-sm relative z-50">
+          <p className="leading-tight">
+            ⚠️ DEMO PÚBLICA (LOS DATOS SE LIMPIAN CADA 24H)
+          </p>
+          <a
+            href={LINK_WHATSAPP_REAL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white text-orange-600 font-black px-3 py-0.5 rounded-full uppercase text-[8px] tracking-wider"
+          >
+            Solicitar Cuenta Real 🚀
+          </a>
+        </div>
+      )}
 
+      {/* --- DISEÑO MOBILE (TAB BAR) --- */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#1A1D23] border-t border-white/5 z-[100] pb-safe shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
         <div className="flex items-center h-16 px-4 overflow-x-auto scrollbar-hide gap-6">
-          {/* NUEVO: Widget de Tasa dentro del scroll del menú */}
+          {/* Widget de Tasa dentro del scroll del menú */}
           <div className="flex flex-col items-center justify-center min-w-[70px] h-full border-r border-white/10 pr-4">
             <span className="text-[7px] font-black text-[#FF9800] uppercase tracking-tighter leading-none">
               {monedaConfig === 'EUR' ? 'EUR' : 'BCV'}
@@ -264,7 +318,6 @@ export default function Navbar() {
                   className={`text-[8px] font-black mt-1.5 uppercase tracking-widest ${isActive ? 'text-white' : 'text-slate-500'}`}
                 >
                   {link.name.split('|')[0]}{' '}
-                  {/* Acortamos nombres largos para móvil */}
                 </span>
               </Link>
             );
